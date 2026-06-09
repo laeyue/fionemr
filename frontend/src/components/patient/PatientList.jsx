@@ -11,11 +11,13 @@ const PatientList = () => {
   const [patients, setPatients] = useState([]);
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [letterFilter, setLetterFilter] = useState('');
+  
+  // Section-First Navigation State
+  const [sectionQuery, setSectionQuery] = useState('');
+  const [selectedSection, setSelectedSection] = useState('');
+  const [nameLetterFilter, setNameLetterFilter] = useState('');
+  
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    setSearch(searchParams.get('search') || '');
-  }, [searchParams]);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -27,6 +29,7 @@ const PatientList = () => {
     status: 'Active',
     date_of_birth: '',
     grade_level: '',
+    graduation_year: '',
     allergies: '',
     chronic_conditions: '',
     emergency_contact_name: '',
@@ -39,7 +42,8 @@ const PatientList = () => {
   const fetchPatients = async () => {
     try {
       setIsLoading(true);
-      const res = await api.getPatients({ search, letter: letterFilter });
+      // Fetch all patients so client-side filtering is instantaneous
+      const res = await api.getPatients();
       if (res && res.data) {
         setPatients(res.data);
       }
@@ -52,7 +56,7 @@ const PatientList = () => {
 
   useEffect(() => {
     fetchPatients();
-  }, [search, letterFilter]);
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -95,6 +99,7 @@ const PatientList = () => {
           status: 'Active',
           date_of_birth: '',
           grade_level: '',
+          graduation_year: '',
           allergies: '',
           chronic_conditions: '',
           emergency_contact_name: '',
@@ -108,7 +113,42 @@ const PatientList = () => {
     }
   };
 
-  const filtered = patients; // The API does the filtering for us, but fallback on client just in case
+  // Get unique sections
+  const uniqueSections = Array.from(new Set(patients.map(p => p.section).filter(Boolean))).sort();
+
+  // Filter sections matching sectionQuery
+  const sectionSuggestions = sectionQuery.trim()
+    ? uniqueSections.filter(sec => sec.toLowerCase().startsWith(sectionQuery.toLowerCase()))
+    : [];
+
+  // Filter patients based on selection or search parameters
+  const getFilteredPatients = () => {
+    let list = [...patients];
+
+    if (selectedSection) {
+      // Filter by section first
+      list = list.filter(p => p.section === selectedSection);
+
+      // Filter by first letter of student name inside this section
+      if (nameLetterFilter) {
+        list = list.filter(p => p.name.toUpperCase().startsWith(nameLetterFilter.toUpperCase()));
+      }
+    } else {
+      // General search filtering
+      if (search.trim()) {
+        const query = search.toLowerCase();
+        list = list.filter(p => p.name.toLowerCase().includes(query) || p.id.toString().includes(query));
+      }
+      if (letterFilter) {
+        list = list.filter(p => p.name.toUpperCase().startsWith(letterFilter.toUpperCase()));
+      }
+    }
+
+    // Sort alphabetically by name
+    return list.sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  const filtered = getFilteredPatients();
 
   return (
     <div className="page-patients anim-fade-up">
@@ -125,27 +165,114 @@ const PatientList = () => {
 
       {/* Filters */}
       <div className="card filter-card anim-fade-up delay-1">
-        <div className="filter-row">
-          <div className="search-box">
-            <Search size={16} className="text-muted" />
-            <input
-              type="text"
-              className="search-inner"
-              placeholder="Search by name or patient ID..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+        <div className="filter-navigation-split" style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+          
+          {/* Column 1: Section-First Navigation */}
+          <div className="filter-section-nav" style={{ flex: 1, minWidth: 280 }}>
+            <span className="filter-sec-label" style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--gray-500)', marginBottom: 8 }}>
+              Section-First Navigation (Dynamic Filter)
+            </span>
+            <div className="search-box">
+              <Search size={16} className="text-muted" />
+              <input
+                type="text"
+                className="search-inner"
+                placeholder="Type letter of classroom / grade... (e.g. S, G)"
+                value={sectionQuery}
+                onChange={(e) => {
+                  setSectionQuery(e.target.value);
+                  setSelectedSection(''); // Reset selection on typing
+                  setNameLetterFilter('');
+                }}
+              />
+            </div>
+
+            {/* Section Suggestions */}
+            {sectionSuggestions.length > 0 && (
+              <div className="section-suggestions-dropdown" style={{ marginTop: 8, background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-md)', padding: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {sectionSuggestions.map(sec => (
+                  <button
+                    key={sec}
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    style={{ justifyContent: 'flex-start', textAlign: 'left', width: '100%', padding: '6px 10px' }}
+                    onClick={() => {
+                      setSelectedSection(sec);
+                      setSectionQuery('');
+                      setNameLetterFilter('');
+                    }}
+                  >
+                    🏫 {sec}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {selectedSection && (
+              <div className="active-section-badge" style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--primary-light)', color: 'var(--primary)', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
+                <span>Selected Class: {selectedSection}</span>
+                <button 
+                  type="button" 
+                  style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', display: 'flex', padding: 0 }}
+                  onClick={() => {
+                    setSelectedSection('');
+                    setNameLetterFilter('');
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Column 2: Global Search (Only active if no section selected) */}
+          {!selectedSection && (
+            <div className="filter-global-search" style={{ flex: 1, minWidth: 280 }}>
+              <span className="filter-sec-label" style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--gray-500)', marginBottom: 8 }}>
+                Or Search Globally
+              </span>
+              <div className="search-box">
+                <Search size={16} className="text-muted" />
+                <input
+                  type="text"
+                  className="search-inner"
+                  placeholder="Search globally by name or ID..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
         </div>
-        <div className="alpha-strip">
-          <button className={`alpha-btn ${letterFilter === '' ? 'active' : ''}`} onClick={() => setLetterFilter('')}>All</button>
-          {alphabet.map(letter => (
-            <button
-              key={letter}
-              className={`alpha-btn ${letterFilter === letter ? 'active' : ''}`}
-              onClick={() => setLetterFilter(letterFilter === letter ? '' : letter)}
-            >{letter}</button>
-          ))}
+
+        {/* Alphabetical Quick-List selection */}
+        <div className="alpha-strip" style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--gray-100)' }}>
+          <span className="alpha-strip-label" style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-400)', marginRight: 10 }}>
+            {selectedSection ? `Filter student in ${selectedSection}:` : 'Filter student by Name letter (Global):'}
+          </span>
+          <div className="alpha-buttons-container" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+            <button 
+              className={`alpha-btn ${selectedSection ? (nameLetterFilter === '' ? 'active' : '') : (letterFilter === '' ? 'active' : '')}`} 
+              onClick={() => selectedSection ? setNameLetterFilter('') : setLetterFilter('')}
+            >
+              All
+            </button>
+            {alphabet.map(letter => (
+              <button
+                key={letter}
+                className={`alpha-btn ${selectedSection ? (nameLetterFilter === letter ? 'active' : '') : (letterFilter === letter ? 'active' : '')}`}
+                onClick={() => {
+                  if (selectedSection) {
+                    setNameLetterFilter(nameLetterFilter === letter ? '' : letter);
+                  } else {
+                    setLetterFilter(letterFilter === letter ? '' : letter);
+                  }
+                }}
+              >
+                {letter}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -313,6 +440,21 @@ const PatientList = () => {
                     <option value="Recovered">Recovered</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label className="form-label">Graduation Year</label>
+                  <input
+                    type="number"
+                    name="graduation_year"
+                    className="form-input"
+                    value={formData.graduation_year}
+                    onChange={handleInputChange}
+                    placeholder="e.g. 2028"
+                  />
+                </div>
+                <div className="form-group" style={{ visibility: 'hidden' }}></div>
               </div>
 
               <h4 style={{ margin: '16px 0 12px', fontSize: 'var(--text-sm)' }}>Medical Information</h4>

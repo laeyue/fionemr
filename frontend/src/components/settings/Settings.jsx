@@ -29,12 +29,59 @@ const SettingsPage = () => {
   const [mfaCode, setMfaCode] = useState(['', '', '', '', '', '']);
   const mfaRefs = useRef([]);
 
+  // Data Retention & Purging / Automated parent alerts
+  const [purgeYears, setPurgeYears] = useState('5');
+  const [purgeSuccess, setPurgeSuccess] = useState('');
+  const [purgeError, setPurgeError] = useState('');
+  const [notifications, setNotifications] = useState([]);
+  const [isLoadingNotifs, setIsLoadingNotifs] = useState(false);
+
+  const fetchNotifications = async () => {
+    setIsLoadingNotifs(true);
+    try {
+      const res = await api.getSimulatedNotifications();
+      if (res && res.data) {
+        setNotifications(res.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch notifications log:", err);
+    } finally {
+      setIsLoadingNotifs(false);
+    }
+  };
+
+  const handlePurgeGraduates = async (e) => {
+    e.preventDefault();
+    setPurgeSuccess('');
+    setPurgeError('');
+    if (!purgeYears || isNaN(purgeYears)) return;
+    
+    if (!window.confirm(`Warning: This action will permanently delete all student patient charts who graduated ${purgeYears} or more years ago. This action is irreversible. Proceed?`)) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await api.purgeGraduates(parseInt(purgeYears));
+      setPurgeSuccess(res.message || 'Records successfully purged.');
+    } catch (err) {
+      setPurgeError(err.message || 'Failed to purge graduate records.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Clear messages when tab changes
   useEffect(() => {
     setError('');
     setSuccess('');
     setMfaSetupStep('none');
+    setPurgeSuccess('');
+    setPurgeError('');
     clearPasswordFields();
+    if (activeTab === 'compliance') {
+      fetchNotifications();
+    }
   }, [activeTab]);
 
   const clearPasswordFields = () => {
@@ -542,6 +589,77 @@ const SettingsPage = () => {
                       <h3>Secure Data Backup</h3>
                       <p>Passed. System backups are generated automatically every 24 hours. Disaster recovery procedures are tested and active.</p>
                     </div>
+                  </div>
+                </div>
+
+                {/* Data Retention & Purging Section */}
+                <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--gray-200)' }}>
+                  <h3 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <ClipboardList size={18} style={{ color: 'var(--primary)' }} /> Data Retention Controller
+                  </h3>
+                  <p className="text-muted" style={{ fontSize: 'var(--text-sm)', marginBottom: '16px' }}>
+                    Compliance guidelines require archiving or purging old student health records after graduation to ensure DPA compliance.
+                  </p>
+
+                  {user?.role === 'admin' ? (
+                    <form onSubmit={handlePurgeGraduates} style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap', maxWidth: '520px', background: 'var(--gray-50)', padding: 16, borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray-200)' }}>
+                      <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+                        <label className="form-label">Purge Graduation Threshold (Years) *</label>
+                        <input 
+                          type="number" 
+                          className="form-input" 
+                          min="1" 
+                          required 
+                          value={purgeYears} 
+                          onChange={(e) => setPurgeYears(e.target.value)} 
+                        />
+                      </div>
+                      <button type="submit" className="btn btn-primary" style={{ height: '42px' }} disabled={isLoading}>
+                        {isLoading ? <Loader2 size={16} className="spin" /> : 'Run Purge'}
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="form-error" style={{ background: '#fef2f2', border: '1px solid #fee2e2', color: '#b91c1c', padding: 12, borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', display: 'inline-block' }}>
+                      ⚠️ Access Restricted: Only system administrators can trigger data purging.
+                    </div>
+                  )}
+
+                  {purgeSuccess && <div className="form-success" style={{ marginTop: 12 }}>{purgeSuccess}</div>}
+                  {purgeError && <div className="form-error" style={{ marginTop: 12 }}>{purgeError}</div>}
+                </div>
+
+                {/* Automated Parent Notifications Log */}
+                <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--gray-200)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+                      <Smartphone size={18} style={{ color: 'var(--primary)' }} /> Automated Parent Alerts Console
+                    </h3>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={fetchNotifications} disabled={isLoadingNotifs}>
+                      {isLoadingNotifs ? <Loader2 size={14} className="spin" /> : 'Refresh Logs'}
+                    </button>
+                  </div>
+                  <p className="text-muted" style={{ fontSize: 'var(--text-sm)', marginBottom: '16px' }}>
+                    Simulated delivery log of automated SMS alerts sent to parents/guardians upon clinic check-ins or medication orders.
+                  </p>
+
+                  <div className="notifications-simulation-console" style={{ background: '#0f172a', color: '#38bdf8', fontFamily: 'monospace', padding: 16, borderRadius: 'var(--radius-lg)', maxHeight: 240, overflowY: 'auto', fontSize: 11, border: '1px solid var(--gray-700)' }}>
+                    {notifications.length > 0 ? (
+                      notifications.map(n => (
+                        <div key={n.id} style={{ marginBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', fontSize: 9 }}>
+                            <span>[ALERT ROUTED] Recipient: {n.recipient} via {n.type}</span>
+                            <span>{new Date(n.sent_at).toLocaleString()}</span>
+                          </div>
+                          <div style={{ marginTop: 4, color: '#f8fafc', whiteSpace: 'pre-wrap' }}>
+                            {n.message}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>
+                        &gt;&gt; No automated notifications sent yet. Check in a patient or execute a medication order to trigger alerts.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

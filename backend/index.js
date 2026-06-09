@@ -89,6 +89,7 @@ let localPatients = [
     emergency_contact_name: 'Jane Doe', 
     emergency_contact_phone: '555-0199', 
     emergency_contact_relationship: 'Mother', 
+    graduation_year: 2028,
     created_at: new Date(Date.now() - 7200000).toISOString() 
   },
   { 
@@ -106,6 +107,7 @@ let localPatients = [
     emergency_contact_name: 'Robert Smith', 
     emergency_contact_phone: '555-0244', 
     emergency_contact_relationship: 'Father', 
+    graduation_year: 2030,
     created_at: new Date(Date.now() - 3600000).toISOString() 
   }
 ];
@@ -134,11 +136,21 @@ let localOrders = [
 ];
 
 let localVisitLogs = [
-  { id: 'l1', patient_id: 1023, event_type: 'Check-in', details: 'Checked in due to difficulty breathing.', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'l2', patient_id: 1023, event_type: 'Vitals Recorded', details: 'Temp: 37.2°C, HR: 82 bpm, BP: 115/75, O₂: 98%', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'l3', patient_id: 1023, event_type: 'Clinical Note Added', details: 'SOAP Note saved by Dr. Test', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'l4', patient_id: 1023, event_type: 'Medication Ordered', details: 'Salbutamol 2 puffs via inhaled route', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'l5', patient_id: 4091, event_type: 'Check-in', details: 'Checked in for routine immunization review.', created_at: new Date(Date.now() - 3600000).toISOString() }
+  { id: 'l1', patient_id: 1023, event_type: 'Check-in', details: 'Checked in due to difficulty breathing.', performed_by: 'dev@fiona.com', created_at: new Date(Date.now() - 7200000).toISOString() },
+  { id: 'l2', patient_id: 1023, event_type: 'Vitals Recorded', details: 'Temp: 37.2°C, HR: 82 bpm, BP: 115/75, O₂: 98%', performed_by: 'dev@fiona.com', created_at: new Date(Date.now() - 7200000).toISOString() },
+  { id: 'l3', patient_id: 1023, event_type: 'Clinical Note Added', details: 'SOAP Note saved by Dr. Test', performed_by: 'dev@fiona.com', created_at: new Date(Date.now() - 7200000).toISOString() },
+  { id: 'l4', patient_id: 1023, event_type: 'Medication Ordered', details: 'Salbutamol 2 puffs via inhaled route', performed_by: 'dev@fiona.com', created_at: new Date(Date.now() - 7200000).toISOString() },
+  { id: 'l5', patient_id: 4091, event_type: 'Check-in', details: 'Checked in for routine immunization review.', performed_by: 'dev@fiona.com', created_at: new Date(Date.now() - 3600000).toISOString() }
+];
+
+let localParentalConsents = [
+  { id: 'c1', patient_id: 1023, consent_type: 'Medication', document_name: 'consent_john_doe.pdf', parent_name: 'Jane Doe', date_granted: '2026-06-08', notes: 'Allowed stock medications for fever and asthma.', created_at: new Date(Date.now() - 7200000).toISOString() }
+];
+
+let localExcuseSlips = [];
+
+let simulatedNotifications = [
+  { id: 'n1', patient_id: 1023, recipient: 'Jane Doe (555-0199)', type: 'SMS', message: 'Hi Jane, John Doe has checked into the school clinic at 2:31 PM. Reason: checked in due to difficulty breathing.', sent_at: new Date(Date.now() - 7200000).toISOString() }
 ];
 
 let nextPatientId = 4092;
@@ -146,6 +158,61 @@ let nextPatientId = 4092;
 // Password Hashing Utility
 const hashPassword = (password) => {
   return crypto.createHash('sha256').update(password).digest('hex');
+};
+
+const getPractitioner = (req) => {
+  return {
+    email: req.headers['x-user-email'] || 'dev@fiona.com',
+    role: (req.headers['x-user-role'] || 'physician').toLowerCase(),
+    name: req.headers['x-user-name'] || 'Developer Tester'
+  };
+};
+
+const triggerParentNotification = async (patientId, message) => {
+  try {
+    let parentName = 'Guardian';
+    let contactPhone = 'Unknown';
+    let patientName = 'Student';
+
+    if (!useFallback) {
+      const { data: p } = await supabase.from('patients').select('name, emergency_contact_name, emergency_contact_phone').eq('id', patientId).maybeSingle();
+      if (p) {
+        parentName = p.emergency_contact_name || 'Guardian';
+        contactPhone = p.emergency_contact_phone || 'Unknown';
+        patientName = p.name || 'Student';
+      }
+    } else {
+      const p = localPatients.find(x => x.id === patientId);
+      if (p) {
+        parentName = p.emergency_contact_name || 'Guardian';
+        contactPhone = p.emergency_contact_phone || 'Unknown';
+        patientName = p.name || 'Student';
+      }
+    }
+
+    const formattedMessage = `Hi ${parentName}, alert for ${patientName}: ${message}`;
+
+    // Add to our simulated notifications array
+    const newNotif = {
+      id: 'n_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+      patient_id: patientId,
+      recipient: `${parentName} (${contactPhone})`,
+      type: 'SMS/Email',
+      message: formattedMessage,
+      sent_at: new Date().toISOString()
+    };
+    simulatedNotifications.push(newNotif);
+
+    // Highlight in backend logs
+    console.log('\n┌────────────────────────────────────────────────────────┐');
+    console.log(`│ [SMS/EMAIL GATEWAY] Notification Sent to:             │`);
+    console.log(`│ Recipient: ${newNotif.recipient.padEnd(43)} │`);
+    console.log(`│ Message: ${newNotif.message.substring(0, 45).padEnd(45)}... │`);
+    console.log('└────────────────────────────────────────────────────────┘\n');
+
+  } catch (err) {
+    console.error('[NOTIFICATIONS] Failed to trigger parent notification:', err.message);
+  }
 };
 
 // Basic Health Route
@@ -706,8 +773,15 @@ app.get('/api/patients', async (req, res) => {
 
 // Patients Route: Register New Patient
 app.post('/api/patients', async (req, res) => {
-  const { name, section, age, gender, status, status_color, date_of_birth, grade_level, allergies, chronic_conditions, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship } = req.body;
+  const { name, section, age, gender, status, status_color, date_of_birth, grade_level, allergies, chronic_conditions, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, graduation_year } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
+
+  const practitioner = getPractitioner(req);
+  if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
+    return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot register new patients.' });
+  }
+
+  const gradYearParsed = graduation_year ? parseInt(graduation_year) : null;
 
   if (!useFallback) {
     try {
@@ -717,7 +791,8 @@ app.post('/api/patients', async (req, res) => {
         grade_level: grade_level || null,
         allergies: allergies || 'None',
         chronic_conditions: chronic_conditions || 'None',
-        emergency_contact_name, emergency_contact_phone, emergency_contact_relationship
+        emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
+        graduation_year: gradYearParsed
       }]).select();
       if (error) throw error;
       const newPatient = data[0];
@@ -740,8 +815,12 @@ app.post('/api/patients', async (req, res) => {
       await supabase.from('visit_logs').insert([{
         patient_id: newPatient.id,
         event_type: 'Check-in',
-        details: 'Patient registered and checked in.'
+        details: 'Patient registered and checked in.',
+        performed_by: practitioner.email
       }]);
+
+      // Trigger Simulated Parent Notification
+      triggerParentNotification(newPatient.id, 'registered and checked into the school clinic.');
 
       return res.json({ data: newPatient });
     } catch (err) {
@@ -758,6 +837,7 @@ app.post('/api/patients', async (req, res) => {
     allergies: allergies || 'None',
     chronic_conditions: chronic_conditions || 'None',
     emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
+    graduation_year: gradYearParsed,
     created_at: new Date().toISOString()
   };
   localPatients.push(newPatient);
@@ -784,15 +864,26 @@ app.post('/api/patients', async (req, res) => {
     patient_id: newPatient.id,
     event_type: 'Check-in',
     details: 'Patient registered and checked in.',
+    performed_by: practitioner.email,
     created_at: new Date().toISOString()
   });
+
+  // Trigger Simulated Parent Notification
+  triggerParentNotification(newPatient.id, 'registered and checked into the school clinic.');
+
   res.json({ data: newPatient });
 });
 
-// Patients Route: Fetch Detail (Demographics + Vitals + SOAP + Orders + Logs + Immunizations)
+// Patients Route: Fetch Detail (Demographics + Vitals + SOAP + Orders + Logs + Immunizations + Consents + Excuse Slips)
 app.get('/api/patients/:id', async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid patient ID' });
+
+  const practitioner = getPractitioner(req);
+  const isRestrictedRole = practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor';
+
+  // Audit Log: Record Viewed
+  const auditDetails = `Patient record viewed by ${practitioner.name} (${practitioner.role})${isRestrictedRole ? ' [REDACTED VIEW]' : ''}`;
 
   if (!useFallback) {
     try {
@@ -800,20 +891,58 @@ app.get('/api/patients/:id', async (req, res) => {
       if (pError) throw pError;
       if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-      const { data: vitals } = await supabase.from('vitals').select('*').eq('patient_id', id).order('recorded_at', { ascending: false });
-      const { data: soapNotes } = await supabase.from('soap_notes').select('*').eq('patient_id', id).order('created_at', { ascending: false });
-      const { data: orders } = await supabase.from('medication_orders').select('*').eq('patient_id', id).order('created_at', { ascending: false });
-      const { data: logs } = await supabase.from('visit_logs').select('*').eq('patient_id', id).order('created_at', { ascending: false });
-      const { data: immunizations } = await supabase.from('immunizations').select('*').eq('patient_id', id).order('vaccine_name', { ascending: true });
+      // Log the view action
+      await supabase.from('visit_logs').insert([{
+        patient_id: id,
+        event_type: 'Record Viewed',
+        details: auditDetails,
+        performed_by: practitioner.email
+      }]);
+
+      let vitals = [];
+      let soapNotes = [];
+      let orders = [];
+      let immunizations = [];
+      let consents = [];
+      let logs = [];
+
+      // Fetch excuse slips (accessible to all roles for verification)
+      const { data: excuseSlips } = await supabase.from('excuse_slips').select('*').eq('patient_id', id).order('created_at', { ascending: false });
+
+      if (!isRestrictedRole) {
+        const { data: vData } = await supabase.from('vitals').select('*').eq('patient_id', id).order('recorded_at', { ascending: false });
+        const { data: sData } = await supabase.from('soap_notes').select('*').eq('patient_id', id).order('created_at', { ascending: false });
+        const { data: oData } = await supabase.from('medication_orders').select('*').eq('patient_id', id).order('created_at', { ascending: false });
+        const { data: iData } = await supabase.from('immunizations').select('*').eq('patient_id', id).order('vaccine_name', { ascending: true });
+        const { data: cData } = await supabase.from('parental_consents').select('*').eq('patient_id', id).order('created_at', { ascending: false });
+        const { data: lData } = await supabase.from('visit_logs').select('*').eq('patient_id', id).order('created_at', { ascending: false });
+
+        vitals = vData || [];
+        soapNotes = sData || [];
+        orders = oData || [];
+        immunizations = iData || [];
+        consents = cData || [];
+        logs = lData || [];
+      } else {
+        // Teachers/counselors can only see their own view action and general excuse logs
+        const { data: lData } = await supabase.from('visit_logs').select('*').eq('patient_id', id).eq('event_type', 'Check-in').order('created_at', { ascending: false });
+        logs = lData || [];
+        
+        // Redact patient medical details
+        patient.allergies = 'Restricted View';
+        patient.chronic_conditions = 'Restricted View';
+      }
 
       return res.json({
         data: {
           ...patient,
-          vitals: vitals || [],
-          soapNotes: soapNotes || [],
-          orders: orders || [],
-          logs: logs || [],
-          immunizations: immunizations || []
+          vitals,
+          soapNotes,
+          orders,
+          logs,
+          immunizations,
+          consents,
+          excuseSlips: excuseSlips || []
         }
       });
     } catch (err) {
@@ -822,13 +951,40 @@ app.get('/api/patients/:id', async (req, res) => {
   }
 
   // Fallback DB
-  const patient = localPatients.find(p => p.id === id);
-  if (!patient) return res.status(404).json({ error: 'Patient not found' });
-  const vitals = localVitals.filter(v => v.patient_id === id).sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
-  const soapNotes = localSoapNotes.filter(s => s.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  const orders = localOrders.filter(o => o.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  const logs = localVisitLogs.filter(l => l.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  const immunizations = localImmunizations.filter(i => i.patient_id === id).sort((a, b) => a.vaccine_name.localeCompare(b.vaccine_name));
+  const patient = { ...localPatients.find(p => p.id === id) };
+  if (!patient.id) return res.status(404).json({ error: 'Patient not found' });
+
+  // Log view action in fallback store
+  localVisitLogs.push({
+    id: 'l_' + Date.now(),
+    patient_id: id,
+    event_type: 'Record Viewed',
+    details: auditDetails,
+    performed_by: practitioner.email,
+    created_at: new Date().toISOString()
+  });
+
+  let vitals = [];
+  let soapNotes = [];
+  let orders = [];
+  let immunizations = [];
+  let consents = [];
+  let logs = [];
+  const excuseSlips = localExcuseSlips.filter(e => e.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  if (!isRestrictedRole) {
+    vitals = localVitals.filter(v => v.patient_id === id).sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+    soapNotes = localSoapNotes.filter(s => s.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    orders = localOrders.filter(o => o.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    immunizations = localImmunizations.filter(i => i.patient_id === id).sort((a, b) => a.vaccine_name.localeCompare(b.vaccine_name));
+    consents = localParentalConsents.filter(c => c.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    logs = localVisitLogs.filter(l => l.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  } else {
+    // Only show non-sensitive logs
+    logs = localVisitLogs.filter(l => l.patient_id === id && l.event_type === 'Check-in').sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    patient.allergies = 'Restricted View';
+    patient.chronic_conditions = 'Restricted View';
+  }
 
   res.json({
     data: {
@@ -837,7 +993,9 @@ app.get('/api/patients/:id', async (req, res) => {
       soapNotes,
       orders,
       logs,
-      immunizations
+      immunizations,
+      consents,
+      excuseSlips
     }
   });
 });
@@ -850,10 +1008,16 @@ app.put('/api/patients/:id', async (req, res) => {
   const {
     name, section, age, gender, status, status_color,
     date_of_birth, grade_level, allergies, chronic_conditions,
-    emergency_contact_name, emergency_contact_phone, emergency_contact_relationship
+    emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
+    graduation_year
   } = req.body;
 
   if (!name) return res.status(400).json({ error: 'Name is required' });
+
+  const practitioner = getPractitioner(req);
+  if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
+    return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot update patient demographics.' });
+  }
 
   const updates = {
     name,
@@ -868,7 +1032,8 @@ app.put('/api/patients/:id', async (req, res) => {
     chronic_conditions: chronic_conditions || 'None',
     emergency_contact_name: emergency_contact_name || null,
     emergency_contact_phone: emergency_contact_phone || null,
-    emergency_contact_relationship: emergency_contact_relationship || null
+    emergency_contact_relationship: emergency_contact_relationship || null,
+    graduation_year: graduation_year ? parseInt(graduation_year) : null
   };
 
   if (!useFallback) {
@@ -886,7 +1051,8 @@ app.put('/api/patients/:id', async (req, res) => {
       await supabase.from('visit_logs').insert([{
         patient_id: id,
         event_type: 'Demographics Updated',
-        details: 'Patient demographic information was updated.'
+        details: `Patient demographics updated by ${practitioner.name} (${practitioner.role})`,
+        performed_by: practitioner.email
       }]);
 
       return res.json({ data: data[0] });
@@ -905,7 +1071,8 @@ app.put('/api/patients/:id', async (req, res) => {
     id: 'l_' + Date.now(),
     patient_id: id,
     event_type: 'Demographics Updated',
-    details: 'Patient demographic information was updated.',
+    details: `Patient demographics updated by ${practitioner.name} (${practitioner.role})`,
+    performed_by: practitioner.email,
     created_at: new Date().toISOString()
   });
 
@@ -921,6 +1088,13 @@ app.post('/api/patients/:id/immunizations', async (req, res) => {
   if (!vaccine_name || doses_received === undefined || !doses_required) {
     return res.status(400).json({ error: 'Vaccine name, doses received, and required doses are required.' });
   }
+
+  const practitioner = getPractitioner(req);
+  if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
+    return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot update immunization records.' });
+  }
+
+  const auditDetails = `Immunization '${vaccine_name}' updated to ${doses_received}/${doses_required} doses.`;
 
   if (!useFallback) {
     try {
@@ -959,6 +1133,14 @@ app.post('/api/patients/:id/immunizations', async (req, res) => {
         result = data[0];
       }
 
+      // Audit log
+      await supabase.from('visit_logs').insert([{
+        patient_id: patientId,
+        event_type: 'Immunization Updated',
+        details: auditDetails,
+        performed_by: practitioner.email
+      }]);
+
       return res.json({ data: result });
     } catch (err) {
       console.warn("[WARNING] Supabase immunization update failed. Falling back to local db:", err.message);
@@ -980,6 +1162,16 @@ app.post('/api/patients/:id/immunizations', async (req, res) => {
     localImmunizations.push(record);
   }
 
+  // Audit Log Fallback
+  localVisitLogs.push({
+    id: 'l_' + Date.now(),
+    patient_id: patientId,
+    event_type: 'Immunization Updated',
+    details: auditDetails,
+    performed_by: practitioner.email,
+    created_at: new Date().toISOString()
+  });
+
   return res.json({ data: record });
 });
 
@@ -987,6 +1179,18 @@ app.post('/api/patients/:id/immunizations', async (req, res) => {
 app.post('/api/patients/:id/soap', async (req, res) => {
   const id = parseInt(req.params.id);
   const { subjective, objective, assessment, plan, disposition } = req.body;
+
+  const practitioner = getPractitioner(req);
+  if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
+    return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot record clinical SOAP notes.' });
+  }
+
+  // Set NOT NULL validation check on core fields
+  if (!subjective?.trim() || !objective?.trim() || !assessment?.trim() || !plan?.trim() || !disposition?.trim()) {
+    return res.status(400).json({ error: 'All SOAP fields (subjective, objective, assessment, plan/treatment, disposition) are required and cannot be blank.' });
+  }
+
+  const auditDetails = `SOAP Note saved by ${practitioner.name} (Disposition: ${disposition})`;
 
   if (!useFallback) {
     try {
@@ -998,7 +1202,8 @@ app.post('/api/patients/:id/soap', async (req, res) => {
       await supabase.from('visit_logs').insert([{
         patient_id: id,
         event_type: 'Clinical Note Added',
-        details: `SOAP Note saved by Dr. Test (Disposition: ${disposition || 'Not Listed'})`
+        details: auditDetails,
+        performed_by: practitioner.email
       }]);
 
       return res.json({ data: data[0] });
@@ -1019,7 +1224,8 @@ app.post('/api/patients/:id/soap', async (req, res) => {
     id: 'l_' + Date.now(),
     patient_id: id,
     event_type: 'Clinical Note Added',
-    details: `SOAP Note saved by Dr. Test (Disposition: ${disposition || 'Not Listed'})`,
+    details: auditDetails,
+    performed_by: practitioner.email,
     created_at: new Date().toISOString()
   });
   res.json({ data: newNote });
@@ -1031,6 +1237,22 @@ app.post('/api/patients/:id/orders', async (req, res) => {
   const { medication, strength, form, route, administered_by, consent } = req.body;
   const dosage = `${strength || ''} ${form || ''}`.trim() || 'Not Specified';
 
+  const practitioner = getPractitioner(req);
+  if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
+    return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot order medication.' });
+  }
+
+  // Enforce NOT NULL validations on core fields
+  if (!medication?.trim() || !strength?.trim() || !form?.trim() || !route?.trim() || !administered_by?.trim()) {
+    return res.status(400).json({ error: 'Medication, strength, form, route, and administrator initials are required and cannot be blank.' });
+  }
+
+  if (!consent) {
+    return res.status(400).json({ error: 'Parental/guardian consent is mandatory before dispensing medication.' });
+  }
+
+  const auditDetails = `${medication.charAt(0).toUpperCase() + medication.slice(1)} ${dosage} via ${route} (Administered by: ${administered_by})`;
+
   if (!useFallback) {
     try {
       const { data, error } = await supabase.from('medication_orders').insert([{
@@ -1041,8 +1263,12 @@ app.post('/api/patients/:id/orders', async (req, res) => {
       await supabase.from('visit_logs').insert([{
         patient_id: id,
         event_type: 'Medication Ordered',
-        details: `${medication.charAt(0).toUpperCase() + medication.slice(1)} ${dosage} via ${route} (Administered by: ${administered_by || '—'})`
+        details: auditDetails,
+        performed_by: practitioner.email
       }]);
+
+      // Trigger Simulated Parent Notification if checked in or administered
+      triggerParentNotification(id, `Medication Administered: ${medication} ${dosage} given by ${administered_by}.`);
 
       return res.json({ data: data[0] });
     } catch (err) {
@@ -1062,9 +1288,14 @@ app.post('/api/patients/:id/orders', async (req, res) => {
     id: 'l_' + Date.now(),
     patient_id: id,
     event_type: 'Medication Ordered',
-    details: `${medication.charAt(0).toUpperCase() + medication.slice(1)} ${dosage} via ${route} (Administered by: ${administered_by || '—'})`,
+    details: auditDetails,
+    performed_by: practitioner.email,
     created_at: new Date().toISOString()
   });
+
+  // Trigger Simulated Parent Notification in Fallback
+  triggerParentNotification(id, `Medication Administered: ${medication} ${dosage} given by ${administered_by}.`);
+
   res.json({ data: newOrder });
 });
 
@@ -1073,22 +1304,35 @@ app.post('/api/patients/:id/vitals', async (req, res) => {
   const id = parseInt(req.params.id);
   const { temperature, heart_rate, blood_pressure, o2_sat, respiratory_rate } = req.body;
 
+  const practitioner = getPractitioner(req);
+  if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
+    return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot record vital signs.' });
+  }
+
+  // Enforce NOT NULL validations on vital signs
+  if (!temperature || !heart_rate || !blood_pressure?.trim() || !o2_sat || !respiratory_rate) {
+    return res.status(400).json({ error: 'All vital signs (temperature, heart rate, blood pressure, oxygen saturation, and respiratory rate) are required.' });
+  }
+
+  const auditDetails = `Temp: ${temperature}°C, HR: ${heart_rate} bpm, BP: ${blood_pressure}, O₂: ${o2_sat}%, RR: ${respiratory_rate} bpm`;
+
   if (!useFallback) {
     try {
       const { data, error } = await supabase.from('vitals').insert([{
         patient_id: id,
-        temperature: temperature ? parseFloat(temperature) : null,
-        heart_rate: heart_rate ? parseInt(heart_rate) : null,
+        temperature: parseFloat(temperature),
+        heart_rate: parseInt(heart_rate),
         blood_pressure,
-        o2_sat: o2_sat ? parseInt(o2_sat) : null,
-        respiratory_rate: respiratory_rate ? parseInt(respiratory_rate) : null
+        o2_sat: parseInt(o2_sat),
+        respiratory_rate: parseInt(respiratory_rate)
       }]).select();
       if (error) throw error;
 
       await supabase.from('visit_logs').insert([{
         patient_id: id,
         event_type: 'Vitals Recorded',
-        details: `Temp: ${temperature || '—'}°C, HR: ${heart_rate || '—'} bpm, BP: ${blood_pressure || '—'}, O₂: ${o2_sat || '—'}%, RR: ${respiratory_rate || '—'} bpm`
+        details: auditDetails,
+        performed_by: practitioner.email
       }]);
 
       return res.json({ data: data[0] });
@@ -1101,11 +1345,11 @@ app.post('/api/patients/:id/vitals', async (req, res) => {
   const newVitals = {
     id: 'v_' + Date.now(),
     patient_id: id,
-    temperature: temperature ? parseFloat(temperature) : null,
-    heart_rate: heart_rate ? parseInt(heart_rate) : null,
+    temperature: parseFloat(temperature),
+    heart_rate: parseInt(heart_rate),
     blood_pressure,
-    o2_sat: o2_sat ? parseInt(o2_sat) : null,
-    respiratory_rate: respiratory_rate ? parseInt(respiratory_rate) : null,
+    o2_sat: parseInt(o2_sat),
+    respiratory_rate: parseInt(respiratory_rate),
     recorded_at: new Date().toISOString()
   };
   localVitals.push(newVitals);
@@ -1113,7 +1357,8 @@ app.post('/api/patients/:id/vitals', async (req, res) => {
     id: 'l_' + Date.now(),
     patient_id: id,
     event_type: 'Vitals Recorded',
-    details: `Temp: ${temperature || '—'}°C, HR: ${heart_rate || '—'} bpm, BP: ${blood_pressure || '—'}, O₂: ${o2_sat || '—'}%, RR: ${respiratory_rate || '—'} bpm`,
+    details: auditDetails,
+    performed_by: practitioner.email,
     created_at: new Date().toISOString()
   });
   res.json({ data: newVitals });
@@ -1129,14 +1374,24 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
     return res.status(400).json({ error: 'Chief complaint is required' });
   }
 
+  const practitioner = getPractitioner(req);
+  if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
+    return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot check in patients.' });
+  }
+
   if (!useFallback) {
     try {
       const { data, error } = await supabase.from('visit_logs').insert([{
         patient_id: id,
         event_type: 'Check-in',
-        details: chief_complaint
+        details: chief_complaint,
+        performed_by: practitioner.email
       }]).select();
       if (error) throw error;
+
+      // Trigger Simulated Parent Notification on Check-in
+      triggerParentNotification(id, `checked into the school clinic. Reason: ${chief_complaint}`);
+
       return res.json({ data: data[0] });
     } catch (err) {
       console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
@@ -1149,9 +1404,14 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
     patient_id: id,
     event_type: 'Check-in',
     details: chief_complaint,
+    performed_by: practitioner.email,
     created_at: new Date().toISOString()
   };
   localVisitLogs.push(newLog);
+
+  // Trigger Simulated Parent Notification in Fallback
+  triggerParentNotification(id, `checked into the school clinic. Reason: ${chief_complaint}`);
+
   res.json({ data: newLog });
 });
 
@@ -1210,9 +1470,12 @@ app.get('/api/dashboard/stats', async (req, res) => {
   let sentHomeToday = 0;
   let occupiedBedsList = [];
   let highRiskPatients = [];
+  let outbreakAlert = null;
 
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  const fluKeywords = ['flu', 'fever', 'cough', 'cold', 'influenza', 'sore throat'];
 
   if (!useFallback) {
     try {
@@ -1314,6 +1577,41 @@ app.get('/api/dashboard/stats', async (req, res) => {
       }));
       activeAlerts = highRiskPatients.length;
 
+      // 7. Outbreak Detection
+      const { data: recentLogs } = await supabase.from('visit_logs')
+        .select('*, patients(section)')
+        .eq('event_type', 'Check-in')
+        .gte('created_at', fortyEightHoursAgo.toISOString());
+
+      const sectionFluPatients = {};
+
+      if (recentLogs) {
+        for (const log of recentLogs) {
+          const complaint = (log.details || '').toLowerCase();
+          const hasFluSymptom = fluKeywords.some(kw => complaint.includes(kw));
+          const p = (log.patients && Array.isArray(log.patients) ? log.patients[0] : log.patients) || {};
+          const section = p.section;
+
+          if (hasFluSymptom && section && section !== 'Unassigned' && section.trim() !== '') {
+            if (!sectionFluPatients[section]) {
+              sectionFluPatients[section] = new Set();
+            }
+            sectionFluPatients[section].add(log.patient_id);
+          }
+        }
+      }
+
+      for (const section of Object.keys(sectionFluPatients)) {
+        if (sectionFluPatients[section].size >= 5) {
+          outbreakAlert = {
+            section,
+            count: sectionFluPatients[section].size,
+            message: `⚠️ Outbreak Warning: ${sectionFluPatients[section].size} students from section ${section} checked in with flu-like symptoms in the last 48 hours!`
+          };
+          break;
+        }
+      }
+
       return res.json({
         totalPatients,
         checkinsToday,
@@ -1322,7 +1620,8 @@ app.get('/api/dashboard/stats', async (req, res) => {
         paracetamolStock,
         sentHomeToday,
         occupiedBedsList,
-        highRiskPatients
+        highRiskPatients,
+        outbreakAlert
       });
     } catch (err) {
       console.warn("[WARNING] Supabase stats query failed. Falling back to local db:", err.message);
@@ -1397,6 +1696,35 @@ app.get('/api/dashboard/stats', async (req, res) => {
   }));
   activeAlerts = highRiskPatients.length;
 
+  // Fallback Outbreak Detection
+  const recentLogsLocal = localVisitLogs.filter(l => l.event_type === 'Check-in' && new Date(l.created_at) >= fortyEightHoursAgo);
+  const sectionFluPatientsLocal = {};
+
+  for (const log of recentLogsLocal) {
+    const complaint = (log.details || '').toLowerCase();
+    const hasFluSymptom = fluKeywords.some(kw => complaint.includes(kw));
+    const p = localPatients.find(x => x.id === log.patient_id) || {};
+    const section = p.section;
+
+    if (hasFluSymptom && section && section !== 'Unassigned' && section.trim() !== '') {
+      if (!sectionFluPatientsLocal[section]) {
+        sectionFluPatientsLocal[section] = new Set();
+      }
+      sectionFluPatientsLocal[section].add(log.patient_id);
+    }
+  }
+
+  for (const section of Object.keys(sectionFluPatientsLocal)) {
+    if (sectionFluPatientsLocal[section].size >= 5) {
+      outbreakAlert = {
+        section,
+        count: sectionFluPatientsLocal[section].size,
+        message: `⚠️ Outbreak Warning: ${sectionFluPatientsLocal[section].size} students from section ${section} checked in with flu-like symptoms in the last 48 hours!`
+      };
+      break;
+    }
+  }
+
   res.json({
     totalPatients,
     checkinsToday,
@@ -1405,7 +1733,8 @@ app.get('/api/dashboard/stats', async (req, res) => {
     paracetamolStock,
     sentHomeToday,
     occupiedBedsList,
-    highRiskPatients
+    highRiskPatients,
+    outbreakAlert
   });
 });
 
@@ -1514,6 +1843,192 @@ app.get('/api/dashboard/trends', async (req, res) => {
   });
 
   res.json({ data: trendData });
+});
+
+// Patients Route: Get Parental Consents
+app.get('/api/patients/:id/consents', async (req, res) => {
+  const patientId = parseInt(req.params.id);
+  if (isNaN(patientId)) return res.status(400).json({ error: 'Invalid patient ID' });
+  if (!useFallback) {
+    try {
+      const { data, error } = await supabase.from('parental_consents').select('*').eq('patient_id', patientId).order('created_at', { ascending: false });
+      if (error) throw error;
+      return res.json({ data: data || [] });
+    } catch (err) {
+      console.warn("[WARNING] Supabase query failed. Falling back to local db:", err.message);
+    }
+  }
+  const filtered = localParentalConsents.filter(c => c.patient_id === patientId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  res.json({ data: filtered });
+});
+
+// Patients Route: Save Parental Consent
+app.post('/api/patients/:id/consents', async (req, res) => {
+  const patientId = parseInt(req.params.id);
+  if (isNaN(patientId)) return res.status(400).json({ error: 'Invalid patient ID' });
+  const { consent_type, document_name, parent_name, notes } = req.body;
+  
+  if (!consent_type?.trim() || !document_name?.trim() || !parent_name?.trim()) {
+    return res.status(400).json({ error: 'Consent type, document name, and parent name are required.' });
+  }
+  const practitioner = getPractitioner(req);
+  if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
+    return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot upload parental consent.' });
+  }
+  
+  const auditDetails = `Uploaded parental consent: ${consent_type} document '${document_name}' signed by parent ${parent_name}`;
+
+  if (!useFallback) {
+    try {
+      const { data, error } = await supabase.from('parental_consents').insert([{
+        patient_id: patientId, consent_type, document_name, parent_name, notes
+      }]).select();
+      if (error) throw error;
+      
+      await supabase.from('visit_logs').insert([{
+        patient_id: patientId,
+        event_type: 'Consent Form Registered',
+        details: auditDetails,
+        performed_by: practitioner.email
+      }]);
+
+      return res.json({ data: data[0] });
+    } catch (err) {
+      console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
+    }
+  }
+  const newConsent = {
+    id: 'c_' + Date.now(),
+    patient_id: patientId,
+    consent_type, document_name, parent_name, notes,
+    created_at: new Date().toISOString()
+  };
+  localParentalConsents.push(newConsent);
+  localVisitLogs.push({
+    id: 'l_' + Date.now(),
+    patient_id: patientId,
+    event_type: 'Consent Form Registered',
+    details: auditDetails,
+    performed_by: practitioner.email,
+    created_at: new Date().toISOString()
+  });
+  res.json({ data: newConsent });
+});
+
+// Patients Route: Get Excuse Slips
+app.get('/api/patients/:id/excuse-slips', async (req, res) => {
+  const patientId = parseInt(req.params.id);
+  if (isNaN(patientId)) return res.status(400).json({ error: 'Invalid patient ID' });
+  if (!useFallback) {
+    try {
+      const { data, error } = await supabase.from('excuse_slips').select('*').eq('patient_id', patientId).order('created_at', { ascending: false });
+      if (error) throw error;
+      return res.json({ data: data || [] });
+    } catch (err) {
+      console.warn("[WARNING] Supabase query failed. Falling back to local db:", err.message);
+    }
+  }
+  const filtered = localExcuseSlips.filter(e => e.patient_id === patientId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  res.json({ data: filtered });
+});
+
+// Patients Route: Save Excuse Slip
+app.post('/api/patients/:id/excuse-slips', async (req, res) => {
+  const patientId = parseInt(req.params.id);
+  if (isNaN(patientId)) return res.status(400).json({ error: 'Invalid patient ID' });
+  const { excuse_reason, start_date, end_date, teacher_notified } = req.body;
+  
+  if (!excuse_reason?.trim() || !start_date || !end_date) {
+    return res.status(400).json({ error: 'Excuse reason, start date, and end date are required.' });
+  }
+  const practitioner = getPractitioner(req);
+  if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
+    return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot issue excuse slips.' });
+  }
+  
+  // Generate secure excuse verification hash
+  const verification_hash = crypto.createHash('md5').update(`${patientId}_${start_date}_${Date.now()}`).digest('hex').substring(0, 12).toUpperCase();
+  const auditDetails = `Excused student from ${start_date} to ${end_date} due to: ${excuse_reason} (Verification Hash: ${verification_hash})`;
+
+  if (!useFallback) {
+    try {
+      const { data, error } = await supabase.from('excuse_slips').insert([{
+        patient_id: patientId, excuse_reason, start_date, end_date, teacher_notified, verification_hash, created_by: practitioner.email
+      }]).select();
+      if (error) throw error;
+
+      await supabase.from('visit_logs').insert([{
+        patient_id: patientId,
+        event_type: 'Excuse Slip Issued',
+        details: auditDetails,
+        performed_by: practitioner.email
+      }]);
+
+      return res.json({ data: data[0] });
+    } catch (err) {
+      console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
+    }
+  }
+  const newSlip = {
+    id: 'e_' + Date.now(),
+    patient_id: patientId,
+    excuse_reason, start_date, end_date, teacher_notified, verification_hash,
+    created_by: practitioner.email,
+    created_at: new Date().toISOString()
+  };
+  localExcuseSlips.push(newSlip);
+  localVisitLogs.push({
+    id: 'l_' + Date.now(),
+    patient_id: patientId,
+    event_type: 'Excuse Slip Issued',
+    details: auditDetails,
+    performed_by: practitioner.email,
+    created_at: new Date().toISOString()
+  });
+  res.json({ data: newSlip });
+});
+
+// Admin Route: Purge Graduate Patients (Data Retention)
+app.post('/api/admin/purge-graduates', async (req, res) => {
+  const practitioner = getPractitioner(req);
+  if (practitioner.role !== 'admin') {
+    return res.status(403).json({ error: 'Access denied. Only system administrators can purge student records.' });
+  }
+  const { years } = req.body;
+  const cutoffYear = new Date().getFullYear() - parseInt(years || 5);
+
+  let deletedCount = 0;
+
+  if (!useFallback) {
+    try {
+      // Find patients who graduated on or before cutoffYear
+      const { data: toDelete, error: findErr } = await supabase.from('patients').select('id, name').lte('graduation_year', cutoffYear);
+      if (findErr) throw findErr;
+
+      if (toDelete && toDelete.length > 0) {
+        const ids = toDelete.map(p => p.id);
+        const { error: deleteErr } = await supabase.from('patients').delete().in('id', ids);
+        if (deleteErr) throw deleteErr;
+        deletedCount = toDelete.length;
+      }
+
+      return res.json({ success: true, message: `Successfully purged ${deletedCount} student records graduated on or before ${cutoffYear}.` });
+    } catch (err) {
+      console.warn("[WARNING] Supabase purge failed. Falling back to local db:", err.message);
+    }
+  }
+
+  // Fallback DB
+  const initialCount = localPatients.length;
+  localPatients = localPatients.filter(p => !p.graduation_year || p.graduation_year > cutoffYear);
+  deletedCount = initialCount - localPatients.length;
+
+  res.json({ success: true, message: `Successfully purged ${deletedCount} student records graduated on or before ${cutoffYear}.` });
+});
+
+// Admin Route: Get Simulated Notifications Log
+app.get('/api/admin/notifications', (req, res) => {
+  res.json({ data: simulatedNotifications });
 });
 
 // Start Server

@@ -27,6 +27,7 @@ CREATE TABLE patients (
     emergency_contact_name TEXT,
     emergency_contact_phone TEXT,
     emergency_contact_relationship TEXT,
+    graduation_year INT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -36,7 +37,7 @@ ALTER TABLE patients ALTER COLUMN id RESTART WITH 1000;
 -- 2. Vitals Table
 CREATE TABLE vitals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id BIGINT REFERENCES patients(id) ON DELETE CASCADE,
+    patient_id BIGINT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     temperature NUMERIC(4, 1),
     heart_rate INT,
     blood_pressure TEXT,
@@ -48,7 +49,7 @@ CREATE TABLE vitals (
 -- 3. SOAP Notes Table
 CREATE TABLE soap_notes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id BIGINT REFERENCES patients(id) ON DELETE CASCADE,
+    patient_id BIGINT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     subjective TEXT,
     objective TEXT,
     assessment TEXT,
@@ -60,7 +61,7 @@ CREATE TABLE soap_notes (
 -- 4. Medication Orders Table
 CREATE TABLE medication_orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id BIGINT REFERENCES patients(id) ON DELETE CASCADE,
+    patient_id BIGINT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     medication TEXT NOT NULL,
     dosage TEXT NOT NULL, -- Will store "${strength} ${form}" for backward compatibility
     strength TEXT,
@@ -74,9 +75,10 @@ CREATE TABLE medication_orders (
 -- 5. Visit Logs (Activity Feed / Audit Log)
 CREATE TABLE visit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id BIGINT REFERENCES patients(id) ON DELETE CASCADE,
-    event_type TEXT NOT NULL, -- 'Check-in', 'Vitals Recorded', 'Clinical Note Added', 'Medication Ordered'
+    patient_id BIGINT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL, -- 'Check-in', 'Vitals Recorded', 'Clinical Note Added', 'Medication Ordered', 'Record Viewed'
     details TEXT,
+    performed_by TEXT NOT NULL DEFAULT 'System',
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -96,11 +98,36 @@ CREATE TABLE accounts (
 -- 7. Immunization Matrix Table
 CREATE TABLE immunizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id BIGINT REFERENCES patients(id) ON DELETE CASCADE,
+    patient_id BIGINT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
     vaccine_name TEXT NOT NULL,
     doses_received INT DEFAULT 0,
     doses_required INT NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 8. Parental Consents Table
+CREATE TABLE parental_consents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id BIGINT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    consent_type TEXT NOT NULL,
+    document_name TEXT NOT NULL,
+    parent_name TEXT NOT NULL,
+    date_granted DATE NOT NULL DEFAULT CURRENT_DATE,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 9. Excuse Slips Table
+CREATE TABLE excuse_slips (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id BIGINT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    excuse_reason TEXT NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    teacher_notified TEXT,
+    verification_hash TEXT UNIQUE NOT NULL,
+    created_by TEXT NOT NULL DEFAULT 'System',
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Seed Account (Password: password123)
@@ -116,5 +143,7 @@ ALTER TABLE soap_notes DISABLE ROW LEVEL SECURITY;
 ALTER TABLE medication_orders DISABLE ROW LEVEL SECURITY;
 ALTER TABLE visit_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE immunizations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE parental_consents DISABLE ROW LEVEL SECURITY;
+ALTER TABLE excuse_slips DISABLE ROW LEVEL SECURITY;
 
 

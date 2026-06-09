@@ -3,21 +3,29 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, User, FileText, Pill, ShieldAlert, Syringe,
-  Save, AlertCircle, CheckCircle, Clock, Thermometer, Loader2, Pencil, X
+  Save, AlertCircle, CheckCircle, Clock, Thermometer, Loader2, Pencil, X, ShieldCheck
 } from 'lucide-react';
+import { useAuth } from '../../App';
 import { api } from '../../api';
 import './PatientChart.css';
 
-const TABS = [
-  { key: 'overview', label: 'Overview',   icon: User },
-  { key: 'soap',     label: 'SOAP Notes', icon: FileText },
-  { key: 'orders',   label: 'Orders',     icon: Pill },
-  { key: 'history',  label: 'Visit Log',  icon: Clock },
-];
-
 const PatientChart = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { id } = useParams();
+  const role = (user?.role || 'guest').toLowerCase();
+  const isRestrictedRole = role === 'teacher' || role === 'guidance_counselor' || role === 'guidance counselor';
+
+  const availableTabs = [
+    { key: 'overview', label: 'Overview',   icon: User },
+    ...(!isRestrictedRole ? [
+      { key: 'soap',     label: 'SOAP Notes', icon: FileText },
+      { key: 'orders',   label: 'Orders',     icon: Pill },
+      { key: 'history',  label: 'Visit Log',  icon: Clock },
+    ] : []),
+    { key: 'excuse-slips', label: 'Excuse Slips', icon: FileText }
+  ];
+
   const [activeTab, setActiveTab] = useState('overview');
   const [patient, setPatient] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,6 +34,12 @@ const PatientChart = () => {
   // Check-In State
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [chiefComplaint, setChiefComplaint] = useState('');
+
+  useEffect(() => {
+    if (!availableTabs.some(t => t.key === activeTab)) {
+      setActiveTab('overview');
+    }
+  }, [isRestrictedRole]);
 
   const fetchPatient = async () => {
     try {
@@ -113,10 +127,28 @@ const PatientChart = () => {
     }
   };
 
+  const handleAddConsent = async (consentData) => {
+    try {
+      await api.createConsent(id, consentData);
+      fetchPatient();
+    } catch (err) {
+      console.error("Error saving consent:", err);
+    }
+  };
+
+  const handleCreateExcuseSlip = async (excuseData) => {
+    try {
+      await api.createExcuseSlip(id, excuseData);
+      fetchPatient();
+    } catch (err) {
+      console.error("Error creating excuse slip:", err);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '80px 40px', maxWidth: 520, margin: '40px auto' }}>
-        <Loader2 className="spin text-primary" size={36} />
+        <Loader2 className="spin text-primary" size={36} style={{ color: 'var(--primary)' }} />
         <p className="text-muted" style={{ marginTop: 12 }}>Loading patient chart...</p>
       </div>
     );
@@ -125,7 +157,7 @@ const PatientChart = () => {
   if (error || !patient) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '80px 40px', maxWidth: 520, margin: '40px auto' }}>
-        <AlertCircle size={36} className="text-danger" style={{ margin: '0 auto 16px' }} />
+        <AlertCircle size={36} style={{ margin: '0 auto 16px', color: 'var(--primary)' }} />
         <h2>{error || 'Patient Not Found'}</h2>
         <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => navigate('/dashboard/patients')}>
           Back to Patient List
@@ -141,7 +173,7 @@ const PatientChart = () => {
   return (
     <div className="page-chart anim-fade-up">
       <button className="btn btn-ghost back-btn" onClick={() => navigate('/dashboard/patients')}>
-        <ArrowLeft size={16} /> Back to Patient List
+        <ArrowLeft size={16} style={{ color: 'var(--primary)' }} /> Back to Patient List
       </button>
 
       {/* Identity Card */}
@@ -157,21 +189,35 @@ const PatientChart = () => {
         </div>
         <div className="id-flags" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className={`badge badge-${patient.status_color || 'green'}`}>{patient.status}</span>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCheckInModal(true)} type="button">
-            Check-In Student
-          </button>
+          {!isRestrictedRole && (
+            <button className="btn btn-primary btn-sm" onClick={() => setShowCheckInModal(true)} type="button">
+              Check-In Student
+            </button>
+          )}
         </div>
       </div>
 
       {/* Critical Medical Flags */}
       {(() => {
+        if (isRestrictedRole) {
+          return (
+            <div className="critical-flags-banner danger anim-fade-up delay-1" style={{ background: 'var(--primary-light)', borderColor: 'rgba(59, 130, 246, 0.2)', color: 'var(--primary)' }}>
+              <ShieldAlert size={20} style={{ color: 'var(--primary)' }} />
+              <div className="flags-content">
+                <strong>Critical Medical Flags:</strong>
+                <span className="flag-item allergy-flag" style={{ background: 'var(--primary-light)', color: 'var(--primary)' }}>Sensitive health data restricted</span>
+              </div>
+            </div>
+          );
+        }
+
         const hasAllergies = patient.allergies && patient.allergies.toLowerCase() !== 'none' && patient.allergies.trim() !== '';
         const hasConditions = patient.chronic_conditions && patient.chronic_conditions.toLowerCase() !== 'none' && patient.chronic_conditions.trim() !== '';
 
         if (hasAllergies || hasConditions) {
           return (
             <div className="critical-flags-banner danger anim-fade-up delay-1">
-              <ShieldAlert size={20} className="text-danger-icon" />
+              <ShieldAlert size={20} style={{ color: 'var(--primary)' }} />
               <div className="flags-content">
                 <strong>Critical Medical Flags:</strong>
                 {hasAllergies && <span className="flag-item allergy-flag">Allergies: {patient.allergies}</span>}
@@ -182,7 +228,7 @@ const PatientChart = () => {
         } else {
           return (
             <div className="critical-flags-banner success anim-fade-up delay-1">
-              <CheckCircle size={20} className="text-success-icon" />
+              <CheckCircle size={20} style={{ color: 'var(--primary)' }} />
               <div className="flags-content">
                 <span className="no-flags">No Critical Flags Listed</span>
               </div>
@@ -193,11 +239,11 @@ const PatientChart = () => {
 
       {/* Tabs */}
       <div className="chart-tabs anim-fade-up delay-2">
-        {TABS.map(tab => {
+        {availableTabs.map(tab => {
           const Icon = tab.icon;
           return (
             <button key={tab.key} className={`ctab ${activeTab === tab.key ? 'active' : ''}`} onClick={() => setActiveTab(tab.key)}>
-              <Icon size={15} /> {tab.label}
+              <Icon size={15} style={{ color: activeTab === tab.key ? '#fff' : 'var(--primary)' }} /> {tab.label}
             </button>
           );
         })}
@@ -211,11 +257,20 @@ const PatientChart = () => {
             onRecordVitals={handleRecordVitals} 
             onUpdateImmunization={handleUpdateImmunization}
             onUpdatePatient={handleUpdatePatient}
+            onAddConsent={handleAddConsent}
+            isRestrictedRole={isRestrictedRole}
           />
         )}
         {activeTab === 'soap' && <SOAPTab patient={patient} onSaveNote={handleSaveNote} />}
         {activeTab === 'orders' && <OrdersTab patient={patient} onSaveOrder={handleSaveOrder} />}
         {activeTab === 'history' && <HistoryTab patient={patient} />}
+        {activeTab === 'excuse-slips' && (
+          <ExcuseSlipsTab 
+            patient={patient} 
+            onCreateExcuseSlip={handleCreateExcuseSlip}
+            isRestrictedRole={isRestrictedRole}
+          />
+        )}
       </div>
 
       {/* Check-In Modal */}
@@ -412,7 +467,7 @@ const checkVitalAlarm = (label, val) => {
 };
 
 /* ===== OVERVIEW ===== */
-const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePatient }) => {
+const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePatient, onAddConsent, isRestrictedRole }) => {
   const latestVitals = patient.vitals?.[0] || {};
   const [showForm, setShowForm] = useState(false);
   const [vitalsData, setVitalsData] = useState({ temperature: '', heart_rate: '', blood_pressure: '', o2_sat: '', respiratory_rate: '' });
@@ -421,6 +476,16 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState({});
+
+  // Consent modal state
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consentFormData, setConsentFormData] = useState({
+    consent_type: 'Medication',
+    parent_name: patient.emergency_contact_name || '',
+    document_name: '',
+    date_granted: new Date().toISOString().split('T')[0],
+    notes: ''
+  });
 
   const startEditing = () => {
     setEditData({
@@ -432,6 +497,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
       section: patient.section || '',
       status: patient.status || 'Active',
       status_color: patient.status_color || 'green',
+      graduation_year: patient.graduation_year?.toString() || '',
       allergies: patient.allergies || '',
       chronic_conditions: patient.chronic_conditions || '',
       emergency_contact_name: patient.emergency_contact_name || '',
@@ -482,15 +548,31 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
     setVitalsData({ temperature: '', heart_rate: '', blood_pressure: '', o2_sat: '', respiratory_rate: '' });
   };
 
+  const handleConsentSubmit = async (e) => {
+    e.preventDefault();
+    if (!consentFormData.consent_type.trim() || !consentFormData.parent_name.trim() || !consentFormData.document_name.trim()) return;
+    await onAddConsent(consentFormData);
+    setConsentFormData({
+      consent_type: 'Medication',
+      parent_name: patient.emergency_contact_name || '',
+      document_name: '',
+      date_granted: new Date().toISOString().split('T')[0],
+      notes: ''
+    });
+    setShowConsentModal(false);
+  };
+
+  const hasConsent = patient.consents && patient.consents.length > 0;
+
   return (
     <div className="overview-grid">
       {/* Demographics Card */}
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h4 className="sec-title" style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}><User size={15} /> Demographics</h4>
-          {!isEditing && (
+          <h4 className="sec-title" style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}><User size={15} style={{ color: 'var(--primary)' }} /> Demographics</h4>
+          {!isEditing && !isRestrictedRole && (
             <button className="btn btn-ghost btn-sm" onClick={startEditing}>
-              <Pencil size={14} /> Edit
+              <Pencil size={14} style={{ color: 'var(--primary)' }} /> Edit
             </button>
           )}
         </div>
@@ -546,6 +628,13 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
                 </select>
               </div>
             </div>
+            <div className="form-row-2">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Graduation Year</label>
+                <input type="number" name="graduation_year" className="form-input" value={editData.graduation_year} onChange={handleEditChange} placeholder="e.g. 2028" />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0, visibility: 'hidden' }}></div>
+            </div>
 
             <h5 style={{ marginTop: 8, fontSize: 'var(--text-sm)', color: 'var(--gray-600)' }}>Medical Information</h5>
             <div className="form-row-2">
@@ -577,7 +666,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8, paddingTop: 12, borderTop: '1px solid var(--gray-200)' }}>
               <button type="button" className="btn btn-secondary btn-sm" onClick={cancelEditing} disabled={isSaving}>
-                <X size={14} /> Cancel
+                <X size={14} style={{ color: 'var(--primary)' }} /> Cancel
               </button>
               <button type="submit" className="btn btn-primary btn-sm" disabled={isSaving}>
                 {isSaving ? <Loader2 size={14} className="spin" /> : <Save size={14} />} Save Changes
@@ -592,77 +681,15 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
             <div><strong>Gender:</strong> {patient.gender || '—'}</div>
             <div><strong>Grade Level:</strong> {patient.grade_level || '—'}</div>
             <div><strong>Section / Room:</strong> {patient.section || '—'}</div>
+            <div><strong>Graduation Year:</strong> {patient.graduation_year || '—'}</div>
             <div><strong>Registered:</strong> {new Date(patient.created_at).toLocaleDateString()}</div>
-          </div>
-        )}
-      </div>
-
-      {/* Vital Signs Card */}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h4 className="sec-title" style={{ margin: 0 }}><Thermometer size={15} /> Vital Signs</h4>
-          <button className={`btn ${showForm ? 'btn-ghost' : 'btn-primary'} btn-sm`} onClick={() => setShowForm(!showForm)}>
-            {showForm ? 'Cancel' : 'Record Vitals'}
-          </button>
-        </div>
-        
-        {showForm ? (
-          <form onSubmit={handleSubmit} style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div className="form-row-2">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: 11 }}>Temp (°C)</label>
-                <input type="number" step="0.1" name="temperature" className="form-input" required value={vitalsData.temperature} onChange={(e) => setVitalsData({...vitalsData, temperature: e.target.value})} placeholder="e.g. 36.8" />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: 11 }}>Heart Rate (bpm)</label>
-                <input type="number" name="heart_rate" className="form-input" required value={vitalsData.heart_rate} onChange={(e) => setVitalsData({...vitalsData, heart_rate: e.target.value})} placeholder="e.g. 72" />
-              </div>
-            </div>
-            <div className="form-row-2">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: 11 }}>Blood Pressure</label>
-                <input type="text" name="blood_pressure" className="form-input" required value={vitalsData.blood_pressure} onChange={(e) => setVitalsData({...vitalsData, blood_pressure: e.target.value})} placeholder="e.g. 120/80" />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: 11 }}>O₂ Sat (%)</label>
-                <input type="number" name="o2_sat" className="form-input" required value={vitalsData.o2_sat} onChange={(e) => setVitalsData({...vitalsData, o2_sat: e.target.value})} placeholder="e.g. 98" />
-              </div>
-            </div>
-            <div className="form-row-2">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: 11 }}>Respiratory Rate (breaths/min)</label>
-                <input type="number" name="respiratory_rate" className="form-input" required value={vitalsData.respiratory_rate} onChange={(e) => setVitalsData({...vitalsData, respiratory_rate: e.target.value})} placeholder="e.g. 18" />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0, visibility: 'hidden' }}></div>
-            </div>
-            <button type="submit" className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-end', marginTop: 4 }}>Save Vitals</button>
-          </form>
-        ) : (
-          <div className="vitals-grid">
-            {[
-              ['Temperature', latestVitals.temperature, '°C'],
-              ['Heart Rate', latestVitals.heart_rate, 'bpm'],
-              ['Respiratory Rate', latestVitals.respiratory_rate, 'breaths/min'],
-              ['Blood Pressure', latestVitals.blood_pressure, 'mmHg'],
-              ['O₂ Sat', latestVitals.o2_sat, '%']
-            ].map(([label, val, unit]) => {
-              const { isAbnormal } = checkVitalAlarm(label, val);
-              const hasValue = val !== undefined && val !== null && val !== '';
-              return (
-                <div className={`vital-slot ${hasValue ? 'has-value' : ''} ${isAbnormal ? 'alarm' : ''}`} key={label}>
-                  <span className="vs-label">{label}</span>
-                  <span className="vs-value">{hasValue ? val : '—'}</span>
-                  <span className="vs-unit">{unit}</span>
-                </div>
-              );
-            })}
           </div>
         )}
       </div>
 
       {/* Emergency Contacts Card */}
       <div className="card">
-        <h4 className="sec-title"><ShieldAlert size={15} /> Emergency Contacts</h4>
+        <h4 className="sec-title"><ShieldAlert size={15} style={{ color: 'var(--primary)' }} /> Emergency Contacts</h4>
         {patient.emergency_contact_name ? (
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--text-sm)' }}>
             <div><strong>Contact Name:</strong> {patient.emergency_contact_name}</div>
@@ -674,11 +701,193 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
         )}
       </div>
 
-      {/* Immunization Card */}
+      {/* Parental Consents Card */}
       <div className="card">
-        <h4 className="sec-title"><Syringe size={15} /> Immunization Matrix</h4>
-        <ImmunizationMatrix patient={patient} onUpdateDoses={onUpdateImmunization} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h4 className="sec-title" style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}><ShieldCheck size={15} style={{ color: 'var(--primary)' }} /> Parental Consents</h4>
+          {!isRestrictedRole && (
+            <button className="btn btn-primary btn-sm" onClick={() => setShowConsentModal(true)}>
+              Add Consent
+            </button>
+          )}
+        </div>
+        
+        {hasConsent ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f0fdf4', borderRadius: 'var(--radius-md)', border: '1px solid #dcfce7', color: '#166534', marginBottom: 12, fontSize: 'var(--text-sm)' }}>
+            <ShieldCheck size={16} style={{ color: 'var(--primary)' }} />
+            <strong>Consent Verified</strong>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fef2f2', borderRadius: 'var(--radius-md)', border: '1px solid #fee2e2', color: '#991b1b', marginBottom: 12, fontSize: 'var(--text-sm)' }}>
+            <ShieldAlert size={16} style={{ color: 'var(--primary)' }} />
+            <strong>Consent Missing</strong>
+          </div>
+        )}
+
+        <div className="consent-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {patient.consents && patient.consents.length > 0 ? (
+            patient.consents.map(c => (
+              <div key={c.id} style={{ padding: 10, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)', fontSize: 'var(--text-xs)' }}>
+                <div><strong>Type:</strong> {c.consent_type}</div>
+                <div><strong>Parent:</strong> {c.parent_name}</div>
+                <div><strong>File:</strong> <span className="text-primary" style={{ fontWeight: 600 }}>{c.document_name}</span></div>
+                <div><strong>Granted:</strong> {new Date(c.date_granted).toLocaleDateString()}</div>
+                {c.notes && <div style={{ marginTop: 4 }}><strong>Notes:</strong> {c.notes}</div>}
+              </div>
+            ))
+          ) : (
+            <p className="text-muted" style={{ fontSize: 'var(--text-xs)', textAlign: 'center', margin: '10px 0' }}>No consent documents logged.</p>
+          )}
+        </div>
       </div>
+
+      {/* Vital Signs Card (clinical only) */}
+      {!isRestrictedRole && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h4 className="sec-title" style={{ margin: 0 }}><Thermometer size={15} style={{ color: 'var(--primary)' }} /> Vital Signs</h4>
+            <button className={`btn ${showForm ? 'btn-ghost' : 'btn-primary'} btn-sm`} onClick={() => setShowForm(!showForm)}>
+              {showForm ? 'Cancel' : 'Record Vitals'}
+            </button>
+          </div>
+          
+          {showForm ? (
+            <form onSubmit={handleSubmit} style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="form-row-2">
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 11 }}>Temp (°C)</label>
+                  <input type="number" step="0.1" name="temperature" className="form-input" required value={vitalsData.temperature} onChange={(e) => setVitalsData({...vitalsData, temperature: e.target.value})} placeholder="e.g. 36.8" />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 11 }}>Heart Rate (bpm)</label>
+                  <input type="number" name="heart_rate" className="form-input" required value={vitalsData.heart_rate} onChange={(e) => setVitalsData({...vitalsData, heart_rate: e.target.value})} placeholder="e.g. 72" />
+                </div>
+              </div>
+              <div className="form-row-2">
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 11 }}>Blood Pressure</label>
+                  <input type="text" name="blood_pressure" className="form-input" required value={vitalsData.blood_pressure} onChange={(e) => setVitalsData({...vitalsData, blood_pressure: e.target.value})} placeholder="e.g. 120/80" />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 11 }}>O₂ Sat (%)</label>
+                  <input type="number" name="o2_sat" className="form-input" required value={vitalsData.o2_sat} onChange={(e) => setVitalsData({...vitalsData, o2_sat: e.target.value})} placeholder="e.g. 98" />
+                </div>
+              </div>
+              <div className="form-row-2">
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 11 }}>Respiratory Rate (breaths/min)</label>
+                  <input type="number" name="respiratory_rate" className="form-input" required value={vitalsData.respiratory_rate} onChange={(e) => setVitalsData({...vitalsData, respiratory_rate: e.target.value})} placeholder="e.g. 18" />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0, visibility: 'hidden' }}></div>
+              </div>
+              <button type="submit" className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-end', marginTop: 4 }}>Save Vitals</button>
+            </form>
+          ) : (
+            <div className="vitals-grid">
+              {[
+                ['Temperature', latestVitals.temperature, '°C'],
+                ['Heart Rate', latestVitals.heart_rate, 'bpm'],
+                ['Respiratory Rate', latestVitals.respiratory_rate, 'breaths/min'],
+                ['Blood Pressure', latestVitals.blood_pressure, 'mmHg'],
+                ['O₂ Sat', latestVitals.o2_sat, '%']
+              ].map(([label, val, unit]) => {
+                const { isAbnormal } = checkVitalAlarm(label, val);
+                const hasValue = val !== undefined && val !== null && val !== '';
+                return (
+                  <div className={`vital-slot ${hasValue ? 'has-value' : ''} ${isAbnormal ? 'alarm' : ''}`} key={label}>
+                    <span className="vs-label">{label}</span>
+                    <span className="vs-value">{hasValue ? val : '—'}</span>
+                    <span className="vs-unit">{unit}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Immunization Card (clinical only) */}
+      {!isRestrictedRole && (
+        <div className="card">
+          <h4 className="sec-title"><Syringe size={15} style={{ color: 'var(--primary)' }} /> Immunization Matrix</h4>
+          <ImmunizationMatrix patient={patient} onUpdateDoses={onUpdateImmunization} />
+        </div>
+      )}
+
+      {/* Add Consent Modal */}
+      {showConsentModal && createPortal(
+        <div className="modal-overlay" onClick={() => setShowConsentModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Upload Parental Consent</h3>
+              <button className="btn-close" onClick={() => setShowConsentModal(false)} type="button"><X size={18} style={{ color: 'var(--primary)' }} /></button>
+            </div>
+            <form onSubmit={handleConsentSubmit}>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label className="form-label">Consent Type *</label>
+                <select 
+                  className="form-select" 
+                  value={consentFormData.consent_type}
+                  onChange={(e) => setConsentFormData({ ...consentFormData, consent_type: e.target.value })}
+                >
+                  <option value="Medication">Medication Administration</option>
+                  <option value="Treatment">Emergency Treatment</option>
+                  <option value="Immunization">School Vaccination</option>
+                  <option value="Dental">Dental Care</option>
+                  <option value="General">General Clinic Check-up</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label className="form-label">Parent / Guardian Name *</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  required
+                  placeholder="e.g. Jane Doe"
+                  value={consentFormData.parent_name}
+                  onChange={(e) => setConsentFormData({ ...consentFormData, parent_name: e.target.value })}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label className="form-label">Document File Name *</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  required
+                  placeholder="e.g. parent_consent_signed.pdf"
+                  value={consentFormData.document_name}
+                  onChange={(e) => setConsentFormData({ ...consentFormData, document_name: e.target.value })}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label className="form-label">Date Granted *</label>
+                <input 
+                  type="date" 
+                  className="form-input" 
+                  required
+                  value={consentFormData.date_granted}
+                  onChange={(e) => setConsentFormData({ ...consentFormData, date_granted: e.target.value })}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label className="form-label">Notes / Limitations</label>
+                <textarea 
+                  className="form-textarea" 
+                  rows={2}
+                  placeholder="e.g. Approved ibuprofen only. No aspirin."
+                  value={consentFormData.notes}
+                  onChange={(e) => setConsentFormData({ ...consentFormData, notes: e.target.value })}
+                />
+              </div>
+              <div className="modal-actions" style={{ margin: 0, paddingTop: 14 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowConsentModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Consent</button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
@@ -1127,7 +1336,7 @@ const OrdersTab = ({ patient, onSaveOrder }) => {
 /* ===== HISTORY ===== */
 const HistoryTab = ({ patient }) => (
   <div className="card">
-    <h4 className="sec-title"><Clock size={15} /> Visit Log</h4>
+    <h4 className="sec-title"><Clock size={15} style={{ color: 'var(--primary)' }} /> Visit Log</h4>
     {patient.logs && patient.logs.length > 0 ? (
       <div className="visit-logs" style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
         {patient.logs.map(l => (
@@ -1149,6 +1358,198 @@ const HistoryTab = ({ patient }) => (
     )}
   </div>
 );
+
+/* ===== EXCUSE SLIPS TAB ===== */
+const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
+  const [showModal, setShowModal] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [selectedSlip, setSelectedSlip] = useState(null);
+  
+  const [formData, setFormData] = useState({
+    excuse_reason: '',
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: new Date().toISOString().split('T')[0],
+    teacher_notified: false
+  });
+
+  const handleOpenPrint = (slip) => {
+    setSelectedSlip(slip);
+    setShowPrintModal(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.excuse_reason.trim() || !formData.start_date || !formData.end_date) return;
+    await onCreateExcuseSlip({
+      excuse_reason: formData.excuse_reason,
+      start_date: formData.start_date,
+      end_date: formData.end_date,
+      teacher_notified: formData.teacher_notified ? 'Yes' : 'No'
+    });
+    setFormData({
+      excuse_reason: '',
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: new Date().toISOString().split('T')[0],
+      teacher_notified: false
+    });
+    setShowModal(false);
+  };
+
+  const excuseSlips = patient.excuseSlips || [];
+
+  return (
+    <div className="excuse-slips-panel">
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h4 className="sec-title" style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}>
+            <FileText size={15} style={{ color: 'var(--primary)' }} /> Excuse Slips History
+          </h4>
+          {!isRestrictedRole && (
+            <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
+              Generate Excuse Slip
+            </button>
+          )}
+        </div>
+
+        {excuseSlips.length > 0 ? (
+          <div className="excuse-slips-list" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {excuseSlips.map(slip => (
+              <div key={slip.id} className="excuse-slip-card" style={{ padding: 16, background: 'var(--gray-50)', border: '1.5px solid var(--gray-200)', borderRadius: 'var(--radius-lg)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--gray-800)' }}>
+                    Reason: {slip.excuse_reason}
+                  </span>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
+                    Duration: {new Date(slip.start_date).toLocaleDateString()} to {new Date(slip.end_date).toLocaleDateString()}
+                  </span>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
+                    Teacher Notified: <strong>{slip.teacher_notified || 'No'}</strong>
+                  </span>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>
+                    Issued by: {slip.created_by || 'Unknown'} on {new Date(slip.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+                  <div style={{ background: 'var(--primary-light)', padding: '4px 10px', borderRadius: 6, border: '1px solid var(--primary)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <span style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary)', display: 'block' }}>VERIFICATION HASH</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'monospace', color: 'var(--primary)' }}>{slip.verification_hash}</span>
+                  </div>
+                  <button className="btn btn-secondary btn-sm" onClick={() => handleOpenPrint(slip)}>
+                    View / Print
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-sm">
+            <p className="text-muted">No excuse slips generated for this student.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Generate Excuse Slip Modal */}
+      {showModal && createPortal(
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Generate Digital Excuse Slip</h3>
+              <button className="btn-close" onClick={() => setShowModal(false)} type="button"><X size={18} style={{ color: 'var(--primary)' }} /></button>
+            </div>
+            <form onSubmit={handleSubmit}>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label className="form-label">Excuse Reason *</label>
+                <textarea
+                  className="form-textarea"
+                  rows={3}
+                  required
+                  placeholder="e.g. Student has acute gastroenteritis and needs rest."
+                  value={formData.excuse_reason}
+                  onChange={(e) => setFormData({ ...formData, excuse_reason: e.target.value })}
+                />
+              </div>
+              <div className="form-row-2" style={{ marginBottom: 14 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Start Date *</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    required
+                    value={formData.start_date}
+                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">End Date *</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    required
+                    value={formData.end_date}
+                    onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="consent-bar" style={{ marginBottom: 16 }}>
+                <label className="consent-label" style={{ color: 'var(--gray-700)' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.teacher_notified}
+                    onChange={(e) => setFormData({ ...formData, teacher_notified: e.target.checked })}
+                    style={{ accentColor: 'var(--primary)' }}
+                  />
+                  <span>Notify student's homeroom teacher automatically.</span>
+                </label>
+              </div>
+              <div className="modal-actions" style={{ margin: 0, paddingTop: 14 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Generate Slip</button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Print / View Certificate Modal */}
+      {showPrintModal && selectedSlip && createPortal(
+        <div className="modal-overlay" onClick={() => setShowPrintModal(false)}>
+          <div className="modal-card" style={{ maxWidth: 520, padding: 32 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ border: '2px solid var(--primary)', padding: 24, borderRadius: 'var(--radius-lg)', background: '#fff', textAlign: 'center', fontFamily: 'var(--font)' }}>
+              <h2 style={{ fontSize: 20, color: 'var(--primary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fiona Clinic EMR</h2>
+              <h3 style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 20, fontWeight: 600 }}>OFFICIAL CLINIC EXCUSE SLIP</h3>
+              
+              <div style={{ borderTop: '1px solid var(--gray-200)', borderBottom: '1px solid var(--gray-200)', padding: '16px 0', margin: '16px 0', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10, fontSize: 'var(--text-sm)' }}>
+                <div><strong>Student Name:</strong> {patient.name}</div>
+                <div><strong>Classroom Section:</strong> {patient.section || '—'}</div>
+                <div><strong>Excuse Period:</strong> {new Date(selectedSlip.start_date).toLocaleDateString()} to {new Date(selectedSlip.end_date).toLocaleDateString()}</div>
+                <div><strong>Reason:</strong> {selectedSlip.excuse_reason}</div>
+                <div><strong>Homeroom Teacher Notified:</strong> {selectedSlip.teacher_notified || 'No'}</div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24 }}>
+                <div style={{ textAlign: 'left' }}>
+                  <span style={{ fontSize: 10, color: 'var(--gray-400)', display: 'block' }}>ISSUED BY:</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-700)' }}>{selectedSlip.created_by || 'School Clinic Staff'}</span>
+                </div>
+                <div style={{ textAlign: 'right', background: 'var(--primary-light)', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--primary)' }}>
+                  <span style={{ fontSize: 8, color: 'var(--primary)', display: 'block', fontWeight: 700 }}>VERIFICATION HASH</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, fontFamily: 'monospace', color: 'var(--primary)' }}>{selectedSlip.verification_hash}</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowPrintModal(false)}>Close</button>
+              <button type="button" className="btn btn-primary" onClick={() => window.print()}><FileText size={14} style={{ color: '#fff' }} /> Print Certificate</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+};
 
 export default PatientChart;
 

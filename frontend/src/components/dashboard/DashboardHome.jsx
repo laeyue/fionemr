@@ -232,15 +232,30 @@ const DashboardHome = () => {
                 </div>
               </div>
               {/* Info block */}
-              <div className="card info-block anim-fade-up delay-3">
-                <div className="info-icon-wrap">
-                  <TrendingUp size={20} />
+              {/* Info block */}
+              {stats.outbreakAlert ? (
+                <div className="card info-block anim-fade-up delay-3 pulsating-bg" style={{ border: '1.5px solid #ef4444', background: '#fef2f2' }}>
+                  <div className="info-icon-wrap" style={{ background: '#fca5a5' }}>
+                    <TrendingUp size={20} style={{ color: '#991b1b' }} />
+                  </div>
+                  <div>
+                    <h5 style={{ color: '#991b1b' }}>Outbreak Alert Active</h5>
+                    <p className="text-danger" style={{ fontSize: 'var(--text-sm)', marginTop: 4, fontWeight: 600 }}>
+                      {stats.outbreakAlert.message}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h5>Outbreak Analytics</h5>
-                  <p className="text-muted" style={{ fontSize: 'var(--text-sm)', marginTop: 4 }}>Trend detection across classrooms will activate when sufficient data is available.</p>
+              ) : (
+                <div className="card info-block anim-fade-up delay-3">
+                  <div className="info-icon-wrap">
+                    <TrendingUp size={20} />
+                  </div>
+                  <div>
+                    <h5>Outbreak Analytics</h5>
+                    <p className="text-muted" style={{ fontSize: 'var(--text-sm)', marginTop: 4 }}>Trend detection across classrooms will activate when sufficient data is available.</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Outer Right — Activity Feed */}

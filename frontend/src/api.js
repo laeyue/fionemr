@@ -1,11 +1,20 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+let currentSession = null;
+
 async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
   const headers = {
     'Content-Type': 'application/json',
     ...options.headers,
   };
+  
+  if (currentSession) {
+    headers['X-User-Email'] = currentSession.email;
+    headers['X-User-Role'] = currentSession.role;
+    headers['X-User-Name'] = currentSession.name;
+  }
+
   const config = {
     ...options,
     headers,
@@ -115,6 +124,35 @@ export const api = {
     method: 'POST',
     body: { chief_complaint: chiefComplaint },
   }),
+
+  getExcuseSlips: (patientId) => request(`/patients/${patientId}/excuse-slips`),
+
+  createExcuseSlip: (patientId, excuseData) => request(`/patients/${patientId}/excuse-slips`, {
+    method: 'POST',
+    body: excuseData,
+  }),
+
+  getConsents: (patientId) => request(`/patients/${patientId}/consents`),
+
+  createConsent: (patientId, consentData) => request(`/patients/${patientId}/consents`, {
+    method: 'POST',
+    body: consentData,
+  }),
+
+  purgeGraduates: (years) => request('/admin/purge-graduates', {
+    method: 'POST',
+    body: { years },
+  }),
+
+  getSimulatedNotifications: () => request('/admin/notifications'),
+
+  setSession: (session) => {
+    currentSession = session;
+  },
+
+  clearSession: () => {
+    currentSession = null;
+  },
 };
 
 
