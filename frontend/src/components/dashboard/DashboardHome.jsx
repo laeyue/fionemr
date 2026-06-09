@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   UserCheck, Bed, AlertTriangle, FileText,
   ArrowUpRight, Calendar, ChevronLeft, ChevronRight,
-  Activity, Users, TrendingUp, Clock, Pill
+  Activity, Users, TrendingUp, Clock, Pill, Home
 } from 'lucide-react';
 import { useAuth } from '../../App';
 import { api } from '../../api';
@@ -18,11 +18,45 @@ const DashboardHome = () => {
 
   /* Date selector state */
   const [selectedDate, setSelectedDate] = useState(now);
-  const [stats, setStats] = useState({ totalPatients: 0, checkinsToday: 0, activeAlerts: 0, bedsOccupied: 0 });
+  const [stats, setStats] = useState({
+    totalPatients: 0,
+    checkinsToday: 0,
+    activeAlerts: 0,
+    bedsOccupied: 0,
+    paracetamolStock: 120,
+    sentHomeToday: 0,
+    occupiedBedsList: [],
+    highRiskPatients: []
+  });
   const [trends, setTrends] = useState({ Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0 });
   const [recentPatients, setRecentPatients] = useState([]);
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [timeTick, setTimeTick] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeTick(t => t + 1);
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatDuration = (entryTime) => {
+    if (!entryTime) return '—';
+    const diffMs = Date.now() - new Date(entryTime).getTime();
+    if (diffMs < 0) return 'Just now';
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 60) {
+      return `${diffMins}m`;
+    }
+    const diffHours = Math.floor(diffMins / 60);
+    const remainingMins = diffMins % 60;
+    if (diffHours < 24) {
+      return `${diffHours}h ${remainingMins}m`;
+    }
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d`;
+  };
 
   const getDays = () => {
     const days = [];
@@ -100,10 +134,10 @@ const DashboardHome = () => {
 
   return (
     <div className="dash-home anim-fade-up">
-      {/* ===== ASYMMETRIC TWO-COLUMN ===== */}
+      {/* ===== ASYMMETRIC THREE-COLUMN ===== */}
       <div className="dash-columns">
 
-        {/* ===== LEFT SECTION (40%) — VISUAL FOCUS ===== */}
+        {/* ===== LEFT SECTION — VISUAL & SUMMARY ===== */}
         <div className="dash-left">
           {/* Header Block */}
           <div className="welcome-block anim-fade-up">
@@ -122,15 +156,23 @@ const DashboardHome = () => {
 
           {/* Bottom Row — Small Square Cards */}
           <div className="quick-squares anim-fade-up delay-2">
-            <SquareCard label="Check-ins" value={stats.checkinsToday} color="blue" onClick={() => navigate('/dashboard/patients')} />
-            <SquareCard label="Alerts" value={stats.activeAlerts} color="red" onClick={() => navigate('/dashboard/alerts')} />
-            <SquareCard label="Beds" value={stats.bedsOccupied} color="cyan" onClick={() => navigate('/dashboard/clinic')} />
-            <SquareCard label="Patients" value={stats.totalPatients} color="green" onClick={() => navigate('/dashboard/patients')} />
+            <SquareCard label="Check-ins" value={stats.checkinsToday} color="blue" icon={UserCheck} onClick={() => navigate('/dashboard/patients')} />
+            <SquareCard label="Alerts" value={stats.activeAlerts} color="red" icon={AlertTriangle} onClick={() => navigate('/dashboard/patients')} />
+            <SquareCard label="Beds" value={stats.bedsOccupied} color="cyan" icon={Bed} onClick={() => navigate('/dashboard/patients')} />
+            <SquareCard label="Patients" value={stats.totalPatients} color="green" icon={Users} onClick={() => navigate('/dashboard/patients')} />
+            <SquareCard 
+              label="Paracetamol" 
+              value={stats.paracetamolStock} 
+              color={stats.paracetamolStock < 20 ? "red" : "amber"} 
+              icon={Pill} 
+              onClick={() => navigate('/dashboard/patients')} 
+            />
+            <SquareCard label="Sent Home" value={stats.sentHomeToday} color="purple" icon={Home} onClick={() => navigate('/dashboard/patients')} />
           </div>
         </div>
 
-        {/* ===== RIGHT SECTION (60%) — DATA FOCUS ===== */}
-        <div className="dash-right">
+        {/* ===== CENTER SECTION — DATA & TRENDS ===== */}
+        <div className="dash-center">
 
           {/* Check-in Trends Chart */}
           <div className="card chart-card anim-fade-up delay-1">
@@ -260,14 +302,101 @@ const DashboardHome = () => {
             </div>
           </div>
         </div>
+
+        {/* ===== RIGHT SECTION — CLINICAL SIDEBAR ===== */}
+        <div className="dash-sidebar">
+          {/* Emergency Alerts Panel */}
+          <div className="card sidebar-card alerts-panel-card anim-fade-up">
+            <div className="card-header-with-icon">
+              <div className="card-header-icon-wrap icon-red pulsating-bg">
+                <AlertTriangle size={18} />
+              </div>
+              <div className="card-header-text">
+                <h4>Emergency Alerts</h4>
+                <span className="text-muted small-subtitle">{stats.highRiskPatients?.length || 0} active warning{stats.highRiskPatients?.length !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+            <div className="sidebar-list">
+              {stats.highRiskPatients && stats.highRiskPatients.length > 0 ? (
+                stats.highRiskPatients.map(patient => (
+                  <div key={patient.id} className="sidebar-item sidebar-alert-card" onClick={() => navigate(`/dashboard/patients/${patient.id}`)}>
+                    <div className="sidebar-item-main">
+                      <div className="sidebar-alert-title">
+                        <span className="sidebar-item-name">{patient.name}</span>
+                        <span className="sidebar-alert-vitals">
+                          {patient.vitals.temperature ? `${patient.vitals.temperature}°C` : ''}
+                          {patient.vitals.o2_sat ? ` • O₂ ${patient.vitals.o2_sat}%` : ''}
+                        </span>
+                      </div>
+                      <span className="sidebar-item-sub">{patient.section}</span>
+                      <div className="alert-tags">
+                        {patient.alerts.map(alertText => (
+                          <span key={alertText} className="alert-tag-badge">
+                            ⚠️ {alertText}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="sidebar-item-indicator blinking-indicator-red"></div>
+                  </div>
+                ))
+              ) : (
+                <div className="sidebar-empty">
+                  <AlertTriangle size={24} className="text-muted" />
+                  <span className="text-muted">No high-risk alerts today</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Clinic Live Beds Tracker */}
+          <div className="card sidebar-card beds-tracker-card anim-fade-up">
+            <div className="card-header-with-icon">
+              <div className="card-header-icon-wrap icon-cyan">
+                <Bed size={18} />
+              </div>
+              <div className="card-header-text">
+                <h4>Live Beds Tracker</h4>
+                <span className="text-muted small-subtitle">{stats.occupiedBedsList?.length || 0} occupied</span>
+              </div>
+            </div>
+            <div className="sidebar-list">
+              {stats.occupiedBedsList && stats.occupiedBedsList.length > 0 ? (
+                stats.occupiedBedsList.map(bed => (
+                  <div key={bed.id} className="sidebar-item sidebar-bed-card" onClick={() => navigate(`/dashboard/patients/${bed.id}`)}>
+                    <div className="sidebar-item-main">
+                      <span className="sidebar-item-name">{bed.name}</span>
+                      <span className="sidebar-item-sub">{bed.section} • {bed.age} {bed.gender}</span>
+                    </div>
+                    <div className="sidebar-item-badge badge-cyan">
+                      <Clock size={12} className="margin-right-xs" />
+                      {formatDuration(bed.entryTime)}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="sidebar-empty">
+                  <Bed size={24} className="text-muted" />
+                  <span className="text-muted">No patients under observation</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
 };
 
 /* ===== Square Card Component ===== */
-const SquareCard = ({ label, value, color, onClick }) => (
+const SquareCard = ({ label, value, color, onClick, icon: Icon }) => (
   <div className={`square-card card sq-${color}`} onClick={onClick}>
+    {Icon && (
+      <div className="sq-icon">
+        <Icon size={20} />
+      </div>
+    )}
     <span className="sq-value">{value}</span>
     <span className="sq-label">{label}</span>
   </div>
