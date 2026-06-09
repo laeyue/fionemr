@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 
@@ -273,7 +274,8 @@ const generateAlertId = () => {
 };
 
 const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlContent) => {
-  const brevoKey = process.env.BREVO_API_KEY;
+  const brevoKey = process.env.BREVO_API_KEY || process.env.SMTP_PASS;
+  const smtpUser = process.env.SMTP_USER || process.env.SENDER_EMAIL;
   const senderEmail = process.env.SENDER_EMAIL || 'clinic@fiona.com';
   const senderName = process.env.SENDER_NAME || 'Fiona Clinic';
 
@@ -289,30 +291,27 @@ const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlConten
   }
 
   try {
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'api-key': brevoKey,
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        sender: { name: senderName, email: senderEmail },
-        to: [{ email: recipientEmail, name: recipientName }],
-        subject,
-        htmlContent
-      })
+    const transporter = nodemailer.createTransport({
+      host: 'smtp-relay.brevo.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: smtpUser,
+        pass: brevoKey
+      }
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Brevo HTTP error! status: ${response.status}, body: ${errText}`);
-    }
+    const info = await transporter.sendMail({
+      from: `"${senderName}" <${senderEmail}>`,
+      to: `"${recipientName}" <${recipientEmail}>`,
+      subject,
+      html: htmlContent
+    });
 
-    const data = await response.json();
-    return { success: true, messageId: data.messageId };
+    console.log(`[SMTP SUCCESS] Email sent: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
   } catch (err) {
-    console.error('[BREVO ERROR] Failed to send email:', err.message);
+    console.error('[SMTP ERROR] Failed to send email via SMTP Relay:', err.message);
     return { error: err.message };
   }
 };
