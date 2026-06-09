@@ -12,23 +12,32 @@ app.use(cors());
 app.use(express.json());
 
 // Initialize Supabase Client
-const supabaseUrl = process.env.SUPABASE_URL || 'https://dummy.supabase.co';
-const supabaseKey = process.env.SUPABASE_KEY || 'dummy-key';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Check if we should fall back to local in-memory store
+let supabase = null;
 let useFallback = false;
-if (
-  supabaseUrl.includes('dummy') || 
-  supabaseKey.includes('dummy') ||
-  supabaseUrl.includes('your-project-id') ||
-  supabaseKey.includes('your-supabase-anon-key')
-) {
+
+let supabaseUrl = process.env.SUPABASE_URL || '';
+let supabaseKey = process.env.SUPABASE_KEY || '';
+
+// Clean up quotes if passed literally from environment files
+if (supabaseUrl) supabaseUrl = supabaseUrl.replace(/^['"]|['"]$/g, '').trim();
+if (supabaseKey) supabaseKey = supabaseKey.replace(/^['"]|['"]$/g, '').trim();
+
+if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('dummy') || supabaseUrl.includes('your-project-id')) {
+  useFallback = true;
+} else {
+  try {
+    supabase = createClient(supabaseUrl, supabaseKey);
+  } catch (err) {
+    console.error('[WARNING] Failed to initialize Supabase client:', err.message);
+    useFallback = true;
+  }
+}
+
+if (useFallback) {
   console.log('--------------------------------------------------');
-  console.log('[INFO] Supabase URL/Key not set or using placeholder values.');
+  console.log('[INFO] Supabase URL/Key not set, invalid, or using placeholder values.');
   console.log('[INFO] Backend will run using the local in-memory store.');
   console.log('--------------------------------------------------');
-  useFallback = true;
 }
 
 // In-Memory Database Fallback Store
