@@ -3,7 +3,6 @@ const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-const https = require('https');
 require('dotenv').config();
 
 
@@ -274,51 +273,6 @@ const generateAlertId = () => {
   return crypto.randomBytes(16).toString('hex');
 };
 
-const sendBrevoHttpApi = (apiKey, senderName, senderEmail, recipientName, recipientEmail, subject, htmlContent) => {
-  return new Promise((resolve, reject) => {
-    const data = JSON.stringify({
-      sender: { name: senderName, email: senderEmail },
-      to: [{ name: recipientName, email: recipientEmail }],
-      subject: subject,
-      htmlContent: htmlContent
-    });
-
-    const options = {
-      hostname: 'api.brevo.com',
-      port: 443,
-      path: '/v3/smtp/email',
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'api-key': apiKey,
-        'content-type': 'application/json',
-        'Content-Length': Buffer.byteLength(data)
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      let body = '';
-      res.on('data', (chunk) => body += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          try {
-            const parsed = JSON.parse(body);
-            resolve({ success: true, messageId: parsed.messageId });
-          } catch (e) {
-            resolve({ success: true, response: body });
-          }
-        } else {
-          reject(new Error(`Brevo HTTP API error (Status ${res.statusCode}): ${body}`));
-        }
-      });
-    });
-
-    req.on('error', (e) => reject(e));
-    req.write(data);
-    req.end();
-  });
-};
-
 const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlContent) => {
   const brevoApiKey = process.env.BREVO_API_KEY;
   const smtpPass = process.env.SMTP_PASS;
@@ -326,19 +280,7 @@ const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlConten
   const senderEmail = process.env.SENDER_EMAIL || 'clinic@fiona.com';
   const senderName = process.env.SENDER_NAME || 'Fiona Clinic';
 
-  // 1. Try Brevo HTTP API first (highly reliable on cloud hosting / bypasses SMTP port blocking)
-  if (brevoApiKey && brevoApiKey.startsWith('xkeysib-') && !brevoApiKey.includes('dummy') && !brevoApiKey.includes('your-api-key')) {
-    console.log(`[BREVO API] Attempting to send email via HTTP API to: ${recipientEmail}...`);
-    try {
-      const result = await sendBrevoHttpApi(brevoApiKey, senderName, senderEmail, recipientName, recipientEmail, subject, htmlContent);
-      console.log(`[BREVO API SUCCESS] Email sent via HTTP API: ${result.messageId}`);
-      return { success: true, messageId: result.messageId };
-    } catch (err) {
-      console.error(`[BREVO API ERROR] HTTP API sending failed: ${err.message}. Falling back to SMTP...`);
-    }
-  }
-
-  // 2. Fall back to SMTP Relay (tries port 587 first, then port 2525, then port 465)
+  // Fall back to SMTP Relay (tries port 587 first, then port 2525, then port 465)
   const smtpKey = smtpPass || brevoApiKey;
   if (!smtpKey || smtpKey.includes('dummy') || smtpKey.includes('your-api-key') || smtpKey.includes('your_brevo_api_key_here')) {
     console.log('\n┌────────────────────────────────────────────────────────┐');
@@ -385,8 +327,8 @@ const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlConten
     }
   }
 
-  console.error('[BREVO ERROR] All sending methods (HTTP API and SMTP ports 587, 2525, 465) failed.');
-  return { error: 'All sending attempts failed.' };
+  console.error('[BREVO ERROR] All SMTP ports (587, 2525, 465) failed.');
+  return { error: 'All SMTP sending attempts failed.' };
 };
 
 const getEmailTemplate = (recipientName, studentName, incidentDetails, respondUrlBase, alertId) => {
