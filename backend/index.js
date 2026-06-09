@@ -19,7 +19,11 @@ let supabaseUrl = process.env.SUPABASE_URL || '';
 let supabaseKey = process.env.SUPABASE_KEY || '';
 
 // Clean up quotes if passed literally from environment files
-if (supabaseUrl) supabaseUrl = supabaseUrl.replace(/^['"]|['"]$/g, '').trim();
+if (supabaseUrl) {
+  supabaseUrl = supabaseUrl.replace(/^['"]|['"]$/g, '').trim();
+  // Strip trailing rest/v1/ or rest/v1 or trailing slashes
+  supabaseUrl = supabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+}
 if (supabaseKey) supabaseKey = supabaseKey.replace(/^['"]|['"]$/g, '').trim();
 
 if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('dummy') || supabaseUrl.includes('your-project-id')) {
