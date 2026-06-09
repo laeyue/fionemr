@@ -80,44 +80,6 @@ CREATE TABLE visit_logs (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- ==========================================
--- Seed Initial Demo Data
--- ==========================================
-
--- Insert mock patients
-INSERT INTO patients (id, name, section, age, gender, status, status_color, date_of_birth, grade_level, allergies, chronic_conditions, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship)
-VALUES 
-(1023, 'John Doe', 'Grade 5-A', 10, 'Male', 'Active', 'green', '2016-04-12', 'Grade 5', 'Peanut, Penicillin', 'Asthma', 'Jane Doe', '555-0199', 'Mother'),
-(4091, 'Alice Smith', 'Grade 3-B', 8, 'Female', 'Under Observation', 'amber', '2018-09-22', 'Grade 3', 'None', 'None', 'Robert Smith', '555-0244', 'Father');
-
--- Restart sequence after our manual seed IDs
-SELECT setval(pg_get_serial_sequence('patients', 'id'), COALESCE(MAX(id), 1000) + 1) FROM patients;
-
-
--- Insert initial vitals for John Doe
-INSERT INTO vitals (patient_id, temperature, heart_rate, blood_pressure, o2_sat, recorded_at)
-VALUES 
-(1023, 37.2, 82, '115/75', 98, now() - INTERVAL '2 hours');
-
--- Insert initial SOAP Notes
-INSERT INTO soap_notes (patient_id, subjective, objective, assessment, plan, created_at)
-VALUES 
-(1023, 'Complaining of slight shortness of breath and mild cough since morning.', 'Temp: 37.2C. Lungs have mild expiratory wheezing bilaterally.', 'Mild exacerbation of known Asthma.', 'Administered 2 puffs of Salbutamol inhaler. Rest in clinic for 30 minutes. Re-evaluate vitals.', now() - INTERVAL '2 hours');
-
--- Insert initial Medication Orders
-INSERT INTO medication_orders (patient_id, medication, dosage, route, consent, created_at)
-VALUES 
-(1023, 'salbutamol', '2 puffs', 'inhaled', TRUE, now() - INTERVAL '2 hours');
-
--- Insert activity/visit logs
-INSERT INTO visit_logs (patient_id, event_type, details, created_at)
-VALUES 
-(1023, 'Check-in', 'Checked in due to difficulty breathing.', now() - INTERVAL '2 hours'),
-(1023, 'Vitals Recorded', 'Temp: 37.2°C, HR: 82 bpm, BP: 115/75, O₂: 98%', now() - INTERVAL '2 hours'),
-(1023, 'Clinical Note Added', 'SOAP Note saved by Dr. Test', now() - INTERVAL '2 hours'),
-(1023, 'Medication Ordered', 'Salbutamol 2 puffs via inhaled route', now() - INTERVAL '2 hours'),
-(4091, 'Check-in', 'Checked in for routine immunization review.', now() - INTERVAL '1 hour');
-
 -- 6. Accounts Table (Staff / Physicians)
 CREATE TABLE accounts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -131,13 +93,6 @@ CREATE TABLE accounts (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
-
--- Seed Account (Password: password123)
-INSERT INTO accounts (name, email, password, role)
-VALUES 
-('Dr. Test', 'test@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician'),
-('Developer Tester', 'dev@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician');
-
 -- 7. Immunization Matrix Table
 CREATE TABLE immunizations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -147,17 +102,3 @@ CREATE TABLE immunizations (
     doses_required INT NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT now()
 );
-
--- Seed initial immunizations
-INSERT INTO immunizations (patient_id, vaccine_name, doses_received, doses_required)
-VALUES
-(1023, 'Measles (MMR)', 2, 2),
-(1023, 'Polio (IPV)', 3, 4),
-(1023, 'Hepatitis B', 3, 3),
-(1023, 'Varicella (Chickenpox)', 1, 2),
-(4091, 'Measles (MMR)', 1, 2),
-(4091, 'Polio (IPV)', 2, 4),
-(4091, 'Hepatitis B', 3, 3),
-(4091, 'Varicella (Chickenpox)', 0, 2);
-
-
