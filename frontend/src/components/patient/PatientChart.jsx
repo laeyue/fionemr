@@ -1582,33 +1582,126 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
 
       {/* Print / View Certificate Modal */}
       {showPrintModal && selectedSlip && createPortal(
-        <div className="modal-overlay" onClick={() => setShowPrintModal(false)}>
-          <div className="modal-card" style={{ maxWidth: 520, padding: 32 }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ border: '2px solid var(--primary)', padding: 24, borderRadius: 'var(--radius-lg)', background: '#fff', textAlign: 'center', fontFamily: 'var(--font)' }}>
-              <h2 style={{ fontSize: 20, color: 'var(--primary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fiona Clinic EMR</h2>
-              <h3 style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 20, fontWeight: 600 }}>OFFICIAL CLINIC EXCUSE SLIP</h3>
+        <div className="modal-overlay print-modal-overlay" onClick={() => setShowPrintModal(false)}>
+          <div className="modal-card print-modal-card" style={{ maxWidth: 580, padding: 32 }} onClick={(e) => e.stopPropagation()}>
+            <div className="print-certificate-container" style={{ border: '2.5px solid var(--primary)', padding: 32, borderRadius: 'var(--radius-lg)', background: '#fff', position: 'relative', overflow: 'hidden', textAlign: 'center', fontFamily: 'var(--font)' }}>
               
-              <div style={{ borderTop: '1px solid var(--gray-200)', borderBottom: '1px solid var(--gray-200)', padding: '16px 0', margin: '16px 0', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10, fontSize: 'var(--text-sm)' }}>
-                <div><strong>Student Name:</strong> {patient.name}</div>
-                <div><strong>Classroom Section:</strong> {patient.section || '—'}</div>
-                <div><strong>Excuse Period:</strong> {new Date(selectedSlip.start_date).toLocaleDateString()} to {new Date(selectedSlip.end_date).toLocaleDateString()}</div>
-                <div><strong>Reason:</strong> {selectedSlip.excuse_reason}</div>
-                <div><strong>Homeroom Teacher Notified:</strong> {selectedSlip.teacher_notified || 'No'}</div>
+              {/* Subtle watermark background seal */}
+              <div style={{ position: 'absolute', top: '45%', left: '50%', transform: 'translate(-50%, -50%) rotate(-12deg)', width: '280px', height: '280px', border: '5px double var(--primary-light)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-light)', fontSize: '24px', fontWeight: 800, letterSpacing: '0.15em', pointerEvents: 'none', select: 'none', opacity: 0.25, zIndex: 0 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span>FIONA CLINIC</span>
+                  <span style={{ fontSize: '12px', borderTop: '2.5px solid var(--primary-light)', marginTop: '8px', paddingTop: '4px' }}>OFFICIALLY VERIFIED</span>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24 }}>
-                <div style={{ textAlign: 'left' }}>
-                  <span style={{ fontSize: 10, color: 'var(--gray-400)', display: 'block' }}>ISSUED BY:</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-700)' }}>{selectedSlip.created_by || 'School Clinic Staff'}</span>
+              {/* Certificate content layer */}
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                {/* Clinic Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid var(--primary)', paddingBottom: '16px', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left' }}>
+                    <div style={{ background: 'var(--primary)', color: '#fff', padding: '8px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Activity size={24} style={{ color: '#fff' }} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fiona Academy</h2>
+                      <span style={{ fontSize: '10px', color: 'var(--gray-500)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Clinic & Health Services</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: '10px', color: 'var(--gray-500)', lineHeight: '1.4', fontWeight: 500 }}>
+                    <div>123 Education Blvd, Campus Zone</div>
+                    <div>Tel: (555) 0199-CLINIC</div>
+                    <div>Email: clinic@fiona.edu</div>
+                  </div>
                 </div>
-                <div style={{ textAlign: 'right', background: 'var(--primary-light)', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--primary)' }}>
-                  <span style={{ fontSize: 8, color: 'var(--primary)', display: 'block', fontWeight: 700 }}>VERIFICATION HASH</span>
-                  <span style={{ fontSize: 12, fontWeight: 800, fontFamily: 'monospace', color: 'var(--primary)' }}>{selectedSlip.verification_hash}</span>
+
+                {/* Certificate Title */}
+                <h3 style={{ fontSize: '16px', color: 'var(--gray-900)', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '20px 0 6px 0', textAlign: 'center' }}>
+                  Medical Excuse Certificate
+                </h3>
+                <p style={{ fontSize: '12px', color: 'var(--gray-500)', margin: '0 0 20px 0' }}>
+                  This official document certifies clinical evaluation at the Fiona Academy Health Center.
+                </p>
+
+                {/* Student Details Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', margin: '20px 0', padding: '16px', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)', textAlign: 'left', fontSize: '12px' }}>
+                  <div>
+                    <span style={{ color: 'var(--gray-400)', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '2px', letterSpacing: '0.05em' }}>Student Name</span>
+                    <strong style={{ color: 'var(--gray-800)', fontSize: '13px' }}>{patient.name}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--gray-400)', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '2px', letterSpacing: '0.05em' }}>Grade & Section</span>
+                    <strong style={{ color: 'var(--gray-800)', fontSize: '13px' }}>{patient.section || '—'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--gray-400)', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '2px', letterSpacing: '0.05em' }}>Evaluation Date</span>
+                    <span style={{ color: 'var(--gray-700)', fontWeight: 600 }}>{new Date(selectedSlip.created_at).toLocaleDateString(undefined, { dateStyle: 'long' })}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--gray-400)', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '2px', letterSpacing: '0.05em' }}>Excuse Period</span>
+                    <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                      {new Date(selectedSlip.start_date).toLocaleDateString(undefined, { dateStyle: 'medium' })} to {new Date(selectedSlip.end_date).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                    </strong>
+                  </div>
                 </div>
+
+                {/* Medical Advisory Box */}
+                <div style={{ textAlign: 'left', margin: '20px 0', fontSize: '12px', lineHeight: '1.5', color: 'var(--gray-700)' }}>
+                  <span style={{ color: 'var(--gray-400)', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px', letterSpacing: '0.05em' }}>Attending Recommendations</span>
+                  <div style={{ margin: 0, padding: '12px 16px', borderLeft: '3.5px solid var(--primary)', background: '#f8fafc', borderRadius: '0 var(--radius-md) var(--radius-md) 0', fontStyle: 'italic', color: 'var(--gray-800)', borderTop: '1px solid var(--gray-100)', borderRight: '1px solid var(--gray-100)', borderBottom: '1px solid var(--gray-100)' }}>
+                    "{selectedSlip.excuse_reason}"
+                  </div>
+                  <div style={{ marginTop: '10px', fontSize: '10.5px', color: 'var(--gray-500)' }}>
+                    Based on this evaluation, the student is excused from classroom attendance and physical activities for the duration specified. Homeroom teacher notification: <strong>{selectedSlip.teacher_notified || 'No'}</strong>.
+                  </div>
+                </div>
+
+                {/* Certificate Footer Signature Stamp & Barcode Grid */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '36px', paddingTop: '16px', borderTop: '1px dashed var(--gray-200)' }}>
+                  
+                  {/* Left Practitioner Signature */}
+                  <div style={{ textAlign: 'left', minWidth: '180px' }}>
+                    <div style={{ fontFamily: '"Playball", cursive', fontSize: '24px', color: 'var(--primary)', transform: 'rotate(-3deg) translateY(6px)', paddingLeft: '16px', height: '32px', opacity: 0.9 }}>
+                      {selectedSlip.created_by ? `${selectedSlip.created_by.split('@')[0]}` : 'Dr. Test'}
+                    </div>
+                    <div style={{ borderBottom: '1px solid var(--gray-400)', width: '100%', marginBottom: '4px' }}></div>
+                    <span style={{ fontSize: '9px', color: 'var(--gray-400)', display: 'block', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Attending Practitioner</span>
+                    <span style={{ fontSize: '11px', color: 'var(--gray-600)', fontWeight: 600 }}>{selectedSlip.created_by || 'School Clinic Staff'}</span>
+                  </div>
+
+                  {/* Center Circular Stamp Seal */}
+                  <div style={{ border: '2px dashed var(--primary)', borderRadius: '50%', width: '74px', height: '74px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.65, transform: 'rotate(12deg)', color: 'var(--primary)', fontSize: '8px', fontWeight: 800, margin: '0 8px', userSelect: 'none' }}>
+                    <div style={{ fontSize: '7px' }}>FIONA ACADEMY</div>
+                    <div style={{ borderTop: '1px solid var(--primary)', borderBottom: '1px solid var(--primary)', padding: '1px 0', margin: '2px 0', fontSize: '6px', fontWeight: 700 }}>CLINIC STAMP</div>
+                    <div style={{ fontSize: '7px', letterSpacing: '0.05em' }}>VERIFIED</div>
+                  </div>
+
+                  {/* Right Barcode & Hash Container */}
+                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                    {/* Simulated Barcode */}
+                    <div style={{ display: 'flex', height: '16px', width: '90px', background: '#fff', alignItems: 'stretch', gap: '1px', opacity: 0.8, marginBottom: '2px' }}>
+                      <div style={{ width: '2px', background: '#000' }}></div>
+                      <div style={{ width: '4px', background: '#000' }}></div>
+                      <div style={{ width: '1px', background: '#000' }}></div>
+                      <div style={{ width: '3px', background: '#000' }}></div>
+                      <div style={{ width: '1px', background: '#000' }}></div>
+                      <div style={{ width: '2px', background: '#000' }}></div>
+                      <div style={{ width: '5px', background: '#000' }}></div>
+                      <div style={{ width: '1px', background: '#000' }}></div>
+                      <div style={{ width: '3px', background: '#000' }}></div>
+                      <div style={{ width: '2px', background: '#000' }}></div>
+                    </div>
+                    <div style={{ background: 'var(--primary-light)', padding: '4px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--primary)', display: 'inline-block' }}>
+                      <span style={{ fontSize: '7px', color: 'var(--primary)', display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Verification Hash</span>
+                      <span style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'monospace', color: 'var(--primary)' }}>{selectedSlip.verification_hash}</span>
+                    </div>
+                  </div>
+                </div>
+
               </div>
+
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+            <div className="print-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
               <button type="button" className="btn btn-secondary" onClick={() => setShowPrintModal(false)}>Close</button>
               <button type="button" className="btn btn-primary" onClick={() => window.print()}><FileText size={14} style={{ color: '#fff' }} /> Print Certificate</button>
             </div>
