@@ -102,3 +102,9 @@ CREATE TABLE immunizations (
     doses_required INT NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Seed Account (Password: password123)
+INSERT INTO accounts (name, email, password, role)
+VALUES 
+('Developer Tester', 'dev@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician');
+
