@@ -110,6 +110,11 @@ export const api = {
     method: 'POST',
     body: vaccineData,
   }),
+
+  checkInPatient: (id, chiefComplaint) => request(`/patients/${id}/checkin`, {
+    method: 'POST',
+    body: { chief_complaint: chiefComplaint },
+  }),
 };
 
 

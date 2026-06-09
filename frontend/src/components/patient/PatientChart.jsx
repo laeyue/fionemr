@@ -22,6 +22,10 @@ const PatientChart = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Check-In State
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [chiefComplaint, setChiefComplaint] = useState('');
+
   const fetchPatient = async () => {
     try {
       setIsLoading(true);
@@ -37,6 +41,19 @@ const PatientChart = () => {
       setError('Failed to load patient chart data.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCheckIn = async (e) => {
+    e.preventDefault();
+    if (!chiefComplaint.trim()) return;
+    try {
+      await api.checkInPatient(id, chiefComplaint);
+      setChiefComplaint('');
+      setShowCheckInModal(false);
+      fetchPatient();
+    } catch (err) {
+      console.error("Error checking in patient:", err);
     }
   };
 
@@ -137,8 +154,11 @@ const PatientChart = () => {
             </p>
           </div>
         </div>
-        <div className="id-flags">
+        <div className="id-flags" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className={`badge badge-${patient.status_color || 'green'}`}>{patient.status}</span>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowCheckInModal(true)} type="button">
+            Check-In Student
+          </button>
         </div>
       </div>
 
@@ -196,6 +216,35 @@ const PatientChart = () => {
         {activeTab === 'orders' && <OrdersTab patient={patient} onSaveOrder={handleSaveOrder} />}
         {activeTab === 'history' && <HistoryTab patient={patient} />}
       </div>
+
+      {/* Check-In Modal */}
+      {showCheckInModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="modal-header">
+              <h3>New Clinic Check-In</h3>
+              <button className="btn-close" onClick={() => setShowCheckInModal(false)} type="button"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleCheckIn}>
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label className="form-label">Chief Complaint *</label>
+                <textarea
+                  className="form-textarea"
+                  rows={4}
+                  placeholder="Enter the reason for visiting the clinic today..."
+                  required
+                  value={chiefComplaint}
+                  onChange={(e) => setChiefComplaint(e.target.value)}
+                />
+              </div>
+              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowCheckInModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Record Check-In</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -264,7 +313,7 @@ const ImmunizationMatrix = ({ patient, onUpdateDoses }) => {
 const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePatient }) => {
   const latestVitals = patient.vitals?.[0] || {};
   const [showForm, setShowForm] = useState(false);
-  const [vitalsData, setVitalsData] = useState({ temperature: '', heart_rate: '', blood_pressure: '', o2_sat: '' });
+  const [vitalsData, setVitalsData] = useState({ temperature: '', heart_rate: '', blood_pressure: '', o2_sat: '', respiratory_rate: '' });
 
   // Demographics edit mode
   const [isEditing, setIsEditing] = useState(false);
@@ -328,7 +377,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
     e.preventDefault();
     await onRecordVitals(vitalsData);
     setShowForm(false);
-    setVitalsData({ temperature: '', heart_rate: '', blood_pressure: '', o2_sat: '' });
+    setVitalsData({ temperature: '', heart_rate: '', blood_pressure: '', o2_sat: '', respiratory_rate: '' });
   };
 
   return (
@@ -477,6 +526,13 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
                 <input type="number" name="o2_sat" className="form-input" required value={vitalsData.o2_sat} onChange={(e) => setVitalsData({...vitalsData, o2_sat: e.target.value})} placeholder="e.g. 98" />
               </div>
             </div>
+            <div className="form-row-2">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontSize: 11 }}>Respiratory Rate (breaths/min)</label>
+                <input type="number" name="respiratory_rate" className="form-input" required value={vitalsData.respiratory_rate} onChange={(e) => setVitalsData({...vitalsData, respiratory_rate: e.target.value})} placeholder="e.g. 18" />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0, visibility: 'hidden' }}></div>
+            </div>
             <button type="submit" className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-end', marginTop: 4 }}>Save Vitals</button>
           </form>
         ) : (
@@ -484,6 +540,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
             {[
               ['Temperature', latestVitals.temperature, '°C'],
               ['Heart Rate', latestVitals.heart_rate, 'bpm'],
+              ['Respiratory Rate', latestVitals.respiratory_rate, 'breaths/min'],
               ['Blood Pressure', latestVitals.blood_pressure, 'mmHg'],
               ['O₂ Sat', latestVitals.o2_sat, '%']
             ].map(([label, val, unit]) => (
@@ -522,7 +579,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
 
 /* ===== SOAP ===== */
 const SOAPTab = ({ patient, onSaveNote }) => {
-  const [fields, setFields] = useState({ s: '', o: '', a: '', p: '' });
+  const [fields, setFields] = useState({ s: '', o: '', a: '', p: '', disposition: 'Returned to Class' });
   const update = (key, val) => setFields(prev => ({ ...prev, [key]: val }));
 
   const handleSubmit = async (e) => {
@@ -532,9 +589,10 @@ const SOAPTab = ({ patient, onSaveNote }) => {
       subjective: fields.s,
       objective: fields.o,
       assessment: fields.a,
-      plan: fields.p
+      plan: fields.p,
+      disposition: fields.disposition
     });
-    setFields({ s: '', o: '', a: '', p: '' });
+    setFields({ s: '', o: '', a: '', p: '', disposition: 'Returned to Class' });
   };
 
   return (
@@ -560,7 +618,27 @@ const SOAPTab = ({ patient, onSaveNote }) => {
               </div>
             </div>
           ))}
-          <div className="soap-actions">
+          <div className="soap-row" style={{ marginTop: 12, borderTop: '1px solid var(--gray-200)', paddingTop: 16 }}>
+            <div className="soap-letter sl-gray" style={{ visibility: 'hidden' }}>D</div>
+            <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+              <span className="form-label" style={{ fontWeight: 600 }}>Disposition Status *</span>
+              <select 
+                className="form-select" 
+                style={{ maxWidth: 300 }}
+                value={fields.disposition} 
+                onChange={(e) => update('disposition', e.target.value)}
+              >
+                <option value="Returned to Class">Returned to Class</option>
+                <option value="Sent Home">Sent Home</option>
+                <option value="Resting in Clinic">Resting in Clinic</option>
+                <option value="Referred to Hospital">Referred to Hospital</option>
+                <option value="Other">Other</option>
+              </select>
+              <span className="form-hint">Specify where the student was sent after the encounter</span>
+            </div>
+          </div>
+
+          <div className="soap-actions" style={{ marginTop: 16 }}>
             <button type="submit" className="btn btn-primary"><Save size={15} /> Save Note</button>
           </div>
         </form>
@@ -581,8 +659,20 @@ const SOAPTab = ({ patient, onSaveNote }) => {
                   {n.objective && <div><strong>O (Objective):</strong> {n.objective}</div>}
                   {n.assessment && <div><strong>A (Assessment):</strong> {n.assessment}</div>}
                   {n.plan && <div><strong>P (Plan):</strong> {n.plan}</div>}
+                  {n.disposition && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                      <strong>Disposition:</strong>
+                      <span className={`badge badge-${
+                        n.disposition === 'Returned to Class' ? 'green' :
+                        n.disposition === 'Sent Home' ? 'red' :
+                        n.disposition === 'Resting in Clinic' ? 'amber' :
+                        n.disposition === 'Referred to Hospital' ? 'red' : 'blue'
+                      }`}>{n.disposition}</span>
+                    </div>
+                  )}
                 </div>
               </div>
+
             ))}
           </div>
         ) : (

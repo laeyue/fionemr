@@ -41,6 +41,7 @@ CREATE TABLE vitals (
     heart_rate INT,
     blood_pressure TEXT,
     o2_sat INT,
+    respiratory_rate INT,
     recorded_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -52,6 +53,7 @@ CREATE TABLE soap_notes (
     objective TEXT,
     assessment TEXT,
     plan TEXT,
+    disposition TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 

@@ -106,11 +106,11 @@ let localImmunizations = [
 ];
 
 let localVitals = [
-  { id: 'v1', patient_id: 1023, temperature: 37.2, heart_rate: 82, blood_pressure: '115/75', o2_sat: 98, recorded_at: new Date(Date.now() - 7200000).toISOString() }
+  { id: 'v1', patient_id: 1023, temperature: 37.2, heart_rate: 82, blood_pressure: '115/75', o2_sat: 98, respiratory_rate: 18, recorded_at: new Date(Date.now() - 7200000).toISOString() }
 ];
 
 let localSoapNotes = [
-  { id: 's1', patient_id: 1023, subjective: 'Complaining of slight shortness of breath and mild cough since morning.', objective: 'Temp: 37.2C. Lungs have mild expiratory wheezing bilaterally.', assessment: 'Mild exacerbation of known Asthma.', plan: 'Administered 2 puffs of Salbutamol inhaler. Rest in clinic for 30 minutes. Re-evaluate vitals.', created_at: new Date(Date.now() - 7200000).toISOString() }
+  { id: 's1', patient_id: 1023, subjective: 'Complaining of slight shortness of breath and mild cough since morning.', objective: 'Temp: 37.2C. Lungs have mild expiratory wheezing bilaterally.', assessment: 'Mild exacerbation of known Asthma.', plan: 'Administered 2 puffs of Salbutamol inhaler. Rest in clinic for 30 minutes. Re-evaluate vitals.', disposition: 'Returned to Class', created_at: new Date(Date.now() - 7200000).toISOString() }
 ];
 
 let localOrders = [
@@ -970,19 +970,19 @@ app.post('/api/patients/:id/immunizations', async (req, res) => {
 // Patients Route: Save SOAP Clinical Note
 app.post('/api/patients/:id/soap', async (req, res) => {
   const id = parseInt(req.params.id);
-  const { subjective, objective, assessment, plan } = req.body;
+  const { subjective, objective, assessment, plan, disposition } = req.body;
 
   if (!useFallback) {
     try {
       const { data, error } = await supabase.from('soap_notes').insert([{
-        patient_id: id, subjective, objective, assessment, plan
+        patient_id: id, subjective, objective, assessment, plan, disposition
       }]).select();
       if (error) throw error;
 
       await supabase.from('visit_logs').insert([{
         patient_id: id,
         event_type: 'Clinical Note Added',
-        details: 'SOAP Note saved by Dr. Test'
+        details: `SOAP Note saved by Dr. Test (Disposition: ${disposition || 'Not Listed'})`
       }]);
 
       return res.json({ data: data[0] });
@@ -995,7 +995,7 @@ app.post('/api/patients/:id/soap', async (req, res) => {
   const newNote = {
     id: 's_' + Date.now(),
     patient_id: id,
-    subjective, objective, assessment, plan,
+    subjective, objective, assessment, plan, disposition,
     created_at: new Date().toISOString()
   };
   localSoapNotes.push(newNote);
@@ -1003,7 +1003,7 @@ app.post('/api/patients/:id/soap', async (req, res) => {
     id: 'l_' + Date.now(),
     patient_id: id,
     event_type: 'Clinical Note Added',
-    details: 'SOAP Note saved by Dr. Test',
+    details: `SOAP Note saved by Dr. Test (Disposition: ${disposition || 'Not Listed'})`,
     created_at: new Date().toISOString()
   });
   res.json({ data: newNote });
@@ -1054,7 +1054,7 @@ app.post('/api/patients/:id/orders', async (req, res) => {
 // Patients Route: Save Vital Signs
 app.post('/api/patients/:id/vitals', async (req, res) => {
   const id = parseInt(req.params.id);
-  const { temperature, heart_rate, blood_pressure, o2_sat } = req.body;
+  const { temperature, heart_rate, blood_pressure, o2_sat, respiratory_rate } = req.body;
 
   if (!useFallback) {
     try {
@@ -1063,14 +1063,15 @@ app.post('/api/patients/:id/vitals', async (req, res) => {
         temperature: temperature ? parseFloat(temperature) : null,
         heart_rate: heart_rate ? parseInt(heart_rate) : null,
         blood_pressure,
-        o2_sat: o2_sat ? parseInt(o2_sat) : null
+        o2_sat: o2_sat ? parseInt(o2_sat) : null,
+        respiratory_rate: respiratory_rate ? parseInt(respiratory_rate) : null
       }]).select();
       if (error) throw error;
 
       await supabase.from('visit_logs').insert([{
         patient_id: id,
         event_type: 'Vitals Recorded',
-        details: `Temp: ${temperature || '—'}°C, HR: ${heart_rate || '—'} bpm, BP: ${blood_pressure || '—'}, O₂: ${o2_sat || '—'}%`
+        details: `Temp: ${temperature || '—'}°C, HR: ${heart_rate || '—'} bpm, BP: ${blood_pressure || '—'}, O₂: ${o2_sat || '—'}%, RR: ${respiratory_rate || '—'} bpm`
       }]);
 
       return res.json({ data: data[0] });
@@ -1087,6 +1088,7 @@ app.post('/api/patients/:id/vitals', async (req, res) => {
     heart_rate: heart_rate ? parseInt(heart_rate) : null,
     blood_pressure,
     o2_sat: o2_sat ? parseInt(o2_sat) : null,
+    respiratory_rate: respiratory_rate ? parseInt(respiratory_rate) : null,
     recorded_at: new Date().toISOString()
   };
   localVitals.push(newVitals);
@@ -1094,10 +1096,46 @@ app.post('/api/patients/:id/vitals', async (req, res) => {
     id: 'l_' + Date.now(),
     patient_id: id,
     event_type: 'Vitals Recorded',
-    details: `Temp: ${temperature || '—'}°C, HR: ${heart_rate || '—'} bpm, BP: ${blood_pressure || '—'}, O₂: ${o2_sat || '—'}%`,
+    details: `Temp: ${temperature || '—'}°C, HR: ${heart_rate || '—'} bpm, BP: ${blood_pressure || '—'}, O₂: ${o2_sat || '—'}%, RR: ${respiratory_rate || '—'} bpm`,
     created_at: new Date().toISOString()
   });
   res.json({ data: newVitals });
+});
+
+// Patients Route: Check-In Existing Patient
+app.post('/api/patients/:id/checkin', async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid patient ID' });
+  const { chief_complaint } = req.body;
+
+  if (!chief_complaint?.trim()) {
+    return res.status(400).json({ error: 'Chief complaint is required' });
+  }
+
+  if (!useFallback) {
+    try {
+      const { data, error } = await supabase.from('visit_logs').insert([{
+        patient_id: id,
+        event_type: 'Check-in',
+        details: chief_complaint
+      }]).select();
+      if (error) throw error;
+      return res.json({ data: data[0] });
+    } catch (err) {
+      console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
+    }
+  }
+
+  // Fallback DB
+  const newLog = {
+    id: 'l_' + Date.now(),
+    patient_id: id,
+    event_type: 'Check-in',
+    details: chief_complaint,
+    created_at: new Date().toISOString()
+  };
+  localVisitLogs.push(newLog);
+  res.json({ data: newLog });
 });
 
 // Dashboard Route: Summary Stats
