@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, User, FileText, Pill, ShieldAlert, Syringe,
-  Save, AlertCircle, CheckCircle, Clock, Thermometer, Loader2, Pencil, X, ShieldCheck
+  Save, AlertCircle, CheckCircle, Clock, Thermometer, Loader2, Pencil, X, ShieldCheck, Activity
 } from 'lucide-react';
 import { useAuth } from '../../App';
 import { api } from '../../api';
