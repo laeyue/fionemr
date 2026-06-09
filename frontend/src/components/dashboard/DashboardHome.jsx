@@ -123,7 +123,7 @@ const DashboardHome = () => {
           {/* Bottom Row — Small Square Cards */}
           <div className="quick-squares anim-fade-up delay-2">
             <SquareCard label="Check-ins" value={stats.checkinsToday} color="blue" onClick={() => navigate('/dashboard/patients')} />
-            <SquareCard label="Alerts" value={stats.activeAlerts} color="red" onClick={() => navigate('/dashboard/patients')} />
+            <SquareCard label="Alerts" value={stats.activeAlerts} color="red" onClick={() => navigate('/dashboard/alerts')} />
             <SquareCard label="Beds" value={stats.bedsOccupied} color="cyan" onClick={() => navigate('/dashboard/clinic')} />
             <SquareCard label="Patients" value={stats.totalPatients} color="green" onClick={() => navigate('/dashboard/patients')} />
           </div>
