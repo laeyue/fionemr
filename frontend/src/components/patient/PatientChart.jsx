@@ -365,6 +365,52 @@ const ImmunizationMatrix = ({ patient, onUpdateDoses }) => {
   );
 };
 
+/* ===== VITAL ALARMS CHECK ===== */
+const checkVitalAlarm = (label, val) => {
+  if (val === undefined || val === null || val === '') return { isAbnormal: false };
+  
+  if (label === 'Temperature') {
+    const num = parseFloat(val);
+    if (isNaN(num)) return { isAbnormal: false };
+    if (num >= 38.0) return { isAbnormal: true, type: 'High', status: 'Fever' };
+    if (num < 35.5) return { isAbnormal: true, type: 'Low', status: 'Hypothermia' };
+  }
+  
+  if (label === 'Heart Rate') {
+    const num = parseInt(val);
+    if (isNaN(num)) return { isAbnormal: false };
+    if (num > 100) return { isAbnormal: true, type: 'High', status: 'Tachycardia' };
+    if (num < 60) return { isAbnormal: true, type: 'Low', status: 'Bradycardia' };
+  }
+  
+  if (label === 'Respiratory Rate') {
+    const num = parseInt(val);
+    if (isNaN(num)) return { isAbnormal: false };
+    if (num > 24) return { isAbnormal: true, type: 'High', status: 'Tachypnea' };
+    if (num < 12) return { isAbnormal: true, type: 'Low', status: 'Bradypnea' };
+  }
+  
+  if (label === 'O₂ Sat') {
+    const num = parseInt(val);
+    if (isNaN(num)) return { isAbnormal: false };
+    if (num < 95) return { isAbnormal: true, type: 'Low', status: 'Hypoxia' };
+  }
+  
+  if (label === 'Blood Pressure') {
+    const parts = val.toString().split('/');
+    if (parts.length === 2) {
+      const sys = parseInt(parts[0]);
+      const dia = parseInt(parts[1]);
+      if (!isNaN(sys) && !isNaN(dia)) {
+        if (sys > 130 || dia > 90) return { isAbnormal: true, type: 'High', status: 'Hypertension' };
+        if (sys < 90 || dia < 60) return { isAbnormal: true, type: 'Low', status: 'Hypotension' };
+      }
+    }
+  }
+  
+  return { isAbnormal: false };
+};
+
 /* ===== OVERVIEW ===== */
 const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePatient }) => {
   const latestVitals = patient.vitals?.[0] || {};
@@ -599,13 +645,22 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
               ['Respiratory Rate', latestVitals.respiratory_rate, 'breaths/min'],
               ['Blood Pressure', latestVitals.blood_pressure, 'mmHg'],
               ['O₂ Sat', latestVitals.o2_sat, '%']
-            ].map(([label, val, unit]) => (
-              <div className="vital-slot" key={label}>
-                <span className="vs-label">{label}</span>
-                <span className="vs-value">{val !== undefined && val !== null ? val : '—'}</span>
-                <span className="vs-unit">{unit}</span>
-              </div>
-            ))}
+            ].map(([label, val, unit]) => {
+              const { isAbnormal, status } = checkVitalAlarm(label, val);
+              const hasValue = val !== undefined && val !== null && val !== '';
+              return (
+                <div className={`vital-slot ${hasValue ? 'has-value' : ''} ${isAbnormal ? 'alarm' : ''}`} key={label}>
+                  <span className="vs-label">{label}</span>
+                  <span className="vs-value">{hasValue ? val : '—'}</span>
+                  <span className="vs-unit">{unit}</span>
+                  {isAbnormal && (
+                    <span className="vital-alarm-badge">
+                      ⚠️ {status}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -739,7 +794,52 @@ const SOAPTab = ({ patient, onSaveNote }) => {
   );
 };
 
-/* ===== ORDERS ===== */
+/* ===== CLINICAL DECISION SUPPORT HELPERS ===== */
+const checkAllergy = (allergiesStr, orderedMed) => {
+  if (!allergiesStr || allergiesStr.toLowerCase() === 'none' || !orderedMed) return null;
+  
+  const allergies = allergiesStr.toLowerCase().split(',').map(a => a.trim()).filter(Boolean);
+  const med = orderedMed.toLowerCase().trim();
+  
+  for (const allergy of allergies) {
+    if (med.includes(allergy) || allergy.includes(med)) {
+      return allergy;
+    }
+    // Penicillin / Amoxicillin cross-sensitivity check
+    if (allergy === 'penicillin' && med.includes('amoxicillin')) {
+      return 'Penicillin (cross-sensitivity with Amoxicillin)';
+    }
+    if (allergy === 'amoxicillin' && med.includes('penicillin')) {
+      return 'Amoxicillin (cross-sensitivity with Penicillin)';
+    }
+  }
+  return null;
+};
+
+const checkFrequency = (orders, orderedMed) => {
+  if (!orders || !orderedMed) return null;
+  
+  const med = orderedMed.toLowerCase().trim();
+  const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+  
+  // Find orders within the last 4 hours
+  const matchedOrders = orders
+    .filter(o => o.medication.toLowerCase().trim() === med)
+    .map(o => ({ ...o, date: new Date(o.created_at) }))
+    .filter(o => o.date >= fourHoursAgo)
+    .sort((a, b) => b.date - a.date);
+    
+  if (matchedOrders.length > 0) {
+    const lastOrder = matchedOrders[0];
+    const minsAgo = Math.round((Date.now() - lastOrder.date.getTime()) / (60 * 1000));
+    return {
+      minsAgo,
+      lastOrder
+    };
+  }
+  return null;
+};
+
 /* ===== ORDERS ===== */
 const OrdersTab = ({ patient, onSaveOrder }) => {
   const [medication, setMedication] = useState('');
@@ -752,6 +852,20 @@ const OrdersTab = ({ patient, onSaveOrder }) => {
   const [administeredBy, setAdministeredBy] = useState('');
   const [consent, setConsent] = useState(false);
 
+  // Safety Overrides State
+  const [allergyOverride, setAllergyOverride] = useState(false);
+  const [frequencyOverride, setFrequencyOverride] = useState(false);
+
+  const drugName = medication === 'other' ? customMedication : medication;
+  const allergyConflict = checkAllergy(patient.allergies, drugName);
+  const frequencyConflict = checkFrequency(patient.orders, drugName);
+
+  // Reset override confirmation if drug changes
+  useEffect(() => {
+    setAllergyOverride(false);
+    setFrequencyOverride(false);
+  }, [medication, customMedication]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const finalMedication = medication === 'other' ? customMedication : medication;
@@ -759,6 +873,8 @@ const OrdersTab = ({ patient, onSaveOrder }) => {
     const finalForm = form === 'other' ? customForm : form;
 
     if (!finalMedication || !finalStrength || !finalForm || !administeredBy || !consent) return;
+    if (allergyConflict && !allergyOverride) return;
+    if (frequencyConflict && !frequencyOverride) return;
 
     await onSaveOrder({
       medication: finalMedication,
@@ -784,7 +900,9 @@ const OrdersTab = ({ patient, onSaveOrder }) => {
     (medication === 'other' ? customMedication.trim() !== '' : medication !== '') &&
     (strength === 'other' ? customStrength.trim() !== '' : strength !== '') &&
     (form === 'other' ? customForm.trim() !== '' : form !== '') &&
-    administeredBy.trim() !== '';
+    administeredBy.trim() !== '' &&
+    (!allergyConflict || allergyOverride) &&
+    (!frequencyConflict || frequencyOverride);
 
   return (
     <div className="orders-panel">
@@ -902,10 +1020,72 @@ const OrdersTab = ({ patient, onSaveOrder }) => {
             </div>
           </div>
 
-          <div className="alert-bar alert-info" style={{ marginTop: 12 }}>
-            <AlertCircle size={16} />
-            <span>Allergy cross-referencing completed. No active conflicts found.</span>
-          </div>
+          {/* Dynamic Safety Decision Alerts */}
+          {(() => {
+            if (allergyConflict || frequencyConflict) {
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+                  {allergyConflict && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div className="alert-bar alert-danger">
+                        <AlertCircle size={16} />
+                        <span>
+                          <strong>⚠️ Allergy Warning:</strong> Patient has a documented allergy to <strong>{allergyConflict}</strong>. Ordering <strong>{drugName}</strong> is contraindicated.
+                        </span>
+                      </div>
+                      <div className="override-panel danger">
+                        <label className="override-label">
+                          <input 
+                            type="checkbox" 
+                            checked={allergyOverride} 
+                            onChange={(e) => setAllergyOverride(e.target.checked)} 
+                          />
+                          <span>I have clinically verified safety and wish to override this allergy warning.</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {frequencyConflict && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div className="alert-bar alert-warning">
+                        <AlertCircle size={16} />
+                        <span>
+                          <strong>⚠️ Frequency Warning:</strong> <strong>{drugName}</strong> was already administered <strong>{frequencyConflict.minsAgo} minutes ago</strong> (Dose interval: 4 hours).
+                        </span>
+                      </div>
+                      <div className="override-panel warning">
+                        <label className="override-label">
+                          <input 
+                            type="checkbox" 
+                            checked={frequencyOverride} 
+                            onChange={(e) => setFrequencyOverride(e.target.checked)} 
+                          />
+                          <span>I have clinically verified the dose interval and wish to override this frequency limit.</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            if (drugName) {
+              return (
+                <div className="alert-bar alert-success" style={{ marginTop: 12 }}>
+                  <CheckCircle size={16} />
+                  <span>Allergy & frequency checks completed. No active conflicts found.</span>
+                </div>
+              );
+            }
+
+            return (
+              <div className="alert-bar alert-info" style={{ marginTop: 12 }}>
+                <AlertCircle size={16} />
+                <span>Select a medication to complete clinical decision checks.</span>
+              </div>
+            );
+          })()}
 
           <div className="consent-bar" style={{ marginTop: 12 }}>
             <label className="consent-label">
