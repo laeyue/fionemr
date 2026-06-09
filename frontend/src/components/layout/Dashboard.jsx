@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import {
   Activity, Search, Bell, LogOut, Settings,
-  LayoutDashboard, Users, Bed, FileText, AlertTriangle
+  LayoutDashboard, Users, Bed, FileText, AlertTriangle,
+  X, Loader2
 } from 'lucide-react';
 import { useAuth } from '../../App';
+import { api } from '../../api';
 import DashboardHome from '../dashboard/DashboardHome';
 import PatientList from '../patient/PatientList';
 import PatientChart from '../patient/PatientChart';
@@ -24,6 +26,50 @@ const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      try {
+        setIsSearchLoading(true);
+        const res = await api.getPatients({ search: searchQuery });
+        if (res && res.data) {
+          setSearchResults(res.data);
+        }
+      } catch (err) {
+        console.error("Global search error:", err);
+      } finally {
+        setIsSearchLoading(false);
+      }
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery]);
+
+  const handleSearchSubmit = (e) => {
+    if (e.key === 'Enter') {
+      navigate(`/dashboard/patients?search=${encodeURIComponent(searchQuery)}`);
+      setIsSearchFocused(false);
+      setIsMobileSearchOpen(false);
+    }
+  };
+
+  const handlePatientSelect = (id) => {
+    navigate(`/dashboard/patients/${id}`);
+    setSearchQuery('');
+    setIsSearchFocused(false);
+    setIsMobileSearchOpen(false);
+  };
 
   const isActive = (path, exact) => exact ? location.pathname === path : location.pathname.startsWith(path);
 
@@ -65,9 +111,83 @@ const Dashboard = () => {
 
         {/* Right — Utilities */}
         <div className="topbar-right">
-          <button className="btn btn-icon btn-ghost">
-            <Search size={18} />
-          </button>
+          <div className={`header-search-container ${isMobileSearchOpen ? 'mobile-open' : ''}`}>
+            {/* On mobile, this button toggles search open */}
+            <button 
+              className="btn btn-icon btn-ghost search-trigger-btn"
+              onClick={() => setIsMobileSearchOpen(true)}
+              type="button"
+            >
+              <Search size={18} />
+            </button>
+
+            <div className="search-input-wrapper">
+              <Search className="search-icon-inside" size={16} />
+              <input
+                type="text"
+                placeholder="Search students..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchSubmit}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => {
+                  // Delay closing the dropdown to allow click events to register
+                  setTimeout(() => setIsSearchFocused(false), 200);
+                }}
+                className="header-search-input"
+              />
+              {searchQuery && (
+                <button 
+                  className="search-clear-btn" 
+                  onClick={() => setSearchQuery('')}
+                  type="button"
+                >
+                  <X size={14} />
+                </button>
+              )}
+              <button 
+                className="btn btn-icon btn-ghost search-close-btn"
+                onClick={() => setIsMobileSearchOpen(false)}
+                type="button"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {isSearchFocused && (searchQuery || searchResults.length > 0) && (
+              <div className="search-dropdown anim-fade-up">
+                {isSearchLoading ? (
+                  <div className="search-dropdown-status">
+                    <Loader2 className="animate-spin" size={16} />
+                    <span>Searching...</span>
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  <div className="search-results-list">
+                    {searchResults.map(p => (
+                      <div 
+                        key={p.id} 
+                        className="search-result-item" 
+                        onClick={() => handlePatientSelect(p.id)}
+                      >
+                        <div className="patient-avatar-mini">
+                          {p.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="patient-details">
+                          <div className="patient-name">{p.name}</div>
+                          <div className="patient-sub">
+                            ID: {p.id} • {p.grade_level || p.section} • {p.gender}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="search-dropdown-status">No students found</div>
+                )}
+              </div>
+            )}
+          </div>
+
           <button className="btn btn-icon btn-ghost">
             <Bell size={18} />
           </button>

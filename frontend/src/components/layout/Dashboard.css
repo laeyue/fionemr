@@ -265,3 +265,220 @@
     color: var(--primary);
   }
 }
+
+/* ===== GLOBAL HEADER SEARCH ===== */
+.header-search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-trigger-btn {
+  display: none;
+}
+
+.search-close-btn {
+  display: none;
+}
+
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  position: relative;
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  width: 200px;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease, background-color 0.2s ease;
+  padding: 4px 8px 4px 32px;
+}
+
+.search-input-wrapper:focus-within {
+  width: 280px;
+  border-color: var(--blue-500);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.search-icon-inside {
+  position: absolute;
+  left: 10px;
+  color: var(--gray-400);
+  pointer-events: none;
+}
+
+.header-search-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  width: 100%;
+  font-family: var(--font);
+  font-size: var(--text-sm);
+  color: var(--gray-800);
+  height: 24px;
+}
+
+.header-search-input::placeholder {
+  color: var(--gray-400);
+}
+
+.search-clear-btn {
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: var(--radius-full);
+  margin-left: 4px;
+}
+
+.search-clear-btn:hover {
+  background: var(--gray-200);
+  color: var(--gray-700);
+}
+
+/* Dropdown Results */
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  overflow: hidden;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.search-dropdown-status {
+  padding: 20px;
+  text-align: center;
+  color: var(--gray-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.search-results-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-item:hover {
+  background: var(--gray-50);
+}
+
+.patient-avatar-mini {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background: var(--blue-50);
+  color: var(--blue-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.patient-details {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.patient-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--gray-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.patient-sub {
+  font-size: 11px;
+  color: var(--gray-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== RESPONSIVE MOBILE SEARCH OVERRIDE ===== */
+@media (max-width: 768px) {
+  .search-trigger-btn {
+    display: flex;
+  }
+
+  .search-input-wrapper {
+    display: none;
+  }
+
+  .header-search-container.mobile-open .search-trigger-btn {
+    display: none;
+  }
+
+  .header-search-container.mobile-open .search-input-wrapper {
+    display: flex;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    background: var(--bg-card);
+    width: 100vw;
+    height: 100%;
+    border-radius: 0;
+    border: none;
+    padding: 0 16px 0 44px;
+    align-items: center;
+  }
+
+  .header-search-container.mobile-open .search-icon-inside {
+    left: 20px;
+  }
+
+  .header-search-container.mobile-open .search-close-btn {
+    display: flex;
+    margin-left: 8px;
+    color: var(--gray-500);
+  }
+
+  .header-search-container.mobile-open .search-dropdown {
+    width: 100vw;
+    left: 0;
+    right: 0;
+    top: 100%;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+  }
+}
+

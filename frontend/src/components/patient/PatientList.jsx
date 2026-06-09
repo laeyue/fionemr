@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Users, X, Loader2 } from 'lucide-react';
 import { api } from '../../api';
 import './PatientList.css';
 
 const PatientList = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [patients, setPatients] = useState([]);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
   const [letterFilter, setLetterFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setSearch(searchParams.get('search') || '');
+  }, [searchParams]);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
