@@ -10,6 +10,9 @@ import { api } from '../../api';
 import DashboardHome from '../dashboard/DashboardHome';
 import PatientList from '../patient/PatientList';
 import PatientChart from '../patient/PatientChart';
+import ClinicTracker from '../clinic/ClinicTracker';
+import ReportsAnalytics from '../reports/ReportsAnalytics';
+import AlertsPage from '../alerts/AlertsPage';
 import SettingsPage from '../settings/Settings';
 import './Dashboard.css';
 
@@ -211,9 +214,9 @@ const Dashboard = () => {
           <Route index element={<DashboardHome />} />
           <Route path="patients" element={<PatientList />} />
           <Route path="patients/:id" element={<PatientChart />} />
-          <Route path="clinic" element={<Placeholder title="Clinic & Bed Tracker" />} />
-          <Route path="reports" element={<Placeholder title="Reports & Analytics" />} />
-          <Route path="alerts" element={<Placeholder title="Alerts & Notifications" />} />
+          <Route path="clinic" element={<ClinicTracker />} />
+          <Route path="reports" element={<ReportsAnalytics />} />
+          <Route path="alerts" element={<AlertsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
