@@ -52,6 +52,17 @@ let localAccounts = [
     mfa_type: 'none',
     mfa_secret: null,
     created_at: new Date().toISOString() 
+  },
+  { 
+    id: 'a2', 
+    name: 'Developer Tester', 
+    email: 'dev@fiona.com', 
+    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123 (MFA Bypassed account for developer testing)
+    role: 'physician', 
+    mfa_enabled: false,
+    mfa_type: 'none',
+    mfa_secret: null,
+    created_at: new Date().toISOString() 
   }
 ];
 

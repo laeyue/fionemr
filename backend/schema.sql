@@ -134,7 +134,9 @@ CREATE TABLE accounts (
 
 -- Seed Account (Password: password123)
 INSERT INTO accounts (name, email, password, role)
-VALUES ('Dr. Test', 'test@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician');
+VALUES 
+('Dr. Test', 'test@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician'),
+('Developer Tester', 'dev@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician');
 
 -- 7. Immunization Matrix Table
 CREATE TABLE immunizations (
