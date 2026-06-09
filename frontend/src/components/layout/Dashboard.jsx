@@ -3,7 +3,7 @@ import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-
 import {
   Activity, Search, Bell, LogOut, Settings,
   LayoutDashboard, Users, Bed, FileText, AlertTriangle,
-  X, Loader2
+  X, Loader2, CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../../App';
 import { api } from '../../api';
@@ -25,6 +25,17 @@ const NAV_ITEMS = [
   { path: '/dashboard/alerts', label: 'Alerts', icon: AlertTriangle },
 ];
 
+const formatTimeAgo = (date) => {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  if (seconds < 5) return 'Just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return date.toLocaleDateString();
+};
+
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -35,6 +46,113 @@ const Dashboard = () => {
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+
+  const [notifications, setNotifications] = useState([]);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const loadNotifications = async () => {
+    try {
+      const logsRes = await api.getEmailAlertLogs();
+      const logs = (logsRes && logsRes.data) ? logsRes.data : [];
+
+      const statsRes = await api.getDashboardStats();
+      const occupiedBeds = statsRes?.occupiedBedsList || [];
+      const highRisk = statsRes?.highRiskPatients || [];
+      const outbreak = statsRes?.outbreakAlert || null;
+
+      const list = [];
+
+      // Add parent acknowledgements (email alerts acknowledged)
+      logs.filter(a => a.acknowledged).forEach(a => {
+        list.push({
+          id: `ack-${a.id}`,
+          type: 'response',
+          text: `${a.recipient_type === 'parent' ? 'Parent' : 'Adviser'} of ${a.student_name} acknowledged: "${a.response_status}"`,
+          time: new Date(a.acknowledged_at),
+          patientId: a.patient_id
+        });
+      });
+
+      // Add occupied beds tracker
+      occupiedBeds.forEach(bed => {
+        list.push({
+          id: `bed-${bed.id}-${bed.entryTime}`,
+          type: 'bed',
+          text: `${bed.name} (${bed.section}) is currently in bed observation`,
+          time: new Date(bed.entryTime),
+          patientId: bed.id
+        });
+      });
+
+      // Add high risk vital alarms
+      highRisk.forEach(p => {
+        list.push({
+          id: `alarm-${p.id}`,
+          type: 'alarm',
+          text: `⚠️ Vital Warning: ${p.name} has abnormal ${p.alerts.join(', ')}`,
+          time: new Date(), 
+          patientId: p.id
+        });
+      });
+
+      // Add outbreak alert if present
+      if (outbreak) {
+        list.push({
+          id: 'outbreak',
+          type: 'outbreak',
+          text: outbreak.message,
+          time: new Date(),
+          patientId: null
+        });
+      }
+
+      list.sort((a, b) => b.time - a.time);
+      setNotifications(list);
+
+      const lastViewed = localStorage.getItem('notif_last_viewed');
+      if (lastViewed) {
+        const lastViewedDate = new Date(lastViewed);
+        const unread = list.filter(n => n.time > lastViewedDate).length;
+        setUnreadCount(unread);
+      } else {
+        setUnreadCount(list.length);
+      }
+    } catch (err) {
+      console.error("Failed to load notifications:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!isNotifOpen) return;
+    const handleOutsideClick = (e) => {
+      if (!e.target.closest('.notif-container')) {
+        setIsNotifOpen(false);
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, [isNotifOpen]);
+
+  const handleNotifClick = () => {
+    setIsNotifOpen(!isNotifOpen);
+    if (!isNotifOpen) {
+      localStorage.setItem('notif_last_viewed', new Date().toISOString());
+      setUnreadCount(0);
+    }
+  };
+
+  const handleClearNotifs = () => {
+    localStorage.setItem('notif_last_viewed', new Date().toISOString());
+    setUnreadCount(0);
+    setIsNotifOpen(false);
+  };
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -191,9 +309,61 @@ const Dashboard = () => {
             )}
           </div>
 
-          <button className="btn btn-icon btn-ghost">
-            <Bell size={18} />
-          </button>
+          <div className="notif-container">
+            <button 
+              className="btn btn-icon btn-ghost notif-btn" 
+              onClick={handleNotifClick}
+              type="button"
+              title="Notifications"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && <span className="notif-badge"></span>}
+            </button>
+
+            {isNotifOpen && (
+              <div className="notif-dropdown anim-fade-up">
+                <div className="notif-dropdown-header">
+                  <h3>Notifications</h3>
+                  {notifications.length > 0 && (
+                    <button className="notif-clear-btn" onClick={handleClearNotifs}>
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+                <div className="notif-list">
+                  {notifications.length > 0 ? (
+                    notifications.map(n => (
+                      <div 
+                        key={n.id} 
+                        className="notif-item"
+                        onClick={() => {
+                          if (n.patientId) {
+                            navigate(`/dashboard/patients/${n.patientId}`);
+                          }
+                          setIsNotifOpen(false);
+                        }}
+                      >
+                        <div className={`notif-icon-circle ${
+                          n.type === 'response' ? 'notif-icon-green' :
+                          n.type === 'bed' ? 'notif-icon-blue' : 'notif-icon-red'
+                        }`}>
+                          {n.type === 'response' && <CheckCircle2 size={16} />}
+                          {n.type === 'bed' && <Bed size={16} />}
+                          {(n.type === 'alarm' || n.type === 'outbreak') && <AlertTriangle size={16} />}
+                        </div>
+                        <div className="notif-content">
+                          <span className="notif-text">{n.text}</span>
+                          <span className="notif-time">{formatTimeAgo(n.time)}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="notif-empty">No new notifications</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="topbar-divider"></div>
           <div className="user-block" onClick={() => navigate('/dashboard/settings')}>
             <div className="avatar avatar-sm">{initials}</div>
