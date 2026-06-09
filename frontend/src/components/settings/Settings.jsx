@@ -54,7 +54,11 @@ const SettingsPage = () => {
     e.preventDefault();
     setPurgeSuccess('');
     setPurgeError('');
-    if (!purgeYears || isNaN(purgeYears)) return;
+    const yearsNum = parseInt(purgeYears);
+    if (!purgeYears || isNaN(yearsNum) || yearsNum <= 0) {
+      setPurgeError('Please enter a valid positive number of years.');
+      return;
+    }
     
     if (!window.confirm(`Warning: This action will permanently delete all student patient charts who graduated ${purgeYears} or more years ago. This action is irreversible. Proceed?`)) {
       return;
@@ -62,7 +66,7 @@ const SettingsPage = () => {
 
     setIsLoading(true);
     try {
-      const res = await api.purgeGraduates(parseInt(purgeYears));
+      const res = await api.purgeGraduates(yearsNum);
       setPurgeSuccess(res.message || 'Records successfully purged.');
     } catch (err) {
       setPurgeError(err.message || 'Failed to purge graduate records.');

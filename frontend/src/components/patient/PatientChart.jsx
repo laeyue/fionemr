@@ -316,7 +316,12 @@ const ImmunizationMatrix = ({ patient, onUpdateDoses }) => {
   const handleAddVaccine = async (e) => {
     e.preventDefault();
     if (!newVaccineName.trim()) return;
-    await onUpdateDoses(newVaccineName.trim(), 0, parseInt(newDosesRequired));
+    const reqDoses = parseInt(newDosesRequired);
+    if (isNaN(reqDoses) || reqDoses <= 0) {
+      alert("Required doses must be a positive number.");
+      return;
+    }
+    await onUpdateDoses(newVaccineName.trim(), 0, reqDoses);
     setNewVaccineName('');
     setNewDosesRequired('2');
     setShowAddForm(false);
@@ -535,6 +540,24 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
   const handleSaveDemographics = async (e) => {
     e.preventDefault();
     if (!editData.name?.trim()) return;
+
+    if (editData.date_of_birth) {
+      const birthDate = new Date(editData.date_of_birth);
+      const today = new Date();
+      if (birthDate > today) {
+        alert("Date of birth cannot be in the future.");
+        return;
+      }
+    }
+
+    if (editData.graduation_year) {
+      const gradYear = parseInt(editData.graduation_year);
+      if (isNaN(gradYear) || gradYear <= 0) {
+        alert("Graduation year must be a valid positive integer.");
+        return;
+      }
+    }
+
     setIsSaving(true);
     await onUpdatePatient(editData);
     setIsEditing(false);
@@ -543,6 +566,34 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const temp = parseFloat(vitalsData.temperature);
+    const hr = parseInt(vitalsData.heart_rate);
+    const o2 = parseInt(vitalsData.o2_sat);
+    const rr = parseInt(vitalsData.respiratory_rate);
+
+    if (isNaN(temp) || temp <= 0 || temp > 50) {
+      alert("Please enter a valid temperature between 0 and 50 °C.");
+      return;
+    }
+    if (isNaN(hr) || hr <= 0 || hr > 300) {
+      alert("Please enter a valid heart rate.");
+      return;
+    }
+    if (isNaN(o2) || o2 < 0 || o2 > 100) {
+      alert("Oxygen saturation must be between 0% and 100%.");
+      return;
+    }
+    if (isNaN(rr) || rr <= 0 || rr > 100) {
+      alert("Please enter a valid respiratory rate.");
+      return;
+    }
+    const bpPattern = /^\d{2,3}\/\d{2,3}$/;
+    if (!bpPattern.test(vitalsData.blood_pressure.trim())) {
+      alert("Blood pressure must be in Sys/Dia format (e.g., 120/80).");
+      return;
+    }
+
     await onRecordVitals(vitalsData);
     setShowForm(false);
     setVitalsData({ temperature: '', heart_rate: '', blood_pressure: '', o2_sat: '', respiratory_rate: '' });
@@ -551,6 +602,17 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
   const handleConsentSubmit = async (e) => {
     e.preventDefault();
     if (!consentFormData.consent_type.trim() || !consentFormData.parent_name.trim() || !consentFormData.document_name.trim()) return;
+
+    if (consentFormData.date_granted) {
+      const selectedDate = new Date(consentFormData.date_granted);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (selectedDate > today) {
+        alert("Consent date cannot be in the future.");
+        return;
+      }
+    }
+
     await onAddConsent(consentFormData);
     setConsentFormData({
       consent_type: 'Medication',
@@ -586,7 +648,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
             <div className="form-row-2">
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Date of Birth</label>
-                <input type="date" name="date_of_birth" className="form-input" value={editData.date_of_birth} onChange={handleEditChange} />
+                <input type="date" name="date_of_birth" className="form-input" max={new Date().toISOString().split('T')[0]} value={editData.date_of_birth} onChange={handleEditChange} />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Age</label>
@@ -865,6 +927,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
                   type="date" 
                   className="form-input" 
                   required
+                  max={new Date().toISOString().split('T')[0]}
                   value={consentFormData.date_granted}
                   onChange={(e) => setConsentFormData({ ...consentFormData, date_granted: e.target.value })}
                 />
@@ -1380,6 +1443,12 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.excuse_reason.trim() || !formData.start_date || !formData.end_date) return;
+
+    if (new Date(formData.start_date) > new Date(formData.end_date)) {
+      alert("Excuse start date cannot be after the end date.");
+      return;
+    }
+
     await onCreateExcuseSlip({
       excuse_reason: formData.excuse_reason,
       start_date: formData.start_date,

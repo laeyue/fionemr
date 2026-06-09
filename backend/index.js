@@ -754,6 +754,7 @@ app.get('/api/patients', async (req, res) => {
       return res.json({ data });
     } catch (err) {
       console.warn("[WARNING] Supabase query failed. Falling back to local db:", err.message);
+      useFallback = true;
     }
   }
 
@@ -781,12 +782,20 @@ app.post('/api/patients', async (req, res) => {
     return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot register new patients.' });
   }
 
+  if (age && (isNaN(parseInt(age)) || parseInt(age) < 0)) {
+    return res.status(400).json({ error: 'Age must be a valid non-negative integer.' });
+  }
+  if (graduation_year && (isNaN(parseInt(graduation_year)) || parseInt(graduation_year) <= 0)) {
+    return res.status(400).json({ error: 'Graduation year must be a valid positive integer.' });
+  }
+
+  const ageParsed = age ? parseInt(age) : null;
   const gradYearParsed = graduation_year ? parseInt(graduation_year) : null;
 
   if (!useFallback) {
     try {
       const { data, error } = await supabase.from('patients').insert([{
-        name, section, age: age ? parseInt(age) : null, gender, status: status || 'Active', status_color: status_color || 'green',
+        name, section, age: ageParsed, gender, status: status || 'Active', status_color: status_color || 'green',
         date_of_birth: date_of_birth || null,
         grade_level: grade_level || null,
         allergies: allergies || 'None',
@@ -825,13 +834,14 @@ app.post('/api/patients', async (req, res) => {
       return res.json({ data: newPatient });
     } catch (err) {
       console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
+      useFallback = true;
     }
   }
 
   // Fallback DB
   const newPatient = {
     id: nextPatientId++,
-    name, section, age: age ? parseInt(age) : null, gender, status: status || 'Active', status_color: status_color || 'green',
+    name, section, age: ageParsed, gender, status: status || 'Active', status_color: status_color || 'green',
     date_of_birth: date_of_birth || null,
     grade_level: grade_level || null,
     allergies: allergies || 'None',
@@ -947,6 +957,7 @@ app.get('/api/patients/:id', async (req, res) => {
       });
     } catch (err) {
       console.warn("[WARNING] Supabase query failed. Falling back to local db:", err.message);
+      useFallback = true;
     }
   }
 
@@ -1019,10 +1030,20 @@ app.put('/api/patients/:id', async (req, res) => {
     return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot update patient demographics.' });
   }
 
+  if (age && (isNaN(parseInt(age)) || parseInt(age) < 0)) {
+    return res.status(400).json({ error: 'Age must be a valid non-negative integer.' });
+  }
+  if (graduation_year && (isNaN(parseInt(graduation_year)) || parseInt(graduation_year) <= 0)) {
+    return res.status(400).json({ error: 'Graduation year must be a valid positive integer.' });
+  }
+
+  const ageParsed = age ? parseInt(age) : null;
+  const gradYearParsed = graduation_year ? parseInt(graduation_year) : null;
+
   const updates = {
     name,
     section: section || null,
-    age: age ? parseInt(age) : null,
+    age: ageParsed,
     gender: gender || null,
     status: status || 'Active',
     status_color: status_color || 'green',
@@ -1033,7 +1054,7 @@ app.put('/api/patients/:id', async (req, res) => {
     emergency_contact_name: emergency_contact_name || null,
     emergency_contact_phone: emergency_contact_phone || null,
     emergency_contact_relationship: emergency_contact_relationship || null,
-    graduation_year: graduation_year ? parseInt(graduation_year) : null
+    graduation_year: gradYearParsed
   };
 
   if (!useFallback) {
@@ -1058,6 +1079,7 @@ app.put('/api/patients/:id', async (req, res) => {
       return res.json({ data: data[0] });
     } catch (err) {
       console.warn("[WARNING] Supabase update failed. Falling back to local db:", err.message);
+      useFallback = true;
     }
   }
 
@@ -1085,8 +1107,17 @@ app.post('/api/patients/:id/immunizations', async (req, res) => {
   const { vaccine_name, doses_received, doses_required } = req.body;
 
   if (isNaN(patientId)) return res.status(400).json({ error: 'Invalid patient ID' });
-  if (!vaccine_name || doses_received === undefined || !doses_required) {
+  if (!vaccine_name || doses_received === undefined || doses_required === undefined) {
     return res.status(400).json({ error: 'Vaccine name, doses received, and required doses are required.' });
+  }
+
+  const rec = parseInt(doses_received);
+  const reqDoses = parseInt(doses_required);
+  if (isNaN(rec) || rec < 0) {
+    return res.status(400).json({ error: 'Doses received must be a valid non-negative integer.' });
+  }
+  if (isNaN(reqDoses) || reqDoses <= 0) {
+    return res.status(400).json({ error: 'Doses required must be a valid positive integer.' });
   }
 
   const practitioner = getPractitioner(req);
@@ -1144,6 +1175,7 @@ app.post('/api/patients/:id/immunizations', async (req, res) => {
       return res.json({ data: result });
     } catch (err) {
       console.warn("[WARNING] Supabase immunization update failed. Falling back to local db:", err.message);
+      useFallback = true;
     }
   }
 
@@ -1209,6 +1241,7 @@ app.post('/api/patients/:id/soap', async (req, res) => {
       return res.json({ data: data[0] });
     } catch (err) {
       console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
+      useFallback = true;
     }
   }
 
@@ -1273,6 +1306,7 @@ app.post('/api/patients/:id/orders', async (req, res) => {
       return res.json({ data: data[0] });
     } catch (err) {
       console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
+      useFallback = true;
     }
   }
 
@@ -1314,6 +1348,28 @@ app.post('/api/patients/:id/vitals', async (req, res) => {
     return res.status(400).json({ error: 'All vital signs (temperature, heart rate, blood pressure, oxygen saturation, and respiratory rate) are required.' });
   }
 
+  const temp = parseFloat(temperature);
+  const hr = parseInt(heart_rate);
+  const o2 = parseInt(o2_sat);
+  const rr = parseInt(respiratory_rate);
+
+  if (isNaN(temp) || temp <= 0 || temp > 50) {
+    return res.status(400).json({ error: 'Temperature must be a valid number between 0 and 50.' });
+  }
+  if (isNaN(hr) || hr <= 0 || hr > 300) {
+    return res.status(400).json({ error: 'Heart rate must be a valid positive integer.' });
+  }
+  if (isNaN(o2) || o2 < 0 || o2 > 100) {
+    return res.status(400).json({ error: 'Oxygen saturation must be a valid percentage between 0 and 100.' });
+  }
+  if (isNaN(rr) || rr <= 0 || rr > 100) {
+    return res.status(400).json({ error: 'Respiratory rate must be a valid positive integer.' });
+  }
+  const bpPattern = /^\d{2,3}\/\d{2,3}$/;
+  if (!bpPattern.test(blood_pressure.trim())) {
+    return res.status(400).json({ error: 'Blood pressure must be in Sys/Dia format (e.g. 120/80).' });
+  }
+
   const auditDetails = `Temp: ${temperature}°C, HR: ${heart_rate} bpm, BP: ${blood_pressure}, O₂: ${o2_sat}%, RR: ${respiratory_rate} bpm`;
 
   if (!useFallback) {
@@ -1338,6 +1394,7 @@ app.post('/api/patients/:id/vitals', async (req, res) => {
       return res.json({ data: data[0] });
     } catch (err) {
       console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
+      useFallback = true;
     }
   }
 
@@ -1395,6 +1452,7 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
       return res.json({ data: data[0] });
     } catch (err) {
       console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
+      useFallback = true;
     }
   }
 
@@ -1866,11 +1924,28 @@ app.get('/api/patients/:id/consents', async (req, res) => {
 app.post('/api/patients/:id/consents', async (req, res) => {
   const patientId = parseInt(req.params.id);
   if (isNaN(patientId)) return res.status(400).json({ error: 'Invalid patient ID' });
-  const { consent_type, document_name, parent_name, notes } = req.body;
+  const { consent_type, document_name, parent_name, date_granted, notes } = req.body;
   
   if (!consent_type?.trim() || !document_name?.trim() || !parent_name?.trim()) {
     return res.status(400).json({ error: 'Consent type, document name, and parent name are required.' });
   }
+
+  // Validate date_granted if provided
+  let parsedDateGranted = date_granted;
+  if (date_granted) {
+    const d = new Date(date_granted);
+    if (isNaN(d.getTime())) {
+      return res.status(400).json({ error: 'Invalid consent date format.' });
+    }
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (d > today) {
+      return res.status(400).json({ error: 'Consent date cannot be in the future.' });
+    }
+  } else {
+    parsedDateGranted = new Date().toISOString().split('T')[0];
+  }
+
   const practitioner = getPractitioner(req);
   if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
     return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot upload parental consent.' });
@@ -1881,7 +1956,7 @@ app.post('/api/patients/:id/consents', async (req, res) => {
   if (!useFallback) {
     try {
       const { data, error } = await supabase.from('parental_consents').insert([{
-        patient_id: patientId, consent_type, document_name, parent_name, notes
+        patient_id: patientId, consent_type, document_name, parent_name, date_granted: parsedDateGranted, notes
       }]).select();
       if (error) throw error;
       
@@ -1900,7 +1975,7 @@ app.post('/api/patients/:id/consents', async (req, res) => {
   const newConsent = {
     id: 'c_' + Date.now(),
     patient_id: patientId,
-    consent_type, document_name, parent_name, notes,
+    consent_type, document_name, parent_name, date_granted: parsedDateGranted, notes,
     created_at: new Date().toISOString()
   };
   localParentalConsents.push(newConsent);
@@ -1940,6 +2015,9 @@ app.post('/api/patients/:id/excuse-slips', async (req, res) => {
   
   if (!excuse_reason?.trim() || !start_date || !end_date) {
     return res.status(400).json({ error: 'Excuse reason, start date, and end date are required.' });
+  }
+  if (new Date(start_date) > new Date(end_date)) {
+    return res.status(400).json({ error: 'Excuse start date cannot be after the end date.' });
   }
   const practitioner = getPractitioner(req);
   if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
@@ -1995,7 +2073,11 @@ app.post('/api/admin/purge-graduates', async (req, res) => {
     return res.status(403).json({ error: 'Access denied. Only system administrators can purge student records.' });
   }
   const { years } = req.body;
-  const cutoffYear = new Date().getFullYear() - parseInt(years || 5);
+  const yearsVal = years !== undefined ? parseInt(years) : 5;
+  if (isNaN(yearsVal) || yearsVal <= 0) {
+    return res.status(400).json({ error: 'Retention period must be a positive integer number of years.' });
+  }
+  const cutoffYear = new Date().getFullYear() - yearsVal;
 
   let deletedCount = 0;
 

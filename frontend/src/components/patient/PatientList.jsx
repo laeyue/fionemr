@@ -78,6 +78,24 @@ const PatientList = () => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+
+    if (formData.date_of_birth) {
+      const birthDate = new Date(formData.date_of_birth);
+      const today = new Date();
+      if (birthDate > today) {
+        alert("Date of birth cannot be in the future.");
+        return;
+      }
+    }
+
+    if (formData.graduation_year) {
+      const gradYear = parseInt(formData.graduation_year);
+      if (isNaN(gradYear) || gradYear <= 0) {
+        alert("Graduation year must be a valid positive integer.");
+        return;
+      }
+    }
+
     try {
       const statusColorMap = {
         'Active': 'green',
@@ -369,6 +387,7 @@ const PatientList = () => {
                     type="date"
                     name="date_of_birth"
                     className="form-input"
+                    max={new Date().toISOString().split('T')[0]}
                     value={formData.date_of_birth}
                     onChange={handleInputChange}
                   />
