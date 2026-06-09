@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Users, X, Loader2 } from 'lucide-react';
 import { api } from '../../api';
@@ -200,7 +201,7 @@ const PatientList = () => {
       )}
 
       {/* Register Modal */}
-      {showModal && (
+      {showModal && createPortal(
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -390,7 +391,8 @@ const PatientList = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

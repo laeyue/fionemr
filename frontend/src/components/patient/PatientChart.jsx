@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, User, FileText, Pill, ShieldAlert, Syringe,
@@ -218,7 +219,7 @@ const PatientChart = () => {
       </div>
 
       {/* Check-In Modal */}
-      {showCheckInModal && (
+      {showCheckInModal && createPortal(
         <div className="modal-overlay">
           <div className="modal-card">
             <div className="modal-header">
@@ -243,7 +244,8 @@ const PatientChart = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
