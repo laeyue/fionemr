@@ -14,6 +14,13 @@ services:
       - SUPABASE_URL=${SUPABASE_URL:-}
       - SUPABASE_KEY=${SUPABASE_KEY:-}
       - JWT_SECRET=${JWT_SECRET:-your-fallback-jwt-secret-key-123}
+      # Brevo and SMTP configuration overrides
+      - BREVO_API_KEY=${BREVO_API_KEY:-}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SENDER_EMAIL=${SENDER_EMAIL:-}
+      - SENDER_NAME=${SENDER_NAME:-}
+      - BACKEND_URL=${BACKEND_URL:-}
     ports:
       - "5000:5000"
 
