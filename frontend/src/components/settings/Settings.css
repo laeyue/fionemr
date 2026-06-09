@@ -204,14 +204,10 @@
   flex-shrink: 0;
 }
 
-.compliance-icon.passed {
-  background: var(--success-bg);
-  color: var(--success);
-}
-
+.compliance-icon.passed,
 .compliance-icon.warning {
-  background: var(--warning-bg);
-  color: var(--warning);
+  background: var(--blue-100);
+  color: var(--blue-600);
 }
 
 .compliance-details h3 {
