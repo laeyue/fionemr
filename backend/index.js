@@ -938,6 +938,44 @@ app.post('/api/auth/mfa/verify-setup', async (req, res) => {
   return res.json({ data: userWithoutPassword });
 });
 
+const getMfaEmailTemplate = (recipientName, code) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Fiona EMR Security Code</title>
+      <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f6f9; color: #333333; margin: 0; padding: 0; }
+        .container { max-width: 500px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e1e4e8; }
+        .header { background: linear-gradient(135deg, #1a202c, #2d3748); color: #ffffff; padding: 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.5px; }
+        .content { padding: 40px 30px; line-height: 1.6; text-align: center; }
+        .content p { margin: 0 0 24px 0; font-size: 16px; color: #4a5568; text-align: left; }
+        .code-box { background-color: #f7fafc; border: 1.5px dashed #cbd5e0; padding: 20px; border-radius: 8px; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #2b6cb0; display: inline-block; margin: 10px 0 30px 0; }
+        .footer { background-color: #f7fafc; padding: 20px; text-align: center; border-top: 1px solid #edf2f7; font-size: 12px; color: #a0aec0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Fiona EMR Security Verification</h1>
+        </div>
+        <div class="content">
+          <p>Dear <strong>${recipientName}</strong>,</p>
+          <p>Use the following verification code to secure your login session. This code is active for 5 minutes.</p>
+          <div class="code-box">${code}</div>
+          <p style="font-size: 13px; color: #718096; margin-top: 20px; text-align: left;">If you did not request this code, please secure your account immediately or notify system administration.</p>
+        </div>
+        <div class="footer">
+          &copy; 2026 Fiona EMR Security. All rights reserved.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
 // MFA Route: Send Email Verification Code
 app.post('/api/auth/mfa/send-email', async (req, res) => {
   const { userId } = req.body;
@@ -951,7 +989,7 @@ app.post('/api/auth/mfa/send-email', async (req, res) => {
     try {
       const { data: user, error: fetchErr } = await supabase
         .from('accounts')
-        .select('email')
+        .select('email, name')
         .eq('id', userId)
         .maybeSingle();
 
@@ -978,6 +1016,15 @@ app.post('/api/auth/mfa/send-email', async (req, res) => {
   console.log(`│ [MFA EMAIL] Verification Code for: ${userObj.email.padEnd(20)} │`);
   console.log(`│ CODE: ${code}                                             │`);
   console.log('└────────────────────────────────────────────────────────┘\n');
+
+  // Trigger targeted email via Brevo
+  const recipientName = userObj.name || 'Practitioner';
+  const emailSubject = '[Fiona EMR] Login Verification Security Code';
+  const htmlContent = getMfaEmailTemplate(recipientName, code);
+  
+  sendBrevoEmail(userObj.email, recipientName, emailSubject, htmlContent).catch(err => {
+    console.error('[MFA EMAIL ERROR] Failed to deliver code via Brevo:', err.message);
+  });
 
   return res.json({ success: true, message: 'Verification code sent to email.' });
 });
