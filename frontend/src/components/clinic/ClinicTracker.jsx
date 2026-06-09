@@ -2,15 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bed, Users, UserMinus, Plus, ShieldAlert, Activity, Heart, ArrowUpRight } from 'lucide-react';
 import { api } from '../../api';
+import { useAuth } from '../../App';
 
 const ClinicTracker = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [bedsList, setBedsList] = useState([]);
   const [patients, setPatients] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({ bedsOccupied: 0 });
   const [currentTime, setCurrentTime] = useState(Date.now());
+
+  const canManageBeds = user?.role === 'physician' || user?.role === 'nurse';
 
   const fetchClinicData = async () => {
     try {
@@ -208,13 +212,15 @@ const ClinicTracker = () => {
                       >
                         Chart <ArrowUpRight size={12} style={{ color: 'var(--primary)' }} />
                       </button>
-                      <button 
-                        onClick={() => handleDischarge(bed.id)}
-                        className="btn btn-secondary btn-sm"
-                        style={{ borderColor: 'var(--danger)', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}
-                      >
-                        <UserMinus size={12} style={{ color: 'var(--danger)' }} /> Discharge
-                      </button>
+                      {canManageBeds && (
+                        <button 
+                          onClick={() => handleDischarge(bed.id)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ borderColor: 'var(--danger)', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <UserMinus size={12} style={{ color: 'var(--danger)' }} /> Discharge
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -235,45 +241,53 @@ const ClinicTracker = () => {
             <Plus size={18} style={{ color: 'var(--primary)' }} /> Bed Admission
           </h3>
           
-          <p className="text-muted" style={{ fontSize: 'var(--text-xs)', marginBottom: '16px', lineHeight: '1.4' }}>
-            Select an active clinic student to place under observation in an empty bed.
-          </p>
+          {canManageBeds ? (
+            <>
+              <p className="text-muted" style={{ fontSize: 'var(--text-xs)', marginBottom: '16px', lineHeight: '1.4' }}>
+                Select an active clinic student to place under observation in an empty bed.
+              </p>
 
-          <form onSubmit={handleAdmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Select Student *</label>
-              <select 
-                className="form-select"
-                required
-                value={selectedPatientId}
-                onChange={(e) => setSelectedPatientId(e.target.value)}
-                disabled={occupiedCount >= capacity}
-              >
-                <option value="">-- Select Student --</option>
-                {patients.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.section || p.grade_level || 'No class'})
-                  </option>
-                ))}
-              </select>
+              <form onSubmit={handleAdmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Select Student *</label>
+                  <select 
+                    className="form-select"
+                    required
+                    value={selectedPatientId}
+                    onChange={(e) => setSelectedPatientId(e.target.value)}
+                    disabled={occupiedCount >= capacity}
+                  >
+                    <option value="">-- Select Student --</option>
+                    {patients.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.section || p.grade_level || 'No class'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  disabled={!selectedPatientId || occupiedCount >= capacity}
+                >
+                  <Plus size={15} style={{ color: '#fff' }} /> Admit to Bed
+                </button>
+
+                {occupiedCount >= capacity && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--danger)', fontSize: 10, marginTop: 4 }}>
+                    <ShieldAlert size={12} style={{ color: 'var(--danger)' }} />
+                    <span>Clinic beds at maximum capacity. Discharge a student first.</span>
+                  </div>
+                )}
+              </form>
+            </>
+          ) : (
+            <div className="form-error" style={{ background: '#fef2f2', border: '1px solid #fee2e2', color: '#b91c1c', padding: 12, borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)' }}>
+              ⚠️ Access Restricted: Only physicians and nurses can assign or discharge clinic beds.
             </div>
-
-            <button 
-              type="submit" 
-              className="btn btn-primary" 
-              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-              disabled={!selectedPatientId || occupiedCount >= capacity}
-            >
-              <Plus size={15} style={{ color: '#fff' }} /> Admit to Bed
-            </button>
-
-            {occupiedCount >= capacity && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--danger)', fontSize: 10, marginTop: 4 }}>
-                <ShieldAlert size={12} style={{ color: 'var(--danger)' }} />
-                <span>Clinic beds at maximum capacity. Discharge a student first.</span>
-              </div>
-            )}
-          </form>
+          )}
         </div>
       </div>
     </div>

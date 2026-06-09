@@ -822,8 +822,8 @@ app.post('/api/patients', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'Name is required' });
 
   const practitioner = getPractitioner(req);
-  if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
-    return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot register new patients.' });
+  if (practitioner.role !== 'physician' && practitioner.role !== 'nurse') {
+    return res.status(403).json({ error: 'Access denied. Only physicians and nurses can register new patients.' });
   }
 
   if (age && (isNaN(parseInt(age)) || parseInt(age) < 0)) {
@@ -1070,8 +1070,8 @@ app.put('/api/patients/:id', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'Name is required' });
 
   const practitioner = getPractitioner(req);
-  if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
-    return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot update patient demographics.' });
+  if (practitioner.role !== 'physician' && practitioner.role !== 'nurse') {
+    return res.status(403).json({ error: 'Access denied. Only physicians and nurses can update patient demographics.' });
   }
 
   if (age && (isNaN(parseInt(age)) || parseInt(age) < 0)) {
@@ -1476,8 +1476,8 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
   }
 
   const practitioner = getPractitioner(req);
-  if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
-    return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot check in patients.' });
+  if (practitioner.role !== 'physician' && practitioner.role !== 'nurse') {
+    return res.status(403).json({ error: 'Access denied. Only physicians and nurses can check in patients.' });
   }
 
   if (!useFallback) {
