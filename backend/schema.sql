@@ -9,6 +9,7 @@ DROP TABLE IF EXISTS vitals CASCADE;
 DROP TABLE IF EXISTS immunizations CASCADE;
 DROP TABLE IF EXISTS patients CASCADE;
 DROP TABLE IF EXISTS accounts CASCADE;
+DROP TABLE IF EXISTS email_alerts CASCADE;
 
 
 -- 1. Patients Table
@@ -27,6 +28,9 @@ CREATE TABLE patients (
     emergency_contact_name TEXT,
     emergency_contact_phone TEXT,
     emergency_contact_relationship TEXT,
+    parent_email TEXT,
+    adviser_name TEXT,
+    adviser_email TEXT,
     graduation_year INT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -130,6 +134,35 @@ CREATE TABLE excuse_slips (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- 10. Incident Alerts Table
+CREATE TABLE incident_alerts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id BIGINT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    incident_details TEXT NOT NULL,
+    adviser_name TEXT,
+    adviser_status TEXT DEFAULT 'Pending', -- 'Pending', 'Received', 'On My Way'
+    adviser_confirmed_at TIMESTAMPTZ,
+    parent_name TEXT,
+    parent_status TEXT DEFAULT 'Pending', -- 'Pending', 'Received', 'On My Way'
+    parent_confirmed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 11. Email Alerts Table
+CREATE TABLE email_alerts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id BIGINT NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    recipient_type TEXT NOT NULL, -- 'parent' or 'adviser'
+    recipient_email TEXT NOT NULL,
+    subject TEXT,
+    body TEXT,
+    sent_at TIMESTAMPTZ DEFAULT now(),
+    acknowledged BOOLEAN DEFAULT FALSE,
+    acknowledged_at TIMESTAMPTZ,
+    response_status TEXT
+);
+
+
 -- Seed Accounts for different roles (Password: password123, MFA Disabled)
 INSERT INTO accounts (name, email, password, role, mfa_enabled, mfa_type)
 VALUES 
@@ -152,5 +185,8 @@ ALTER TABLE visit_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE immunizations DISABLE ROW LEVEL SECURITY;
 ALTER TABLE parental_consents DISABLE ROW LEVEL SECURITY;
 ALTER TABLE excuse_slips DISABLE ROW LEVEL SECURITY;
+ALTER TABLE incident_alerts DISABLE ROW LEVEL SECURITY;
+ALTER TABLE email_alerts DISABLE ROW LEVEL SECURITY;
+
 
 

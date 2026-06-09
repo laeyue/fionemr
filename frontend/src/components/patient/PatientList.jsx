@@ -34,7 +34,10 @@ const PatientList = () => {
     chronic_conditions: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
-    emergency_contact_relationship: ''
+    emergency_contact_relationship: '',
+    parent_email: '',
+    adviser_name: '',
+    adviser_email: ''
   });
 
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -122,7 +125,10 @@ const PatientList = () => {
           chronic_conditions: '',
           emergency_contact_name: '',
           emergency_contact_phone: '',
-          emergency_contact_relationship: ''
+          emergency_contact_relationship: '',
+          parent_email: '',
+          adviser_name: '',
+          adviser_email: ''
         });
         navigate(`/dashboard/patients/${res.data.id}`);
       }
@@ -538,6 +544,45 @@ const PatientList = () => {
                     value={formData.emergency_contact_relationship}
                     onChange={handleInputChange}
                     placeholder="e.g. Mother"
+                  />
+                </div>
+              </div>
+
+              <h4 style={{ margin: '16px 0 12px', fontSize: 'var(--text-sm)' }}>Parent & Adviser Contacts</h4>
+
+              <div className="form-group">
+                <label className="form-label">Parent Email Address</label>
+                <input
+                  type="email"
+                  name="parent_email"
+                  className="form-input"
+                  value={formData.parent_email}
+                  onChange={handleInputChange}
+                  placeholder="e.g. parent@example.com"
+                />
+              </div>
+
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label className="form-label">Homeroom Adviser Name</label>
+                  <input
+                    type="text"
+                    name="adviser_name"
+                    className="form-input"
+                    value={formData.adviser_name}
+                    onChange={handleInputChange}
+                    placeholder="e.g. Teacher Sarah"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Homeroom Adviser Email</label>
+                  <input
+                    type="email"
+                    name="adviser_email"
+                    className="form-input"
+                    value={formData.adviser_email}
+                    onChange={handleInputChange}
+                    placeholder="e.g. teacher@example.com"
                   />
                 </div>
               </div>

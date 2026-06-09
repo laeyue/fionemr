@@ -508,6 +508,9 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
       emergency_contact_name: patient.emergency_contact_name || '',
       emergency_contact_phone: patient.emergency_contact_phone || '',
       emergency_contact_relationship: patient.emergency_contact_relationship || '',
+      parent_email: patient.parent_email || '',
+      adviser_name: patient.adviser_name || '',
+      adviser_email: patient.adviser_email || '',
     });
     setIsEditing(true);
   };
@@ -726,6 +729,22 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
               </div>
             </div>
 
+            <h5 style={{ marginTop: 8, fontSize: 'var(--text-sm)', color: 'var(--gray-600)' }}>Parent & Adviser Contacts</h5>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Parent Email Address</label>
+              <input type="email" name="parent_email" className="form-input" value={editData.parent_email} onChange={handleEditChange} placeholder="e.g. parent@example.com" />
+            </div>
+            <div className="form-row-2">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Homeroom Adviser Name</label>
+                <input type="text" name="adviser_name" className="form-input" value={editData.adviser_name} onChange={handleEditChange} placeholder="e.g. Teacher Sarah" />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Homeroom Adviser Email</label>
+                <input type="email" name="adviser_email" className="form-input" value={editData.adviser_email} onChange={handleEditChange} placeholder="e.g. teacher@example.com" />
+              </div>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8, paddingTop: 12, borderTop: '1px solid var(--gray-200)' }}>
               <button type="button" className="btn btn-secondary btn-sm" onClick={cancelEditing} disabled={isSaving}>
                 <X size={14} style={{ color: 'var(--primary)' }} /> Cancel
@@ -744,6 +763,8 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
             <div><strong>Grade Level:</strong> {patient.grade_level || '—'}</div>
             <div><strong>Section / Room:</strong> {patient.section || '—'}</div>
             <div><strong>Graduation Year:</strong> {patient.graduation_year || '—'}</div>
+            <div><strong>Parent Email:</strong> {patient.parent_email || '—'}</div>
+            <div><strong>Homeroom Adviser:</strong> {patient.adviser_name || '—'} {patient.adviser_email ? `(${patient.adviser_email})` : ''}</div>
             <div><strong>Registered:</strong> {new Date(patient.created_at).toLocaleDateString()}</div>
           </div>
         )}

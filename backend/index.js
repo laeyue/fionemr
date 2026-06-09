@@ -133,6 +133,9 @@ let localPatients = [
     emergency_contact_name: 'Jane Doe', 
     emergency_contact_phone: '555-0199', 
     emergency_contact_relationship: 'Mother', 
+    parent_email: 'parent.doe@example.com',
+    adviser_name: 'Teacher Sarah',
+    adviser_email: 'teacher@fiona.com',
     graduation_year: 2028,
     created_at: new Date(Date.now() - 7200000).toISOString() 
   },
@@ -151,6 +154,9 @@ let localPatients = [
     emergency_contact_name: 'Robert Smith', 
     emergency_contact_phone: '555-0244', 
     emergency_contact_relationship: 'Father', 
+    parent_email: 'parent.smith@example.com',
+    adviser_name: 'Teacher Sarah',
+    adviser_email: 'teacher@fiona.com',
     graduation_year: 2030,
     created_at: new Date(Date.now() - 3600000).toISOString() 
   }
@@ -192,6 +198,8 @@ let localParentalConsents = [
 ];
 
 let localExcuseSlips = [];
+
+let localEmailAlerts = [];
 
 let simulatedNotifications = [
   { id: 'n1', patient_id: 1023, recipient: 'Jane Doe (555-0199)', type: 'SMS', message: 'Hi Jane, John Doe has checked into the school clinic at 2:31 PM. Reason: checked in due to difficulty breathing.', sent_at: new Date(Date.now() - 7200000).toISOString() }
@@ -259,9 +267,356 @@ const triggerParentNotification = async (patientId, message) => {
   }
 };
 
+const generateAlertId = () => {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return crypto.randomBytes(16).toString('hex');
+};
+
+const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlContent) => {
+  const brevoKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.SENDER_EMAIL || 'clinic@fiona.com';
+  const senderName = process.env.SENDER_NAME || 'Fiona Clinic';
+
+  if (!brevoKey || brevoKey.includes('dummy') || brevoKey === 'your-api-key' || brevoKey === 'your_brevo_api_key_here') {
+    console.log('\n┌────────────────────────────────────────────────────────┐');
+    console.log(`│ [BREVO OFFLINE SIMULATION]                             │`);
+    console.log(`│ To: ${recipientName} <${recipientEmail}>`);
+    console.log(`│ Subject: ${subject}`);
+    console.log(`│ HTML Content preview (first 150 chars):`);
+    console.log(`│ ${htmlContent.replace(/<[^>]*>/g, ' ').substring(0, 150).trim().replace(/\s+/g, ' ')}...`);
+    console.log('└────────────────────────────────────────────────────────┘\n');
+    return { simulated: true };
+  }
+
+  try {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': brevoKey,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: { name: senderName, email: senderEmail },
+        to: [{ email: recipientEmail, name: recipientName }],
+        subject,
+        htmlContent
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Brevo HTTP error! status: ${response.status}, body: ${errText}`);
+    }
+
+    const data = await response.json();
+    return { success: true, messageId: data.messageId };
+  } catch (err) {
+    console.error('[BREVO ERROR] Failed to send email:', err.message);
+    return { error: err.message };
+  }
+};
+
+const getEmailTemplate = (recipientName, studentName, incidentDetails, respondUrlBase, alertId) => {
+  const ackUrl = `${respondUrlBase}/api/notifications/respond?alertId=${alertId}&response=Acknowledged`;
+  const omwUrl = `${respondUrlBase}/api/notifications/respond?alertId=${alertId}&response=On%20My%20Way`;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Clinic Incident Notification</title>
+      <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f6f9; color: #333333; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e1e4e8; }
+        .header { background: linear-gradient(135deg, #2b6cb0, #3182ce); color: #ffffff; padding: 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
+        .content { padding: 40px 30px; line-height: 1.6; }
+        .content p { margin: 0 0 20px 0; font-size: 16px; color: #4a5568; }
+        .alert-box { background-color: #ebf8ff; border-left: 4px solid #3182ce; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 30px; }
+        .alert-box p { margin: 0; font-size: 15px; color: #2b6cb0; font-weight: 500; }
+        .actions { margin: 40px 0 20px 0; text-align: center; }
+        .btn { display: inline-block; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; text-align: center; margin: 0 10px; }
+        .btn-primary { background-color: #3182ce; color: #ffffff !important; box-shadow: 0 2px 4px rgba(49, 130, 206, 0.2); }
+        .btn-secondary { background-color: #edf2f7; color: #4a5568 !important; border: 1px solid #cbd5e0; }
+        .footer { background-color: #f7fafc; padding: 20px; text-align: center; border-top: 1px solid #edf2f7; font-size: 12px; color: #a0aec0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Fiona EMR Clinic Alert</h1>
+        </div>
+        <div class="content">
+          <p>Dear <strong>${recipientName}</strong>,</p>
+          <p>This is a notification from the school clinic regarding student <strong>${studentName}</strong>, who has just checked in.</p>
+          <div class="alert-box">
+            <p><strong>Reason for Visit:</strong> ${incidentDetails}</p>
+          </div>
+          <p>Please acknowledge receipt of this alert and let the clinic know your status by clicking one of the options below:</p>
+          <div class="actions">
+            <a href="${ackUrl}" class="btn btn-primary">Acknowledge Receipt</a>
+            <a href="${omwUrl}" class="btn btn-secondary">On My Way</a>
+          </div>
+          <p style="font-size: 13px; color: #718096; margin-top: 30px; font-style: italic;">Note: Clicking either button logs your confirmation timestamp directly in our clinic records as verified proof of receipt.</p>
+        </div>
+        <div class="footer">
+          &copy; 2026 Fiona EMR System. All rights reserved.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+const getResponseLandingPage = (status, recipientEmail, recipientType, studentName, timestamp) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Clinic Receipt Verified</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: radial-gradient(circle at top left, #f7fafc, #edf2f7); color: #2d3748; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .card { background: #ffffff; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05), 0 20px 48px rgba(0,0,0,0.05); max-width: 500px; width: 90%; padding: 40px; text-align: center; border: 1px solid rgba(226, 232, 240, 0.8); }
+        .icon-circle { display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; background-color: #c6f6d5; color: #38a169; border-radius: 50%; font-size: 36px; margin-bottom: 24px; }
+        h1 { font-size: 24px; font-weight: 700; margin: 0 0 12px 0; color: #1a202c; letter-spacing: -0.5px; }
+        p.subtitle { color: #718096; font-size: 16px; margin: 0 0 30px 0; }
+        .details-table { text-align: left; background: #f7fafc; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; margin-bottom: 30px; font-size: 14px; }
+        .details-row { display: flex; justify-content: space-between; margin-bottom: 12px; }
+        .details-row:last-child { margin-bottom: 0; }
+        .label { color: #718096; font-weight: 500; }
+        .value { color: #2d3748; font-weight: 600; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 700; text-transform: uppercase; background-color: #ebf8ff; color: #2b6cb0; }
+        .footer-text { font-size: 12px; color: #a0aec0; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="icon-circle">✓</div>
+        <h1>Receipt Verified</h1>
+        <p class="subtitle">Your response has been transmitted to the clinic dashboard.</p>
+        <div class="details-table">
+          <div class="details-row">
+            <span class="label">Student:</span>
+            <span class="value">${studentName}</span>
+          </div>
+          <div class="details-row">
+            <span class="label">Recipient:</span>
+            <span class="value">${recipientEmail} (${recipientType === 'parent' ? 'Parent/Guardian' : 'Homeroom Adviser'})</span>
+          </div>
+          <div class="details-row">
+            <span class="label">Response:</span>
+            <span class="value"><span class="badge">${status}</span></span>
+          </div>
+          <div class="details-row">
+            <span class="label">Timestamp:</span>
+            <span class="value">${new Date(timestamp).toLocaleString()}</span>
+          </div>
+        </div>
+        <p class="footer-text">Fiona School EMR System &bull; Real-time active response gateway</p>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+const triggerCheckinEmails = async (patient, chiefComplaint) => {
+  if (!patient) return;
+  const respondUrlBase = process.env.BACKEND_URL || 'http://localhost:5000';
+
+  // 1. Send Parent Email
+  if (patient.parent_email?.trim()) {
+    const parentAlertId = generateAlertId();
+    const parentName = patient.emergency_contact_name || 'Parent/Guardian';
+    const parentSubject = `[Fiona Clinic] Incident Alert for ${patient.name}`;
+    const parentHtmlContent = getEmailTemplate(parentName, patient.name, chiefComplaint, respondUrlBase, parentAlertId);
+
+    // Record in DB
+    const newAlert = {
+      id: parentAlertId,
+      patient_id: patient.id,
+      recipient_type: 'parent',
+      recipient_email: patient.parent_email,
+      subject: parentSubject,
+      body: parentHtmlContent,
+      sent_at: new Date().toISOString(),
+      acknowledged: false,
+      acknowledged_at: null,
+      response_status: null
+    };
+
+    if (!useFallback) {
+      try {
+        await supabase.from('email_alerts').insert([newAlert]);
+      } catch (err) {
+        console.error('[DATABASE ERROR] Failed to record parent email alert:', err.message);
+      }
+    } else {
+      localEmailAlerts.push(newAlert);
+    }
+
+    // Call Brevo
+    sendBrevoEmail(patient.parent_email, parentName, parentSubject, parentHtmlContent).then(result => {
+      if (result && result.simulated) {
+        console.log(`[SIMULATION LINK] Parent Action Links:`);
+        console.log(`- Acknowledge: ${respondUrlBase}/api/notifications/respond?alertId=${parentAlertId}&response=Acknowledged`);
+        console.log(`- On My Way: ${respondUrlBase}/api/notifications/respond?alertId=${parentAlertId}&response=On%20My%20Way`);
+      }
+    });
+  }
+
+  // 2. Send Adviser Email
+  if (patient.adviser_email?.trim()) {
+    const adviserAlertId = generateAlertId();
+    const adviserName = patient.adviser_name || 'Homeroom Adviser';
+    const adviserSubject = `[Fiona Clinic] Class Incident Alert for ${patient.name}`;
+    const adviserHtmlContent = getEmailTemplate(adviserName, patient.name, chiefComplaint, respondUrlBase, adviserAlertId);
+
+    // Record in DB
+    const newAlert = {
+      id: adviserAlertId,
+      patient_id: patient.id,
+      recipient_type: 'adviser',
+      recipient_email: patient.adviser_email,
+      subject: adviserSubject,
+      body: adviserHtmlContent,
+      sent_at: new Date().toISOString(),
+      acknowledged: false,
+      acknowledged_at: null,
+      response_status: null
+    };
+
+    if (!useFallback) {
+      try {
+        await supabase.from('email_alerts').insert([newAlert]);
+      } catch (err) {
+        console.error('[DATABASE ERROR] Failed to record adviser email alert:', err.message);
+      }
+    } else {
+      localEmailAlerts.push(newAlert);
+    }
+
+    // Call Brevo
+    sendBrevoEmail(patient.adviser_email, adviserName, adviserSubject, adviserHtmlContent).then(result => {
+      if (result && result.simulated) {
+        console.log(`[SIMULATION LINK] Adviser Action Links:`);
+        console.log(`- Acknowledge: ${respondUrlBase}/api/notifications/respond?alertId=${adviserAlertId}&response=Acknowledged`);
+        console.log(`- On My Way: ${respondUrlBase}/api/notifications/respond?alertId=${adviserAlertId}&response=On%20My%20Way`);
+      }
+    });
+  }
+};
+
+
 // Basic Health Route
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'EMR API is running', supabase: useFallback ? 'fallback' : 'connected' });
+});
+
+// Active Response Tracking Route
+app.get('/api/notifications/respond', async (req, res) => {
+  const { alertId, response } = req.query;
+  if (!alertId || !response) {
+    return res.status(400).send('<h1>Missing alertId or response parameter</h1>');
+  }
+
+  const nowStr = new Date().toISOString();
+
+  if (!useFallback) {
+    try {
+      const { data: alert, error: fetchErr } = await supabase
+        .from('email_alerts')
+        .select('*, patients(name)')
+        .eq('id', alertId)
+        .maybeSingle();
+
+      if (fetchErr) throw fetchErr;
+      
+      if (alert) {
+        const { error: updateErr } = await supabase
+          .from('email_alerts')
+          .update({
+            acknowledged: true,
+            acknowledged_at: nowStr,
+            response_status: response
+          })
+          .eq('id', alertId);
+
+        if (updateErr) throw updateErr;
+
+        const patientName = alert.patients ? (Array.isArray(alert.patients) ? alert.patients[0]?.name : alert.patients.name) : 'Student';
+        return res.send(getResponseLandingPage(response, alert.recipient_email, alert.recipient_type, patientName, nowStr));
+      }
+    } catch (err) {
+      console.error('[RESPOND ROUTE ERROR]', err.message);
+    }
+  }
+
+  const alert = localEmailAlerts.find(a => a.id === alertId);
+  if (!alert) {
+    return res.status(404).send('<h1>Alert not found</h1>');
+  }
+
+  alert.acknowledged = true;
+  alert.acknowledged_at = nowStr;
+  alert.response_status = response;
+
+  const patient = localPatients.find(p => p.id === alert.patient_id);
+  const studentName = patient ? patient.name : 'Student';
+
+  res.send(getResponseLandingPage(response, alert.recipient_email, alert.recipient_type, studentName, nowStr));
+});
+
+// Email Tracking Endpoint
+app.get('/api/notifications/logs', async (req, res) => {
+  if (!useFallback) {
+    try {
+      const { data, error } = await supabase
+        .from('email_alerts')
+        .select('*, patients(name)')
+        .order('sent_at', { ascending: false });
+
+      if (error) throw error;
+      const formatted = (data || []).map(a => ({
+        id: a.id,
+        patient_id: a.patient_id,
+        student_name: a.patients ? (Array.isArray(a.patients) ? a.patients[0]?.name : a.patients.name) : 'Unknown',
+        recipient_type: a.recipient_type,
+        recipient_email: a.recipient_email,
+        subject: a.subject,
+        body: a.body,
+        sent_at: a.sent_at,
+        acknowledged: a.acknowledged,
+        acknowledged_at: a.acknowledged_at,
+        response_status: a.response_status
+      }));
+      return res.json({ data: formatted });
+    } catch (err) {
+      console.warn("[WARNING] Supabase email logs query failed. Falling back to local db:", err.message);
+    }
+  }
+
+  const formatted = localEmailAlerts.map(a => {
+    const p = localPatients.find(x => x.id === a.patient_id);
+    return {
+      id: a.id,
+      patient_id: a.patient_id,
+      student_name: p ? p.name : 'Unknown',
+      recipient_type: a.recipient_type,
+      recipient_email: a.recipient_email,
+      subject: a.subject,
+      body: a.body,
+      sent_at: a.sent_at,
+      acknowledged: a.acknowledged,
+      acknowledged_at: a.acknowledged_at,
+      response_status: a.response_status
+    };
+  }).sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
+
+  res.json({ data: formatted });
 });
 
 // Authentication Route: Register User
@@ -818,7 +1173,7 @@ app.get('/api/patients', async (req, res) => {
 
 // Patients Route: Register New Patient
 app.post('/api/patients', async (req, res) => {
-  const { name, section, age, gender, status, status_color, date_of_birth, grade_level, allergies, chronic_conditions, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, graduation_year } = req.body;
+  const { name, section, age, gender, status, status_color, date_of_birth, grade_level, allergies, chronic_conditions, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, parent_email, adviser_name, adviser_email, graduation_year } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
 
   const practitioner = getPractitioner(req);
@@ -845,6 +1200,9 @@ app.post('/api/patients', async (req, res) => {
         allergies: allergies || 'None',
         chronic_conditions: chronic_conditions || 'None',
         emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
+        parent_email: parent_email || null,
+        adviser_name: adviser_name || null,
+        adviser_email: adviser_email || null,
         graduation_year: gradYearParsed
       }]).select();
       if (error) throw error;
@@ -891,6 +1249,9 @@ app.post('/api/patients', async (req, res) => {
     allergies: allergies || 'None',
     chronic_conditions: chronic_conditions || 'None',
     emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
+    parent_email: parent_email || null,
+    adviser_name: adviser_name || null,
+    adviser_email: adviser_email || null,
     graduation_year: gradYearParsed,
     created_at: new Date().toISOString()
   };
@@ -1064,6 +1425,7 @@ app.put('/api/patients/:id', async (req, res) => {
     name, section, age, gender, status, status_color,
     date_of_birth, grade_level, allergies, chronic_conditions,
     emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
+    parent_email, adviser_name, adviser_email,
     graduation_year
   } = req.body;
 
@@ -1098,6 +1460,9 @@ app.put('/api/patients/:id', async (req, res) => {
     emergency_contact_name: emergency_contact_name || null,
     emergency_contact_phone: emergency_contact_phone || null,
     emergency_contact_relationship: emergency_contact_relationship || null,
+    parent_email: parent_email || null,
+    adviser_name: adviser_name || null,
+    adviser_email: adviser_email || null,
     graduation_year: gradYearParsed
   };
 
@@ -1493,6 +1858,15 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
       // Trigger Simulated Parent Notification on Check-in
       triggerParentNotification(id, `checked into the school clinic. Reason: ${chief_complaint}`);
 
+      // Fetch patient details for emails
+      supabase.from('patients').select('*').eq('id', id).maybeSingle().then(({ data: patient }) => {
+        if (patient) {
+          triggerCheckinEmails(patient, chief_complaint);
+        }
+      }).catch(err => {
+        console.error('[NOTIFICATIONS] Failed to fetch patient for check-in emails:', err.message);
+      });
+
       return res.json({ data: data[0] });
     } catch (err) {
       console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
@@ -1513,6 +1887,11 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
 
   // Trigger Simulated Parent Notification in Fallback
   triggerParentNotification(id, `checked into the school clinic. Reason: ${chief_complaint}`);
+
+  const patient = localPatients.find(p => p.id === id);
+  if (patient) {
+    triggerCheckinEmails(patient, chief_complaint);
+  }
 
   res.json({ data: newLog });
 });

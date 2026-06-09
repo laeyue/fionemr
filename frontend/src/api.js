@@ -146,6 +146,8 @@ export const api = {
 
   getSimulatedNotifications: () => request('/admin/notifications'),
 
+  getEmailAlertLogs: () => request('/notifications/logs'),
+
   setSession: (session) => {
     currentSession = session;
   },
