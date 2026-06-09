@@ -274,7 +274,7 @@ const generateAlertId = () => {
 };
 
 const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlContent) => {
-  const brevoKey = process.env.BREVO_API_KEY || process.env.SMTP_PASS;
+  const brevoKey = process.env.SMTP_PASS || process.env.BREVO_API_KEY;
   const smtpUser = process.env.SMTP_USER || process.env.SENDER_EMAIL;
   const senderEmail = process.env.SENDER_EMAIL || 'clinic@fiona.com';
   const senderName = process.env.SENDER_NAME || 'Fiona Clinic';
