@@ -114,7 +114,7 @@ let localSoapNotes = [
 ];
 
 let localOrders = [
-  { id: 'o1', patient_id: 1023, medication: 'salbutamol', dosage: '2 puffs', route: 'inhaled', consent: true, created_at: new Date(Date.now() - 7200000).toISOString() }
+  { id: 'o1', patient_id: 1023, medication: 'salbutamol', dosage: '2 puffs inhaler', strength: '2 puffs', form: 'inhaler', route: 'inhaled', administered_by: 'Dr. T', consent: true, created_at: new Date(Date.now() - 7200000).toISOString() }
 ];
 
 let localVisitLogs = [
@@ -1012,19 +1012,20 @@ app.post('/api/patients/:id/soap', async (req, res) => {
 // Patients Route: Save Medication Order
 app.post('/api/patients/:id/orders', async (req, res) => {
   const id = parseInt(req.params.id);
-  const { medication, dosage, route, consent } = req.body;
+  const { medication, strength, form, route, administered_by, consent } = req.body;
+  const dosage = `${strength || ''} ${form || ''}`.trim() || 'Not Specified';
 
   if (!useFallback) {
     try {
       const { data, error } = await supabase.from('medication_orders').insert([{
-        patient_id: id, medication, dosage, route, consent: !!consent
+        patient_id: id, medication, dosage, strength, form, route, administered_by, consent: !!consent
       }]).select();
       if (error) throw error;
 
       await supabase.from('visit_logs').insert([{
         patient_id: id,
         event_type: 'Medication Ordered',
-        details: `${medication.charAt(0).toUpperCase() + medication.slice(1)} ${dosage} via ${route}`
+        details: `${medication.charAt(0).toUpperCase() + medication.slice(1)} ${dosage} via ${route} (Administered by: ${administered_by || '—'})`
       }]);
 
       return res.json({ data: data[0] });
@@ -1037,7 +1038,7 @@ app.post('/api/patients/:id/orders', async (req, res) => {
   const newOrder = {
     id: 'o_' + Date.now(),
     patient_id: id,
-    medication, dosage, route, consent: !!consent,
+    medication, dosage, strength, form, route, administered_by, consent: !!consent,
     created_at: new Date().toISOString()
   };
   localOrders.push(newOrder);
@@ -1045,7 +1046,7 @@ app.post('/api/patients/:id/orders', async (req, res) => {
     id: 'l_' + Date.now(),
     patient_id: id,
     event_type: 'Medication Ordered',
-    details: `${medication.charAt(0).toUpperCase() + medication.slice(1)} ${dosage} via ${route}`,
+    details: `${medication.charAt(0).toUpperCase() + medication.slice(1)} ${dosage} via ${route} (Administered by: ${administered_by || '—'})`,
     created_at: new Date().toISOString()
   });
   res.json({ data: newOrder });

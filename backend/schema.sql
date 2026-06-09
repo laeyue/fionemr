@@ -62,8 +62,11 @@ CREATE TABLE medication_orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     patient_id BIGINT REFERENCES patients(id) ON DELETE CASCADE,
     medication TEXT NOT NULL,
-    dosage TEXT NOT NULL,
+    dosage TEXT NOT NULL, -- Will store "${strength} ${form}" for backward compatibility
+    strength TEXT,
+    form TEXT,
     route TEXT NOT NULL,
+    administered_by TEXT,
     consent BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT now()
 );

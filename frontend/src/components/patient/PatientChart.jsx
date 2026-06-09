@@ -252,59 +252,113 @@ const PatientChart = () => {
 /* ===== IMMUNIZATION MATRIX ===== */
 const ImmunizationMatrix = ({ patient, onUpdateDoses }) => {
   const immunizations = patient.immunizations || [];
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newVaccineName, setNewVaccineName] = useState('');
+  const [newDosesRequired, setNewDosesRequired] = useState('2');
 
-  if (immunizations.length === 0) {
-    return (
-      <div className="empty-sm">
-        <p className="text-muted">No immunization records available.</p>
-      </div>
-    );
-  }
+  const handleAddVaccine = async (e) => {
+    e.preventDefault();
+    if (!newVaccineName.trim()) return;
+    await onUpdateDoses(newVaccineName.trim(), 0, parseInt(newDosesRequired));
+    setNewVaccineName('');
+    setNewDosesRequired('2');
+    setShowAddForm(false);
+  };
 
   return (
-    <div className="immunization-list" style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
-      {immunizations.map(imm => {
-        const isComplete = imm.doses_received >= imm.doses_required;
-        return (
-          <div key={imm.id} className={`immunization-row ${isComplete ? 'complete' : ''}`}>
-            <div className="imm-info">
-              <span className="imm-name">{imm.vaccine_name}</span>
-              <span className="imm-status-text text-muted">
-                {imm.doses_received} of {imm.doses_required} doses received
-              </span>
-            </div>
-            
-            <div className="imm-doses-selector">
-              {Array.from({ length: imm.doses_required }).map((_, idx) => {
-                const doseNum = idx + 1;
-                const isSelected = doseNum <= imm.doses_received;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    className={`dose-circle-btn ${isSelected ? 'active' : ''}`}
-                    onClick={() => {
-                      const targetDoses = isSelected && imm.doses_received === doseNum ? doseNum - 1 : doseNum;
-                      onUpdateDoses(imm.vaccine_name, targetDoses, imm.doses_required);
-                    }}
-                    title={`Mark dose ${doseNum}`}
-                  >
-                    {doseNum}
-                  </button>
-                );
-              })}
-            </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
+      {immunizations.length === 0 ? (
+        <div className="empty-sm">
+          <p className="text-muted">No immunization records available.</p>
+        </div>
+      ) : (
+        <div className="immunization-list" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {immunizations.map(imm => {
+            const isComplete = imm.doses_received >= imm.doses_required;
+            return (
+              <div key={imm.id} className={`immunization-row ${isComplete ? 'complete' : ''}`}>
+                <div className="imm-info">
+                  <span className="imm-name">{imm.vaccine_name}</span>
+                  <span className="imm-status-text text-muted">
+                    {imm.doses_received} of {imm.doses_required} doses received
+                  </span>
+                </div>
+                
+                <div className="imm-doses-selector">
+                  {Array.from({ length: imm.doses_required }).map((_, idx) => {
+                    const doseNum = idx + 1;
+                    const isSelected = doseNum <= imm.doses_received;
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        className={`dose-circle-btn ${isSelected ? 'active' : ''}`}
+                        onClick={() => {
+                          const targetDoses = isSelected && imm.doses_received === doseNum ? doseNum - 1 : doseNum;
+                          onUpdateDoses(imm.vaccine_name, targetDoses, imm.doses_required);
+                        }}
+                        title={`Mark dose ${doseNum}`}
+                      >
+                        {doseNum}
+                      </button>
+                    );
+                  })}
+                </div>
 
-            <div className="imm-status-badge">
-              {isComplete ? (
-                <span className="badge badge-green">Complete</span>
-              ) : (
-                <span className="badge badge-yellow">Outstanding</span>
-              )}
-            </div>
+                <div className="imm-status-badge">
+                  {isComplete ? (
+                    <span className="badge badge-green">Complete</span>
+                  ) : (
+                    <span className="badge badge-yellow">Outstanding</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showAddForm ? (
+        <form onSubmit={handleAddVaccine} style={{ marginTop: 8, padding: 14, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <span className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Vaccine Name</span>
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="e.g. COVID-19, Flu Shot, HPV" 
+              required 
+              value={newVaccineName} 
+              onChange={(e) => setNewVaccineName(e.target.value)} 
+            />
           </div>
-        );
-      })}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <span className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Doses Required</span>
+            <select 
+              className="form-select" 
+              value={newDosesRequired} 
+              onChange={(e) => setNewDosesRequired(e.target.value)}
+            >
+              <option value="1">1 Dose</option>
+              <option value="2">2 Doses</option>
+              <option value="3">3 Doses</option>
+              <option value="4">4 Doses</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAddForm(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary btn-sm">Add Vaccine</button>
+          </div>
+        </form>
+      ) : (
+        <button 
+          type="button" 
+          className="btn btn-ghost btn-sm" 
+          style={{ width: '100%', justifyContent: 'center', border: '1px dashed var(--gray-300)', background: 'var(--gray-50)' }} 
+          onClick={() => setShowAddForm(true)}
+        >
+          + Add Custom Vaccine
+        </button>
+      )}
     </div>
   );
 };
@@ -684,66 +738,181 @@ const SOAPTab = ({ patient, onSaveNote }) => {
 };
 
 /* ===== ORDERS ===== */
+/* ===== ORDERS ===== */
 const OrdersTab = ({ patient, onSaveOrder }) => {
   const [medication, setMedication] = useState('');
-  const [dosage, setDosage] = useState('');
+  const [customMedication, setCustomMedication] = useState('');
+  const [strength, setStrength] = useState('');
+  const [customStrength, setCustomStrength] = useState('');
+  const [form, setForm] = useState('');
+  const [customForm, setCustomForm] = useState('');
   const [route, setRoute] = useState('oral');
+  const [administeredBy, setAdministeredBy] = useState('');
   const [consent, setConsent] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!medication || !dosage || !consent) return;
-    await onSaveOrder({ medication, dosage, route, consent });
+    const finalMedication = medication === 'other' ? customMedication : medication;
+    const finalStrength = strength === 'other' ? customStrength : strength;
+    const finalForm = form === 'other' ? customForm : form;
+
+    if (!finalMedication || !finalStrength || !finalForm || !administeredBy || !consent) return;
+
+    await onSaveOrder({
+      medication: finalMedication,
+      strength: finalStrength,
+      form: finalForm,
+      route,
+      administered_by: administeredBy,
+      consent
+    });
+
     setMedication('');
-    setDosage('');
+    setCustomMedication('');
+    setStrength('');
+    setCustomStrength('');
+    setForm('');
+    setCustomForm('');
     setRoute('oral');
+    setAdministeredBy('');
     setConsent(false);
   };
+
+  const isFormValid = consent && 
+    (medication === 'other' ? customMedication.trim() !== '' : medication !== '') &&
+    (strength === 'other' ? customStrength.trim() !== '' : strength !== '') &&
+    (form === 'other' ? customForm.trim() !== '' : form !== '') &&
+    administeredBy.trim() !== '';
 
   return (
     <div className="orders-panel">
       <div className="card">
         <h4 className="sec-title"><Pill size={15} /> New Medication Order</h4>
         <form onSubmit={handleSubmit} className="order-form">
-          <div className="order-fields">
-            <div className="form-group" style={{ flex: 2 }}>
-              <label className="form-label">Medication</label>
-              <select className="form-select" value={medication} onChange={(e) => setMedication(e.target.value)}>
-                <option value="">Select medication...</option>
-                <option value="ibuprofen">Ibuprofen</option>
-                <option value="paracetamol">Paracetamol / Acetaminophen</option>
-                <option value="salbutamol">Salbutamol Inhaler</option>
-                <option value="cetirizine">Cetirizine</option>
-                <option value="amoxicillin">Amoxicillin</option>
-              </select>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Row 1: Medication */}
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <div className="form-group" style={{ flex: 1, minWidth: 200, marginBottom: 0 }}>
+                <label className="form-label">Medication *</label>
+                <select className="form-select" value={medication} onChange={(e) => setMedication(e.target.value)}>
+                  <option value="">Select medication...</option>
+                  <option value="ibuprofen">Ibuprofen</option>
+                  <option value="paracetamol">Paracetamol / Acetaminophen</option>
+                  <option value="salbutamol">Salbutamol Inhaler</option>
+                  <option value="cetirizine">Cetirizine</option>
+                  <option value="amoxicillin">Amoxicillin</option>
+                  <option value="other">Other (Add Custom...)</option>
+                </select>
+              </div>
+              {medication === 'other' && (
+                <div className="form-group" style={{ flex: 1, minWidth: 200, marginBottom: 0 }}>
+                  <label className="form-label">Custom Medication Name *</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Enter drug name" 
+                    required 
+                    value={customMedication} 
+                    onChange={(e) => setCustomMedication(e.target.value)} 
+                  />
+                </div>
+              )}
             </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">Dosage</label>
-              <input type="text" className="form-input" placeholder="e.g. 5ml" value={dosage} onChange={(e) => setDosage(e.target.value)} />
+
+            {/* Row 2: Strength & Form */}
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
+                <label className="form-label">Strength *</label>
+                <select className="form-select" value={strength} onChange={(e) => setStrength(e.target.value)}>
+                  <option value="">Select strength...</option>
+                  <option value="500mg">500mg</option>
+                  <option value="250mg">250mg</option>
+                  <option value="125mg">125mg</option>
+                  <option value="10mg">10mg</option>
+                  <option value="5ml">5ml</option>
+                  <option value="1 puff">1 puff</option>
+                  <option value="2 puffs">2 puffs</option>
+                  <option value="other">Other (Custom Strength...)</option>
+                </select>
+              </div>
+              {strength === 'other' && (
+                <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
+                  <label className="form-label">Custom Strength *</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g. 50mg, 10ml" 
+                    required 
+                    value={customStrength} 
+                    onChange={(e) => setCustomStrength(e.target.value)} 
+                  />
+                </div>
+              )}
+
+              <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
+                <label className="form-label">Form *</label>
+                <select className="form-select" value={form} onChange={(e) => setForm(e.target.value)}>
+                  <option value="">Select form...</option>
+                  <option value="tablet">Tablet</option>
+                  <option value="liquid">Liquid</option>
+                  <option value="inhaler">Inhaler</option>
+                  <option value="topical cream">Topical Cream</option>
+                  <option value="other">Other (Custom Form...)</option>
+                </select>
+              </div>
+              {form === 'other' && (
+                <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
+                  <label className="form-label">Custom Form *</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g. drops, capsule" 
+                    required 
+                    value={customForm} 
+                    onChange={(e) => setCustomForm(e.target.value)} 
+                  />
+                </div>
+              )}
             </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">Route</label>
-              <select className="form-select" value={route} onChange={(e) => setRoute(e.target.value)}>
-                <option value="oral">Oral</option>
-                <option value="inhaled">Inhaled</option>
-                <option value="topical">Topical</option>
-              </select>
+
+            {/* Row 3: Route & Staff Initials */}
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
+                <label className="form-label">Route *</label>
+                <select className="form-select" value={route} onChange={(e) => setRoute(e.target.value)}>
+                  <option value="oral">Oral</option>
+                  <option value="inhaled">Inhaled</option>
+                  <option value="topical">Topical</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
+                <label className="form-label">Administration Staff Initials *</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="e.g. KT" 
+                  required 
+                  maxLength={5}
+                  value={administeredBy} 
+                  onChange={(e) => setAdministeredBy(e.target.value)} 
+                />
+              </div>
             </div>
           </div>
 
-          <div className="alert-bar alert-info">
+          <div className="alert-bar alert-info" style={{ marginTop: 12 }}>
             <AlertCircle size={16} />
             <span>Allergy cross-referencing completed. No active conflicts found.</span>
           </div>
 
-          <div className="consent-bar">
+          <div className="consent-bar" style={{ marginTop: 12 }}>
             <label className="consent-label">
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
               <span>I confirm that parental/guardian consent has been verified prior to administration.</span>
             </label>
           </div>
 
-          <button type="submit" className="btn btn-primary" disabled={!consent || !medication || !dosage}>
+          <button type="submit" className="btn btn-primary" style={{ marginTop: 12 }} disabled={!isFormValid}>
             <CheckCircle size={15} /> Execute Order
           </button>
         </form>
@@ -757,6 +926,11 @@ const OrdersTab = ({ patient, onSaveOrder }) => {
               <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)' }}>
                 <div style={{ fontSize: 'var(--text-sm)' }}>
                   <strong>{o.medication.charAt(0).toUpperCase() + o.medication.slice(1)}</strong> — {o.dosage} ({o.route})
+                  {o.administered_by && (
+                    <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>
+                      Administered by: <strong>{o.administered_by}</strong>
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontSize: 10, color: 'var(--gray-400)' }}>
                   <span style={{ color: 'var(--success)', fontWeight: 600 }}>Consent Verified</span>
