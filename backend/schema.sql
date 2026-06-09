@@ -130,10 +130,17 @@ CREATE TABLE excuse_slips (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Seed Account (Password: password123)
-INSERT INTO accounts (name, email, password, role)
+-- Seed Accounts for different roles (Password: password123, MFA Disabled)
+INSERT INTO accounts (name, email, password, role, mfa_enabled, mfa_type)
 VALUES 
-('Developer Tester', 'dev@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician');
+('Developer Tester', 'dev@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician', false, 'none'),
+('Dr. Fiona', 'doctor@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician', false, 'none'),
+('Nurse Joy', 'nurse@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'nurse', false, 'none'),
+('Teacher Sarah', 'teacher@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'teacher', false, 'none'),
+('Counselor Troy', 'counselor@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'guidance_counselor', false, 'none'),
+('Admin Alex', 'admin@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'admin', false, 'none')
+ON CONFLICT (email) DO NOTHING;
+
 
 -- Disable Row Level Security (RLS) for all tables to allow development API access
 ALTER TABLE accounts DISABLE ROW LEVEL SECURITY;

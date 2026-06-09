@@ -49,8 +49,8 @@ if (useFallback) {
 let localAccounts = [
   { 
     id: 'a1', 
-    name: 'Dr. Test', 
-    email: 'test@fiona.com', 
+    name: 'Developer Tester', 
+    email: 'dev@fiona.com', 
     password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
     role: 'physician', 
     mfa_enabled: false,
@@ -60,10 +60,54 @@ let localAccounts = [
   },
   { 
     id: 'a2', 
-    name: 'Developer Tester', 
-    email: 'dev@fiona.com', 
-    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123 (MFA Bypassed account for developer testing)
+    name: 'Dr. Fiona', 
+    email: 'doctor@fiona.com', 
+    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
     role: 'physician', 
+    mfa_enabled: false,
+    mfa_type: 'none',
+    mfa_secret: null,
+    created_at: new Date().toISOString() 
+  },
+  { 
+    id: 'a3', 
+    name: 'Nurse Joy', 
+    email: 'nurse@fiona.com', 
+    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
+    role: 'nurse', 
+    mfa_enabled: false,
+    mfa_type: 'none',
+    mfa_secret: null,
+    created_at: new Date().toISOString() 
+  },
+  { 
+    id: 'a4', 
+    name: 'Teacher Sarah', 
+    email: 'teacher@fiona.com', 
+    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
+    role: 'teacher', 
+    mfa_enabled: false,
+    mfa_type: 'none',
+    mfa_secret: null,
+    created_at: new Date().toISOString() 
+  },
+  { 
+    id: 'a5', 
+    name: 'Counselor Troy', 
+    email: 'counselor@fiona.com', 
+    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
+    role: 'guidance_counselor', 
+    mfa_enabled: false,
+    mfa_type: 'none',
+    mfa_secret: null,
+    created_at: new Date().toISOString() 
+  },
+  { 
+    id: 'a6', 
+    name: 'Admin Alex', 
+    email: 'admin@fiona.com', 
+    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
+    role: 'admin', 
     mfa_enabled: false,
     mfa_type: 'none',
     mfa_secret: null,
