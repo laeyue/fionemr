@@ -108,3 +108,13 @@ INSERT INTO accounts (name, email, password, role)
 VALUES 
 ('Developer Tester', 'dev@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician');
 
+-- Disable Row Level Security (RLS) for all tables to allow development API access
+ALTER TABLE accounts DISABLE ROW LEVEL SECURITY;
+ALTER TABLE patients DISABLE ROW LEVEL SECURITY;
+ALTER TABLE vitals DISABLE ROW LEVEL SECURITY;
+ALTER TABLE soap_notes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE medication_orders DISABLE ROW LEVEL SECURITY;
+ALTER TABLE visit_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE immunizations DISABLE ROW LEVEL SECURITY;
+
+
