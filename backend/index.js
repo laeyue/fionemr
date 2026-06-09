@@ -29,6 +29,7 @@ if (supabaseKey) supabaseKey = supabaseKey.replace(/^['"]|['"]$/g, '').trim();
 if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('dummy') || supabaseUrl.includes('your-project-id')) {
   useFallback = true;
 } else {
+  console.log('[DEBUG] Initializing Supabase client with URL:', supabaseUrl);
   try {
     supabase = createClient(supabaseUrl, supabaseKey);
   } catch (err) {
@@ -1155,35 +1156,174 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
 });
 
 // Dashboard Route: Summary Stats
+// Helper to check for abnormal vitals
+const checkVitals = (v) => {
+  const alerts = [];
+  if (v.temperature !== null && v.temperature !== undefined) {
+    const temp = parseFloat(v.temperature);
+    if (!isNaN(temp)) {
+      if (temp >= 38.0) alerts.push('Fever');
+      else if (temp < 35.5) alerts.push('Hypothermia');
+    }
+  }
+  if (v.heart_rate !== null && v.heart_rate !== undefined) {
+    const hr = parseInt(v.heart_rate);
+    if (!isNaN(hr)) {
+      if (hr > 100) alerts.push('Tachycardia');
+      else if (hr < 60) alerts.push('Bradycardia');
+    }
+  }
+  if (v.respiratory_rate !== null && v.respiratory_rate !== undefined) {
+    const rr = parseInt(v.respiratory_rate);
+    if (!isNaN(rr)) {
+      if (rr > 24) alerts.push('Tachypnea');
+      else if (rr < 12) alerts.push('Bradypnea');
+    }
+  }
+  if (v.o2_sat !== null && v.o2_sat !== undefined) {
+    const o2 = parseInt(v.o2_sat);
+    if (!isNaN(o2)) {
+      if (o2 < 95) alerts.push('Hypoxia');
+    }
+  }
+  if (v.blood_pressure) {
+    const parts = v.blood_pressure.toString().split('/');
+    if (parts.length === 2) {
+      const sys = parseInt(parts[0]);
+      const dia = parseInt(parts[1]);
+      if (!isNaN(sys) && !isNaN(dia)) {
+        if (sys > 130 || dia > 90) alerts.push('Hypertension');
+        else if (sys < 90 || dia < 60) alerts.push('Hypotension');
+      }
+    }
+  }
+  return alerts;
+};
+
+// Dashboard Route: Summary Stats
 app.get('/api/dashboard/stats', async (req, res) => {
   let totalPatients = 0;
   let checkinsToday = 0;
   let activeAlerts = 0;
   let bedsOccupied = 0;
+  let paracetamolStock = 120;
+  let sentHomeToday = 0;
+  let occupiedBedsList = [];
+  let highRiskPatients = [];
 
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
   if (!useFallback) {
     try {
+      // 1. Total Patients
       const { count: pCount } = await supabase.from('patients').select('*', { count: 'exact', head: true });
       totalPatients = pCount || 0;
 
+      // 2. Check-ins Today
       const { count: cCount } = await supabase.from('visit_logs')
         .select('*', { count: 'exact', head: true })
         .eq('event_type', 'Check-in')
         .gte('created_at', startOfDay.toISOString());
       checkinsToday = cCount || 0;
 
-      const { data: recentVitals } = await supabase.from('vitals')
-        .select('temperature, o2_sat')
-        .gte('recorded_at', startOfDay.toISOString());
-      activeAlerts = (recentVitals || []).filter(v => parseFloat(v.temperature) >= 38.0 || (v.o2_sat && v.o2_sat < 95)).length;
+      // 3. Paracetamol Stock (starting at 120 and decrementing per order)
+      const { count: pOrdersCount } = await supabase.from('medication_orders')
+        .select('*', { count: 'exact', head: true })
+        .ilike('medication', '%paracetamol%');
+      paracetamolStock = Math.max(0, 120 - (pOrdersCount || 0));
 
-      const { count: bCount } = await supabase.from('patients').select('*', { count: 'exact', head: true }).eq('status', 'Under Observation');
-      bedsOccupied = bCount || 0;
+      // 4. Sent Home Today (disposition count)
+      const { count: shCount } = await supabase.from('soap_notes')
+        .select('*', { count: 'exact', head: true })
+        .eq('disposition', 'Sent Home')
+        .gte('created_at', startOfDay.toISOString());
+      sentHomeToday = shCount || 0;
 
-      return res.json({ totalPatients, checkinsToday, activeAlerts, bedsOccupied });
+      // 5. Occupied Beds List (patients with status 'Under Observation')
+      const { data: bedPatients } = await supabase.from('patients')
+        .select('id, name, section, gender, age, created_at')
+        .eq('status', 'Under Observation');
+
+      if (bedPatients && bedPatients.length > 0) {
+        const bedPatientIds = bedPatients.map(p => p.id);
+        const { data: logs } = await supabase.from('visit_logs')
+          .select('patient_id, created_at')
+          .eq('event_type', 'Check-in')
+          .in('patient_id', bedPatientIds)
+          .order('created_at', { ascending: false });
+
+        const entryTimesMap = {};
+        if (logs) {
+          for (const log of logs) {
+            if (!entryTimesMap[log.patient_id]) {
+              entryTimesMap[log.patient_id] = log.created_at;
+            }
+          }
+        }
+
+        occupiedBedsList = bedPatients.map(p => ({
+          id: p.id,
+          name: p.name,
+          section: p.section,
+          gender: p.gender,
+          age: p.age,
+          entryTime: entryTimesMap[p.id] || p.created_at
+        }));
+        bedsOccupied = occupiedBedsList.length;
+      }
+
+      // 6. High-Risk Patients Today
+      const { data: vitalsToday } = await supabase.from('vitals')
+        .select('*, patients(name, section, gender, age)')
+        .gte('recorded_at', startOfDay.toISOString())
+        .order('recorded_at', { ascending: false });
+
+      const highRiskMap = {};
+      if (vitalsToday) {
+        for (const v of vitalsToday) {
+          const alerts = checkVitals(v);
+          if (alerts.length > 0) {
+            const patientId = v.patient_id;
+            const p = (v.patients && Array.isArray(v.patients) ? v.patients[0] : v.patients) || {};
+            if (!highRiskMap[patientId]) {
+              highRiskMap[patientId] = {
+                id: patientId,
+                name: p.name || 'Unknown',
+                section: p.section || '—',
+                gender: p.gender || '—',
+                age: p.age || '—',
+                alerts: new Set(),
+                vitals: {
+                  temperature: v.temperature,
+                  heart_rate: v.heart_rate,
+                  blood_pressure: v.blood_pressure,
+                  o2_sat: v.o2_sat,
+                  respiratory_rate: v.respiratory_rate
+                }
+              };
+            }
+            alerts.forEach(a => highRiskMap[patientId].alerts.add(a));
+          }
+        }
+      }
+
+      highRiskPatients = Object.values(highRiskMap).map(p => ({
+        ...p,
+        alerts: Array.from(p.alerts)
+      }));
+      activeAlerts = highRiskPatients.length;
+
+      return res.json({
+        totalPatients,
+        checkinsToday,
+        activeAlerts,
+        bedsOccupied,
+        paracetamolStock,
+        sentHomeToday,
+        occupiedBedsList,
+        highRiskPatients
+      });
     } catch (err) {
       console.warn("[WARNING] Supabase stats query failed. Falling back to local db:", err.message);
     }
@@ -1192,11 +1332,81 @@ app.get('/api/dashboard/stats', async (req, res) => {
   // Fallback DB
   totalPatients = localPatients.length;
   checkinsToday = localVisitLogs.filter(l => l.event_type === 'Check-in' && new Date(l.created_at) >= startOfDay).length;
-  const todayVitals = localVitals.filter(v => new Date(v.recorded_at) >= startOfDay);
-  activeAlerts = todayVitals.filter(v => parseFloat(v.temperature) >= 38.0 || v.o2_sat < 95).length;
-  bedsOccupied = localPatients.filter(p => p.status === 'Under Observation').length;
 
-  res.json({ totalPatients, checkinsToday, activeAlerts, bedsOccupied });
+  const localPOrders = localOrders.filter(o => o.medication && o.medication.toLowerCase().includes('paracetamol'));
+  paracetamolStock = Math.max(0, 120 - localPOrders.length);
+
+  sentHomeToday = localSoapNotes.filter(s => s.disposition === 'Sent Home' && new Date(s.created_at) >= startOfDay).length;
+
+  const bedPatientsLocal = localPatients.filter(p => p.status === 'Under Observation');
+  const localPatientIds = bedPatientsLocal.map(p => p.id);
+  
+  if (localPatientIds.length > 0) {
+    const logsLocal = localVisitLogs.filter(l => l.event_type === 'Check-in' && localPatientIds.includes(l.patient_id));
+    logsLocal.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    const entryTimesMapLocal = {};
+    for (const log of logsLocal) {
+      if (!entryTimesMapLocal[log.patient_id]) {
+        entryTimesMapLocal[log.patient_id] = log.created_at;
+      }
+    }
+
+    occupiedBedsList = bedPatientsLocal.map(p => ({
+      id: p.id,
+      name: p.name,
+      section: p.section,
+      gender: p.gender,
+      age: p.age,
+      entryTime: entryTimesMapLocal[p.id] || p.created_at
+    }));
+  }
+  bedsOccupied = occupiedBedsList.length;
+
+  const vitalsTodayLocal = localVitals.filter(v => new Date(v.recorded_at) >= startOfDay);
+  const highRiskMapLocal = {};
+  for (const v of vitalsTodayLocal) {
+    const alerts = checkVitals(v);
+    if (alerts.length > 0) {
+      const patientId = v.patient_id;
+      const p = localPatients.find(p => p.id === patientId) || {};
+      if (!highRiskMapLocal[patientId]) {
+        highRiskMapLocal[patientId] = {
+          id: patientId,
+          name: p.name || 'Unknown',
+          section: p.section || '—',
+          gender: p.gender || '—',
+          age: p.age || '—',
+          alerts: new Set(),
+          vitals: {
+            temperature: v.temperature,
+            heart_rate: v.heart_rate,
+            blood_pressure: v.blood_pressure,
+            o2_sat: v.o2_sat,
+            respiratory_rate: v.respiratory_rate
+          }
+        };
+      }
+      alerts.forEach(a => highRiskMapLocal[patientId].alerts.add(a));
+    }
+  }
+
+  highRiskPatients = Object.values(highRiskMapLocal).map(p => ({
+    ...p,
+    alerts: Array.from(p.alerts)
+  }));
+  activeAlerts = highRiskPatients.length;
+
+  res.json({
+    totalPatients,
+    checkinsToday,
+    activeAlerts,
+    bedsOccupied,
+    paracetamolStock,
+    sentHomeToday,
+    occupiedBedsList,
+    highRiskPatients
+  });
 });
 
 // Dashboard Route: Activity Audit Log

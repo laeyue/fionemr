@@ -646,18 +646,13 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
               ['Blood Pressure', latestVitals.blood_pressure, 'mmHg'],
               ['O₂ Sat', latestVitals.o2_sat, '%']
             ].map(([label, val, unit]) => {
-              const { isAbnormal, status } = checkVitalAlarm(label, val);
+              const { isAbnormal } = checkVitalAlarm(label, val);
               const hasValue = val !== undefined && val !== null && val !== '';
               return (
                 <div className={`vital-slot ${hasValue ? 'has-value' : ''} ${isAbnormal ? 'alarm' : ''}`} key={label}>
                   <span className="vs-label">{label}</span>
                   <span className="vs-value">{hasValue ? val : '—'}</span>
                   <span className="vs-unit">{unit}</span>
-                  {isAbnormal && (
-                    <span className="vital-alarm-badge">
-                      ⚠️ {status}
-                    </span>
-                  )}
                 </div>
               );
             })}

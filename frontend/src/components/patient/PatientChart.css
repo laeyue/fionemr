@@ -156,21 +156,6 @@
   color: #ef4444;
 }
 
-.vital-alarm-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #fff;
-  background: #ef4444;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  margin-top: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
 @keyframes pulseAlarm {
   0%, 100% {
     border-color: #ef4444;
