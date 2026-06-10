@@ -2208,6 +2208,12 @@ app.get('/api/dashboard/stats', async (req, res) => {
   startOfDay.setHours(0, 0, 0, 0);
   const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
   const fluKeywords = ['flu', 'fever', 'cough', 'cold', 'influenza', 'sore throat'];
+  const categories = {
+    fever_flu: ['fever', 'flu', 'influenza', 'chills'],
+    respiratory: ['cough', 'cold', 'sore throat', 'congestion', 'runny nose', 'respiratory', 'difficulty breathing', 'breathing'],
+    gastrointestinal: ['stomach', 'tummy', 'belly', 'nausea', 'vomiting', 'diarrhea', 'abdominal', 'cramp', 'gastro'],
+    injury_sprains: ['injury', 'sprain', 'bruise', 'wound', 'cut', 'scrape', 'fall', 'sprained', 'pain', 'hurt', 'scratch']
+  };
 
   if (!useFallback) {
     try {
@@ -2317,6 +2323,13 @@ app.get('/api/dashboard/stats', async (req, res) => {
 
       const sectionFluPatients = {};
 
+      const symptomsBreakdown = {
+        fever_flu: 0,
+        respiratory: 0,
+        gastrointestinal: 0,
+        injury_sprains: 0
+      };
+
       if (recentLogs) {
         for (const log of recentLogs) {
           const complaint = (log.details || '').toLowerCase();
@@ -2330,6 +2343,12 @@ app.get('/api/dashboard/stats', async (req, res) => {
             }
             sectionFluPatients[section].add(log.patient_id);
           }
+
+          // Compute symptom breakdown
+          if (categories.fever_flu.some(kw => complaint.includes(kw))) symptomsBreakdown.fever_flu++;
+          if (categories.respiratory.some(kw => complaint.includes(kw))) symptomsBreakdown.respiratory++;
+          if (categories.gastrointestinal.some(kw => complaint.includes(kw))) symptomsBreakdown.gastrointestinal++;
+          if (categories.injury_sprains.some(kw => complaint.includes(kw))) symptomsBreakdown.injury_sprains++;
         }
       }
 
@@ -2353,7 +2372,8 @@ app.get('/api/dashboard/stats', async (req, res) => {
         sentHomeToday,
         occupiedBedsList,
         highRiskPatients,
-        outbreakAlert
+        outbreakAlert,
+        symptomsBreakdown
       });
     } catch (err) {
       console.warn("[WARNING] Supabase stats query failed. Falling back to local db:", err.message);
@@ -2431,6 +2451,12 @@ app.get('/api/dashboard/stats', async (req, res) => {
   // Fallback Outbreak Detection
   const recentLogsLocal = localVisitLogs.filter(l => l.event_type === 'Check-in' && new Date(l.created_at) >= fortyEightHoursAgo);
   const sectionFluPatientsLocal = {};
+  const symptomsBreakdown = {
+    fever_flu: 0,
+    respiratory: 0,
+    gastrointestinal: 0,
+    injury_sprains: 0
+  };
 
   for (const log of recentLogsLocal) {
     const complaint = (log.details || '').toLowerCase();
@@ -2444,6 +2470,12 @@ app.get('/api/dashboard/stats', async (req, res) => {
       }
       sectionFluPatientsLocal[section].add(log.patient_id);
     }
+
+    // Compute symptom breakdown fallback
+    if (categories.fever_flu.some(kw => complaint.includes(kw))) symptomsBreakdown.fever_flu++;
+    if (categories.respiratory.some(kw => complaint.includes(kw))) symptomsBreakdown.respiratory++;
+    if (categories.gastrointestinal.some(kw => complaint.includes(kw))) symptomsBreakdown.gastrointestinal++;
+    if (categories.injury_sprains.some(kw => complaint.includes(kw))) symptomsBreakdown.injury_sprains++;
   }
 
   for (const section of Object.keys(sectionFluPatientsLocal)) {
@@ -2466,7 +2498,8 @@ app.get('/api/dashboard/stats', async (req, res) => {
     sentHomeToday,
     occupiedBedsList,
     highRiskPatients,
-    outbreakAlert
+    outbreakAlert,
+    symptomsBreakdown
   });
 });
 

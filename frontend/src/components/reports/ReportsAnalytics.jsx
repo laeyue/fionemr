@@ -35,13 +35,42 @@ const ReportsAnalytics = () => {
   const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
   const maxTrendVal = Math.max(...weekdays.map(d => trends[d] || 0), 5);
 
-  // Simulated symptom breakdown distribution (for visual representation of school clinical cases)
+  const breakdown = stats?.symptomsBreakdown || {
+    fever_flu: 0,
+    respiratory: 0,
+    gastrointestinal: 0,
+    injury_sprains: 0
+  };
+
+  const totalCases = breakdown.fever_flu + breakdown.respiratory + breakdown.gastrointestinal + breakdown.injury_sprains;
+
   const symptomsList = [
-    { name: 'Fever & Flu', count: stats?.highRiskPatients?.length || 2, color: 'var(--danger)', percentage: 40 },
-    { name: 'Respiratory (Cough/Cold)', count: stats?.outbreakAlert ? stats.outbreakAlert.count : 3, color: 'var(--primary)', percentage: 30 },
-    { name: 'Gastrointestinal Pain', count: 1, color: 'var(--warning)', percentage: 15 },
-    { name: 'Minor Injury / Sprains', count: 2, color: 'var(--info)', percentage: 15 },
+    {
+      name: 'Fever & Flu',
+      count: breakdown.fever_flu,
+      color: 'var(--danger)',
+      percentage: totalCases > 0 ? (breakdown.fever_flu / totalCases) * 100 : 0
+    },
+    {
+      name: 'Respiratory (Cough/Cold)',
+      count: breakdown.respiratory,
+      color: 'var(--primary)',
+      percentage: totalCases > 0 ? (breakdown.respiratory / totalCases) * 100 : 0
+    },
+    {
+      name: 'Gastrointestinal Pain',
+      count: breakdown.gastrointestinal,
+      color: 'var(--warning)',
+      percentage: totalCases > 0 ? (breakdown.gastrointestinal / totalCases) * 100 : 0
+    },
+    {
+      name: 'Minor Injury / Sprains',
+      count: breakdown.injury_sprains,
+      color: 'var(--info)',
+      percentage: totalCases > 0 ? (breakdown.injury_sprains / totalCases) * 100 : 0
+    },
   ];
+
 
   return (
     <div className="reports-analytics-page anim-fade-up" style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
