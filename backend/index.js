@@ -524,6 +524,70 @@ const triggerCheckinEmails = async (patient, chiefComplaint) => {
   }
 };
 
+const getCheckoutEmailTemplate = (recipientName, studentName) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Clinic Checkout Notification</title>
+      <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f6f9; color: #333333; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e1e4e8; }
+        .header { background: linear-gradient(135deg, #10b981, #059669); color: #ffffff; padding: 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
+        .content { padding: 40px 30px; line-height: 1.6; }
+        .content p { margin: 0 0 20px 0; font-size: 16px; color: #4a5568; }
+        .alert-box { background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 30px; }
+        .alert-box p { margin: 0; font-size: 15px; color: #065f46; font-weight: 500; }
+        .footer { background-color: #f7fafc; padding: 20px; text-align: center; border-top: 1px solid #edf2f7; font-size: 12px; color: #a0aec0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Fiona Clinic Checkout Alert</h1>
+        </div>
+        <div class="content">
+          <p>Dear <strong>${recipientName}</strong>,</p>
+          <p>This is a notification from the school clinic to inform you that student <strong>${studentName}</strong> has been successfully checked out of the clinic.</p>
+          <div class="alert-box">
+            <p><strong>Status:</strong> Checked Out & Returned / Cleared</p>
+          </div>
+          <p>The student is now cleared to return to class or head home according to their disposition plan.</p>
+        </div>
+        <div class="footer">
+          &copy; 2026 Fiona EMR System. All rights reserved.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+const triggerCheckoutEmails = async (patient) => {
+  if (!patient) return;
+
+  // 1. Send Parent Checkout Email
+  if (patient.parent_email?.trim()) {
+    const parentName = patient.emergency_contact_name || 'Parent/Guardian';
+    const parentSubject = `[Fiona Clinic] Checkout Alert for ${patient.name}`;
+    const parentHtmlContent = getCheckoutEmailTemplate(parentName, patient.name);
+
+    sendBrevoEmail(patient.parent_email, parentName, parentSubject, parentHtmlContent);
+  }
+
+  // 2. Send Adviser Checkout Email
+  if (patient.adviser_email?.trim()) {
+    const adviserName = patient.adviser_name || 'Homeroom Adviser';
+    const adviserSubject = `[Fiona Clinic] Class Checkout Alert for ${patient.name}`;
+    const adviserHtmlContent = getCheckoutEmailTemplate(adviserName, patient.name);
+
+    sendBrevoEmail(patient.adviser_email, adviserName, adviserSubject, adviserHtmlContent);
+  }
+};
+
+
 
 // Basic Health Route
 app.get('/api/health', (req, res) => {
@@ -1980,6 +2044,9 @@ app.post('/api/patients/:id/checkout', async (req, res) => {
 
   if (!useFallback) {
     try {
+      // Get patient info first to send emails
+      const { data: patient } = await supabase.from('patients').select('*').eq('id', id).maybeSingle();
+
       // Update patient status to 'Checked Out' and status_color to 'gray'
       const { error: updateErr } = await supabase.from('patients')
         .update({
@@ -2002,6 +2069,11 @@ app.post('/api/patients/:id/checkout', async (req, res) => {
 
       // Trigger Simulated Parent Notification on Check-out
       triggerParentNotification(id, 'checked out of the school clinic.');
+
+      // Send checkout emails
+      if (patient) {
+        triggerCheckoutEmails(patient);
+      }
 
       return res.json({ data: data[0] });
     } catch (err) {
@@ -2029,6 +2101,7 @@ app.post('/api/patients/:id/checkout', async (req, res) => {
 
   // Trigger Simulated Parent Notification in Fallback
   triggerParentNotification(id, 'checked out of the school clinic.');
+  triggerCheckoutEmails(patient);
 
   res.json({ data: newLog });
 });
