@@ -4,6 +4,20 @@ import { useAuth } from '../../App';
 import { api } from '../../api';
 import './MinimalLanding.css';
 
+const SEEDED_EMAILS = [
+  'dev@fiona.com',
+  'doctor@fiona.com',
+  'nurse@fiona.com',
+  'teacher@fiona.com',
+  'counselor@fiona.com',
+  'admin@fiona.com'
+];
+
+const isSeededAccount = (email) => {
+  if (!email) return false;
+  return SEEDED_EMAILS.includes(email.toLowerCase());
+};
+
 const MinimalLanding = () => {
   const { login } = useAuth();
   const [step, setStep] = useState('login'); // 'login', 'register', 'mfa_choose', 'mfa_setup_totp', 'mfa_setup_email', 'mfa'
@@ -391,9 +405,15 @@ const MinimalLanding = () => {
                 </button>
               </div>
 
-              <button type="button" className="btn btn-ghost back-link" onClick={() => login(tempUser)}>
-                Skip for now
-              </button>
+              {isSeededAccount(tempUser?.email) ? (
+                <button type="button" className="btn btn-ghost back-link" onClick={() => login(tempUser)}>
+                  Skip for now
+                </button>
+              ) : (
+                <p className="text-muted text-center" style={{ marginTop: '16px', fontSize: '11px' }}>
+                  Multi-Factor Authentication (MFA) is mandatory for non-seeded accounts. Please choose a method above.
+                </p>
+              )}
             </>
           )}
 

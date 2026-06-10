@@ -7,6 +7,20 @@ import { useAuth } from '../../App';
 import { api } from '../../api';
 import './Settings.css';
 
+const SEEDED_EMAILS = [
+  'dev@fiona.com',
+  'doctor@fiona.com',
+  'nurse@fiona.com',
+  'teacher@fiona.com',
+  'counselor@fiona.com',
+  'admin@fiona.com'
+];
+
+const isSeededAccount = (email) => {
+  if (!email) return false;
+  return SEEDED_EMAILS.includes(email.toLowerCase());
+};
+
 const SettingsPage = () => {
   const { user, login } = useAuth();
   const [activeTab, setActiveTab] = useState('profile'); // 'profile', 'security', 'compliance'
@@ -331,9 +345,11 @@ const SettingsPage = () => {
                           <button type="button" className="btn btn-secondary btn-sm" onClick={() => setMfaSetupStep('choose')}>
                             Change Method
                           </button>
-                          <button type="button" className="btn btn-ghost btn-sm text-danger" onClick={handleDisableMfa} disabled={isLoading}>
-                            Disable
-                          </button>
+                          {isSeededAccount(user?.email) && (
+                            <button type="button" className="btn btn-ghost btn-sm text-danger" onClick={handleDisableMfa} disabled={isLoading}>
+                              Disable
+                            </button>
+                          )}
                         </div>
                       </div>
                     ) : (

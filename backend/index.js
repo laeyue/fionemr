@@ -222,6 +222,20 @@ const hashPassword = (password) => {
   return crypto.createHash('sha256').update(password).digest('hex');
 };
 
+const SEEDED_EMAILS = [
+  'dev@fiona.com',
+  'doctor@fiona.com',
+  'nurse@fiona.com',
+  'teacher@fiona.com',
+  'counselor@fiona.com',
+  'admin@fiona.com'
+];
+
+const isSeededAccount = (email) => {
+  if (!email) return false;
+  return SEEDED_EMAILS.includes(email.toLowerCase());
+};
+
 const getPractitioner = (req) => {
   return {
     email: req.headers['x-user-email'] || 'dev@fiona.com',
@@ -1230,6 +1244,20 @@ app.post('/api/auth/mfa/disable', async (req, res) => {
 
   if (!useFallback) {
     try {
+      // Fetch user details first to check if they are seeded
+      const { data: existingUser, error: findErr } = await supabase
+        .from('accounts')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (findErr) throw findErr;
+      if (!existingUser) return res.status(404).json({ error: 'User not found.' });
+
+      if (!isSeededAccount(existingUser.email)) {
+        return res.status(403).json({ error: 'Multi-Factor Authentication is mandatory for this account and cannot be disabled.' });
+      }
+
       const { data, error: updateErr } = await supabase
         .from('accounts')
         .update({
@@ -1253,6 +1281,10 @@ app.post('/api/auth/mfa/disable', async (req, res) => {
   // Fallback local db
   userObj = localAccounts.find(a => a.id === userId);
   if (!userObj) return res.status(404).json({ error: 'User not found.' });
+
+  if (!isSeededAccount(userObj.email)) {
+    return res.status(403).json({ error: 'Multi-Factor Authentication is mandatory for this account and cannot be disabled.' });
+  }
 
   userObj.mfa_enabled = false;
   userObj.mfa_type = 'none';
