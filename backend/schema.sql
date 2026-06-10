@@ -1,4 +1,4 @@
--- PostgreSQL Database Schema for Fiona EMR Project
+-- PostgreSQL Database Schema for AeroHealth EMR Project
 -- Copy and run this script in your Supabase SQL Editor.
 
 -- Drop existing tables if they exist (clean setup)
@@ -169,12 +169,12 @@ CREATE TABLE email_alerts (
 -- Seed Accounts for different roles (Password: password123, MFA Disabled)
 INSERT INTO accounts (name, email, password, role, mfa_enabled, mfa_type)
 VALUES 
-('Developer Tester', 'dev@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician', false, 'none'),
-('Dr. Fiona', 'doctor@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician', false, 'none'),
-('Nurse Joy', 'nurse@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'nurse', false, 'none'),
-('Teacher Sarah', 'teacher@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'teacher', false, 'none'),
-('Counselor Troy', 'counselor@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'guidance_counselor', false, 'none'),
-('Admin Alex', 'admin@fiona.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'admin', false, 'none')
+('Developer Tester', 'dev@aerohealth.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician', false, 'none'),
+('Dr. AeroHealth', 'doctor@aerohealth.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'physician', false, 'none'),
+('Nurse Joy', 'nurse@aerohealth.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'nurse', false, 'none'),
+('Teacher Sarah', 'teacher@aerohealth.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'teacher', false, 'none'),
+('Counselor Troy', 'counselor@aerohealth.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'guidance_counselor', false, 'none'),
+('Admin Alex', 'admin@aerohealth.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'admin', false, 'none')
 ON CONFLICT (email) DO NOTHING;
 
 

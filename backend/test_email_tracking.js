@@ -9,7 +9,7 @@ function request(path, method = 'GET', body = null) {
       method,
       headers: {
         'Content-Type': 'application/json',
-        'X-User-Email': 'dev@fiona.com',
+        'X-User-Email': 'dev@aerohealth.com',
         'X-User-Role': 'physician',
         'X-User-Name': 'Developer Tester'
       },
@@ -63,7 +63,7 @@ async function runTests() {
       emergency_contact_relationship: 'Father',
       parent_email: 'parent.verify@example.com',
       adviser_name: 'Teacher Sarah',
-      adviser_email: 'teacher@fiona.com',
+      adviser_email: 'teacher@aerohealth.com',
       graduation_year: 2027
     };
     const regPatient = await request('/patients', 'POST', patientData);

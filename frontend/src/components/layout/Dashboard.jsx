@@ -207,7 +207,7 @@ const Dashboard = () => {
           <div className="brand-mark">
             <Activity size={20} />
           </div>
-          <span className="brand-name">Fiona proj EMR</span>
+          <span className="brand-name">AeroHealth</span>
         </div>
 
         {/* Center — Pill Nav */}

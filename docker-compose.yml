@@ -5,7 +5,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: fiona-backend
+    container_name: aerohealth-backend
     restart: always
     environment:
       - PORT=5000
@@ -30,7 +30,7 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=/api
-    container_name: fiona-frontend
+    container_name: aerohealth-frontend
     restart: always
     ports:
       - "3000:80"

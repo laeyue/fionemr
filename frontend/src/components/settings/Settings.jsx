@@ -8,12 +8,12 @@ import { api } from '../../api';
 import './Settings.css';
 
 const SEEDED_EMAILS = [
-  'dev@fiona.com',
-  'doctor@fiona.com',
-  'nurse@fiona.com',
-  'teacher@fiona.com',
-  'counselor@fiona.com',
-  'admin@fiona.com'
+  'dev@aerohealth.com',
+  'doctor@aerohealth.com',
+  'nurse@aerohealth.com',
+  'teacher@aerohealth.com',
+  'counselor@aerohealth.com',
+  'admin@aerohealth.com'
 ];
 
 const isSeededAccount = (email) => {
@@ -310,7 +310,7 @@ const SettingsPage = () => {
                   </div>
                   <div className="profile-field">
                     <span className="field-label">Institution License</span>
-                    <span className="field-value font-mono">FIONA-EMR-LIC-ACTIVE</span>
+                    <span className="field-value font-mono">AEROHEALTH-LIC-ACTIVE</span>
                   </div>
                 </div>
               </div>

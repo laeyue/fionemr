@@ -5,12 +5,12 @@ import { api } from '../../api';
 import './MinimalLanding.css';
 
 const SEEDED_EMAILS = [
-  'dev@fiona.com',
-  'doctor@fiona.com',
-  'nurse@fiona.com',
-  'teacher@fiona.com',
-  'counselor@fiona.com',
-  'admin@fiona.com'
+  'dev@aerohealth.com',
+  'doctor@aerohealth.com',
+  'nurse@aerohealth.com',
+  'teacher@aerohealth.com',
+  'counselor@aerohealth.com',
+  'admin@aerohealth.com'
 ];
 
 const isSeededAccount = (email) => {
@@ -217,7 +217,7 @@ const MinimalLanding = () => {
           <div className="brand-logo">
             <Activity size={28} />
           </div>
-          <h1>Fiona EMR</h1>
+          <h1>AeroHealth</h1>
           <p>System under development.</p>
         </div>
         <div className="brand-footer">
@@ -322,7 +322,7 @@ const MinimalLanding = () => {
                     className="form-input"
                     value={registerEmail}
                     onChange={(e) => setRegisterEmail(e.target.value)}
-                    placeholder="name@fiona.com"
+                    placeholder="name@aerohealth.com"
                     autoComplete="email"
                     required
                   />

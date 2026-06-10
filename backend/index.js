@@ -60,7 +60,7 @@ let localAccounts = [
   { 
     id: 'a1', 
     name: 'Developer Tester', 
-    email: 'dev@fiona.com', 
+    email: 'dev@aerohealth.com', 
     password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
     role: 'physician', 
     mfa_enabled: false,
@@ -70,8 +70,8 @@ let localAccounts = [
   },
   { 
     id: 'a2', 
-    name: 'Dr. Fiona', 
-    email: 'doctor@fiona.com', 
+    name: 'Dr. AeroHealth', 
+    email: 'doctor@aerohealth.com', 
     password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
     role: 'physician', 
     mfa_enabled: false,
@@ -82,7 +82,7 @@ let localAccounts = [
   { 
     id: 'a3', 
     name: 'Nurse Joy', 
-    email: 'nurse@fiona.com', 
+    email: 'nurse@aerohealth.com', 
     password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
     role: 'nurse', 
     mfa_enabled: false,
@@ -93,7 +93,7 @@ let localAccounts = [
   { 
     id: 'a4', 
     name: 'Teacher Sarah', 
-    email: 'teacher@fiona.com', 
+    email: 'teacher@aerohealth.com', 
     password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
     role: 'teacher', 
     mfa_enabled: false,
@@ -104,7 +104,7 @@ let localAccounts = [
   { 
     id: 'a5', 
     name: 'Counselor Troy', 
-    email: 'counselor@fiona.com', 
+    email: 'counselor@aerohealth.com', 
     password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
     role: 'guidance_counselor', 
     mfa_enabled: false,
@@ -115,7 +115,7 @@ let localAccounts = [
   { 
     id: 'a6', 
     name: 'Admin Alex', 
-    email: 'admin@fiona.com', 
+    email: 'admin@aerohealth.com', 
     password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
     role: 'admin', 
     mfa_enabled: false,
@@ -145,7 +145,7 @@ let localPatients = [
     emergency_contact_relationship: 'Mother', 
     parent_email: 'parent.doe@example.com',
     adviser_name: 'Teacher Sarah',
-    adviser_email: 'teacher@fiona.com',
+    adviser_email: 'teacher@aerohealth.com',
     graduation_year: 2028,
     created_at: new Date(Date.now() - 7200000).toISOString() 
   },
@@ -166,7 +166,7 @@ let localPatients = [
     emergency_contact_relationship: 'Father', 
     parent_email: 'parent.smith@example.com',
     adviser_name: 'Teacher Sarah',
-    adviser_email: 'teacher@fiona.com',
+    adviser_email: 'teacher@aerohealth.com',
     graduation_year: 2030,
     created_at: new Date(Date.now() - 3600000).toISOString() 
   }
@@ -196,11 +196,11 @@ let localOrders = [
 ];
 
 let localVisitLogs = [
-  { id: 'l1', patient_id: 1023, event_type: 'Check-in', details: 'Checked in due to difficulty breathing.', performed_by: 'dev@fiona.com', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'l2', patient_id: 1023, event_type: 'Vitals Recorded', details: 'Temp: 37.2°C, HR: 82 bpm, BP: 115/75, O₂: 98%', performed_by: 'dev@fiona.com', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'l3', patient_id: 1023, event_type: 'Clinical Note Added', details: 'SOAP Note saved by Dr. Test', performed_by: 'dev@fiona.com', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'l4', patient_id: 1023, event_type: 'Medication Ordered', details: 'Salbutamol 2 puffs via inhaled route', performed_by: 'dev@fiona.com', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'l5', patient_id: 4091, event_type: 'Check-in', details: 'Checked in for routine immunization review.', performed_by: 'dev@fiona.com', created_at: new Date(Date.now() - 3600000).toISOString() }
+  { id: 'l1', patient_id: 1023, event_type: 'Check-in', details: 'Checked in due to difficulty breathing.', performed_by: 'dev@aerohealth.com', created_at: new Date(Date.now() - 7200000).toISOString() },
+  { id: 'l2', patient_id: 1023, event_type: 'Vitals Recorded', details: 'Temp: 37.2°C, HR: 82 bpm, BP: 115/75, O₂: 98%', performed_by: 'dev@aerohealth.com', created_at: new Date(Date.now() - 7200000).toISOString() },
+  { id: 'l3', patient_id: 1023, event_type: 'Clinical Note Added', details: 'SOAP Note saved by Dr. Test', performed_by: 'dev@aerohealth.com', created_at: new Date(Date.now() - 7200000).toISOString() },
+  { id: 'l4', patient_id: 1023, event_type: 'Medication Ordered', details: 'Salbutamol 2 puffs via inhaled route', performed_by: 'dev@aerohealth.com', created_at: new Date(Date.now() - 7200000).toISOString() },
+  { id: 'l5', patient_id: 4091, event_type: 'Check-in', details: 'Checked in for routine immunization review.', performed_by: 'dev@aerohealth.com', created_at: new Date(Date.now() - 3600000).toISOString() }
 ];
 
 let localParentalConsents = [
@@ -223,12 +223,12 @@ const hashPassword = (password) => {
 };
 
 const SEEDED_EMAILS = [
-  'dev@fiona.com',
-  'doctor@fiona.com',
-  'nurse@fiona.com',
-  'teacher@fiona.com',
-  'counselor@fiona.com',
-  'admin@fiona.com'
+  'dev@aerohealth.com',
+  'doctor@aerohealth.com',
+  'nurse@aerohealth.com',
+  'teacher@aerohealth.com',
+  'counselor@aerohealth.com',
+  'admin@aerohealth.com'
 ];
 
 const isSeededAccount = (email) => {
@@ -238,7 +238,7 @@ const isSeededAccount = (email) => {
 
 const getPractitioner = (req) => {
   return {
-    email: req.headers['x-user-email'] || 'dev@fiona.com',
+    email: req.headers['x-user-email'] || 'dev@aerohealth.com',
     role: (req.headers['x-user-role'] || 'physician').toLowerCase(),
     name: req.headers['x-user-name'] || 'Developer Tester'
   };
@@ -300,8 +300,8 @@ const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlConten
   const brevoApiKey = process.env.BREVO_API_KEY;
   const smtpPass = process.env.SMTP_PASS;
   const smtpUser = process.env.SMTP_USER || process.env.SENDER_EMAIL;
-  const senderEmail = process.env.SENDER_EMAIL || 'clinic@fiona.com';
-  const senderName = process.env.SENDER_NAME || 'Fiona Clinic';
+  const senderEmail = process.env.SENDER_EMAIL || 'clinic@aerohealth.com';
+  const senderName = process.env.SENDER_NAME || 'AeroHealth Clinic';
 
   // Fall back to SMTP Relay (tries port 587 first, then port 2525, then port 465)
   const smtpKey = smtpPass || brevoApiKey;
@@ -383,7 +383,7 @@ const getEmailTemplate = (recipientName, studentName, incidentDetails, respondUr
     <body>
       <div class="container">
         <div class="header">
-          <h1>Fiona EMR Clinic Alert</h1>
+          <h1>AeroHealth EMR Clinic Alert</h1>
         </div>
         <div class="content">
           <p>Dear <strong>${recipientName}</strong>,</p>
@@ -399,7 +399,7 @@ const getEmailTemplate = (recipientName, studentName, incidentDetails, respondUr
           <p style="font-size: 13px; color: #718096; margin-top: 30px; font-style: italic;">Note: Clicking either button logs your confirmation timestamp directly in our clinic records as verified proof of receipt.</p>
         </div>
         <div class="footer">
-          &copy; 2026 Fiona EMR System. All rights reserved.
+          &copy; 2026 AeroHealth EMR System. All rights reserved.
         </div>
       </div>
     </body>
@@ -453,7 +453,7 @@ const getResponseLandingPage = (status, recipientEmail, recipientType, studentNa
             <span class="value">${new Date(timestamp).toLocaleString()}</span>
           </div>
         </div>
-        <p class="footer-text">Fiona School EMR System &bull; Real-time active response gateway</p>
+        <p class="footer-text">AeroHealth School EMR System &bull; Real-time active response gateway</p>
       </div>
     </body>
     </html>
@@ -468,7 +468,7 @@ const triggerCheckinEmails = async (patient, chiefComplaint) => {
   if (patient.parent_email?.trim()) {
     const parentAlertId = generateAlertId();
     const parentName = patient.emergency_contact_name || 'Parent/Guardian';
-    const parentSubject = `[Fiona Clinic] Incident Alert for ${patient.name}`;
+    const parentSubject = `[AeroHealth Clinic] Incident Alert for ${patient.name}`;
     const parentHtmlContent = getEmailTemplate(parentName, patient.name, chiefComplaint, respondUrlBase, parentAlertId);
 
     // Record in DB
@@ -509,7 +509,7 @@ const triggerCheckinEmails = async (patient, chiefComplaint) => {
   if (patient.adviser_email?.trim()) {
     const adviserAlertId = generateAlertId();
     const adviserName = patient.adviser_name || 'Homeroom Adviser';
-    const adviserSubject = `[Fiona Clinic] Class Incident Alert for ${patient.name}`;
+    const adviserSubject = `[AeroHealth Clinic] Class Incident Alert for ${patient.name}`;
     const adviserHtmlContent = getEmailTemplate(adviserName, patient.name, chiefComplaint, respondUrlBase, adviserAlertId);
 
     // Record in DB
@@ -569,7 +569,7 @@ const getCheckoutEmailTemplate = (recipientName, studentName) => {
     <body>
       <div class="container">
         <div class="header">
-          <h1>Fiona Clinic Checkout Alert</h1>
+          <h1>AeroHealth Clinic Checkout Alert</h1>
         </div>
         <div class="content">
           <p>Dear <strong>${recipientName}</strong>,</p>
@@ -580,7 +580,7 @@ const getCheckoutEmailTemplate = (recipientName, studentName) => {
           <p>The student is now cleared to return to class or head home according to their disposition plan.</p>
         </div>
         <div class="footer">
-          &copy; 2026 Fiona EMR System. All rights reserved.
+          &copy; 2026 AeroHealth EMR System. All rights reserved.
         </div>
       </div>
     </body>
@@ -594,7 +594,7 @@ const triggerCheckoutEmails = async (patient) => {
   // 1. Send Parent Checkout Email
   if (patient.parent_email?.trim()) {
     const parentName = patient.emergency_contact_name || 'Parent/Guardian';
-    const parentSubject = `[Fiona Clinic] Checkout Alert for ${patient.name}`;
+    const parentSubject = `[AeroHealth Clinic] Checkout Alert for ${patient.name}`;
     const parentHtmlContent = getCheckoutEmailTemplate(parentName, patient.name);
 
     sendBrevoEmail(patient.parent_email, parentName, parentSubject, parentHtmlContent);
@@ -603,7 +603,7 @@ const triggerCheckoutEmails = async (patient) => {
   // 2. Send Adviser Checkout Email
   if (patient.adviser_email?.trim()) {
     const adviserName = patient.adviser_name || 'Homeroom Adviser';
-    const adviserSubject = `[Fiona Clinic] Class Checkout Alert for ${patient.name}`;
+    const adviserSubject = `[AeroHealth Clinic] Class Checkout Alert for ${patient.name}`;
     const adviserHtmlContent = getCheckoutEmailTemplate(adviserName, patient.name);
 
     sendBrevoEmail(patient.adviser_email, adviserName, adviserSubject, adviserHtmlContent);
@@ -942,7 +942,7 @@ app.post('/api/auth/mfa/setup', async (req, res) => {
 
       if (updateErr) throw updateErr;
 
-      const qrCodeUri = `otpauth://totp/Fiona%20EMR:${user.email}?secret=${secret}&issuer=Fiona%20EMR`;
+      const qrCodeUri = `otpauth://totp/AeroHealth:${user.email}?secret=${secret}&issuer=AeroHealth`;
       const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`;
 
       return res.json({ secret, qrCodeUrl });
@@ -957,7 +957,7 @@ app.post('/api/auth/mfa/setup', async (req, res) => {
 
   user.mfa_secret = secret;
 
-  const qrCodeUri = `otpauth://totp/Fiona%20EMR:${user.email}?secret=${secret}&issuer=Fiona%20EMR`;
+  const qrCodeUri = `otpauth://totp/AeroHealth:${user.email}?secret=${secret}&issuer=AeroHealth`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`;
 
   return res.json({ secret, qrCodeUrl });
@@ -1045,7 +1045,7 @@ const getMfaEmailTemplate = (recipientName, code) => {
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Fiona EMR Security Code</title>
+      <title>AeroHealth EMR Security Code</title>
       <style>
         body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f6f9; color: #333333; margin: 0; padding: 0; }
         .container { max-width: 500px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e1e4e8; }
@@ -1060,7 +1060,7 @@ const getMfaEmailTemplate = (recipientName, code) => {
     <body>
       <div class="container">
         <div class="header">
-          <h1>Fiona EMR Security Verification</h1>
+          <h1>AeroHealth EMR Security Verification</h1>
         </div>
         <div class="content">
           <p>Dear <strong>${recipientName}</strong>,</p>
@@ -1069,7 +1069,7 @@ const getMfaEmailTemplate = (recipientName, code) => {
           <p style="font-size: 13px; color: #718096; margin-top: 20px; text-align: left;">If you did not request this code, please secure your account immediately or notify system administration.</p>
         </div>
         <div class="footer">
-          &copy; 2026 Fiona EMR Security. All rights reserved.
+          &copy; 2026 AeroHealth EMR Security. All rights reserved.
         </div>
       </div>
     </body>
@@ -1120,7 +1120,7 @@ app.post('/api/auth/mfa/send-email', async (req, res) => {
 
   // Trigger targeted email via Brevo
   const recipientName = userObj.name || 'Practitioner';
-  const emailSubject = '[Fiona EMR] Login Verification Security Code';
+  const emailSubject = '[AeroHealth EMR] Login Verification Security Code';
   const htmlContent = getMfaEmailTemplate(recipientName, code);
   
   sendBrevoEmail(userObj.email, recipientName, emailSubject, htmlContent).catch(err => {
