@@ -26,7 +26,7 @@ const PatientList = () => {
     section: '',
     age: '',
     gender: 'Male',
-    status: 'Active',
+    status: 'Checked Out',
     date_of_birth: '',
     grade_level: '',
     graduation_year: '',
@@ -101,13 +101,12 @@ const PatientList = () => {
 
     try {
       const statusColorMap = {
-        'Active': 'green',
-        'Under Observation': 'amber',
-        'Recovered': 'blue',
+        'Checked In': 'amber',
+        'Checked Out': 'gray',
       };
       const patientPayload = {
         ...formData,
-        status_color: statusColorMap[formData.status] || 'green'
+        status_color: statusColorMap[formData.status] || 'gray'
       };
       const res = await api.registerPatient(patientPayload);
       if (res && res.data) {
@@ -117,7 +116,7 @@ const PatientList = () => {
           section: '',
           age: '',
           gender: 'Male',
-          status: 'Active',
+          status: 'Checked Out',
           date_of_birth: '',
           grade_level: '',
           graduation_year: '',
@@ -453,22 +452,6 @@ const PatientList = () => {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Clinic Status</label>
-                  <select
-                    name="status"
-                    className="form-select"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Under Observation">Under Observation</option>
-                    <option value="Recovered">Recovered</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-row-2">
-                <div className="form-group">
                   <label className="form-label">Graduation Year</label>
                   <input
                     type="number"
@@ -479,7 +462,6 @@ const PatientList = () => {
                     placeholder="e.g. 2028"
                   />
                 </div>
-                <div className="form-group" style={{ visibility: 'hidden' }}></div>
               </div>
 
               <h4 style={{ margin: '16px 0 12px', fontSize: 'var(--text-sm)' }}>Medical Information</h4>

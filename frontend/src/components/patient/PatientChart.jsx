@@ -200,7 +200,7 @@ const PatientChart = () => {
         <div className="id-flags" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className={`badge badge-${patient.status_color || 'green'}`}>{patient.status}</span>
           {!isRestrictedRole && (
-            patient.status === 'Under Observation' ? (
+            patient.status === 'Checked In' ? (
               <button className="btn btn-secondary btn-sm" onClick={handleCheckOut} type="button">
                 Check-Out Student
               </button>
@@ -549,8 +549,8 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
         updated.age = calculatedAge >= 0 ? calculatedAge.toString() : '';
       }
       if (name === 'status') {
-        const colorMap = { 'Active': 'green', 'Under Observation': 'amber', 'Recovered': 'blue' };
-        updated.status_color = colorMap[value] || 'green';
+        const colorMap = { 'Checked In': 'amber', 'Checked Out': 'gray' };
+        updated.status_color = colorMap[value] || 'gray';
       }
       return updated;
     });
@@ -701,20 +701,9 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
                 <input type="text" name="section" className="form-input" value={editData.section} onChange={handleEditChange} placeholder="e.g. Grade 5-A" />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Clinic Status</label>
-                <select name="status" className="form-select" value={editData.status} onChange={handleEditChange}>
-                  <option value="Active">Active</option>
-                  <option value="Under Observation">Under Observation</option>
-                  <option value="Recovered">Recovered</option>
-                </select>
-              </div>
-            </div>
-            <div className="form-row-2">
-              <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Graduation Year</label>
                 <input type="number" name="graduation_year" className="form-input" value={editData.graduation_year} onChange={handleEditChange} placeholder="e.g. 2028" />
               </div>
-              <div className="form-group" style={{ marginBottom: 0, visibility: 'hidden' }}></div>
             </div>
 
             <h5 style={{ marginTop: 8, fontSize: 'var(--text-sm)', color: 'var(--gray-600)' }}>Medical Information</h5>

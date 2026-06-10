@@ -134,8 +134,8 @@ let localPatients = [
     section: 'Grade 5-A', 
     age: 10, 
     gender: 'Male', 
-    status: 'Active', 
-    status_color: 'green', 
+    status: 'Checked Out', 
+    status_color: 'gray', 
     date_of_birth: '2016-04-12', 
     grade_level: 'Grade 5', 
     allergies: 'Peanut, Penicillin', 
@@ -155,7 +155,7 @@ let localPatients = [
     section: 'Grade 3-B', 
     age: 8, 
     gender: 'Female', 
-    status: 'Under Observation', 
+    status: 'Checked In', 
     status_color: 'amber', 
     date_of_birth: '2018-09-22', 
     grade_level: 'Grade 3', 
@@ -1328,7 +1328,7 @@ app.post('/api/patients', async (req, res) => {
   if (!useFallback) {
     try {
       const { data, error } = await supabase.from('patients').insert([{
-        name, section, age: ageParsed, gender, status: status || 'Active', status_color: status_color || 'green',
+        name, section, age: ageParsed, gender, status: status || 'Checked Out', status_color: status_color || 'gray',
         date_of_birth: date_of_birth || null,
         grade_level: grade_level || null,
         allergies: allergies || 'None',
@@ -1377,7 +1377,7 @@ app.post('/api/patients', async (req, res) => {
   // Fallback DB
   const newPatient = {
     id: nextPatientId++,
-    name, section, age: ageParsed, gender, status: status || 'Active', status_color: status_color || 'green',
+    name, section, age: ageParsed, gender, status: status || 'Checked Out', status_color: status_color || 'gray',
     date_of_birth: date_of_birth || null,
     grade_level: grade_level || null,
     allergies: allergies || 'None',
@@ -1981,9 +1981,9 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
 
   if (!useFallback) {
     try {
-      // 1. Update patient status to 'Under Observation'
+      // 1. Update patient status to 'Checked In'
       await supabase.from('patients').update({
-        status: 'Under Observation',
+        status: 'Checked In',
         status_color: 'amber'
       }).eq('id', id);
 
@@ -2019,7 +2019,7 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
   const patient = localPatients.find(p => p.id === id);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-  patient.status = 'Under Observation';
+  patient.status = 'Checked In';
   patient.status_color = 'amber';
 
   const newLog = {
@@ -2203,10 +2203,10 @@ app.get('/api/dashboard/stats', async (req, res) => {
         .gte('created_at', startOfDay.toISOString());
       sentHomeToday = shCount || 0;
 
-      // 5. Occupied Beds List (patients with status 'Under Observation')
+      // 5. Occupied Beds List (patients with status 'Checked In')
       const { data: bedPatients } = await supabase.from('patients')
         .select('id, name, section, gender, age, created_at')
-        .eq('status', 'Under Observation');
+        .eq('status', 'Checked In');
 
       if (bedPatients && bedPatients.length > 0) {
         const bedPatientIds = bedPatients.map(p => p.id);
@@ -2337,7 +2337,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
 
   sentHomeToday = localSoapNotes.filter(s => s.disposition === 'Sent Home' && new Date(s.created_at) >= startOfDay).length;
 
-  const bedPatientsLocal = localPatients.filter(p => p.status === 'Under Observation');
+  const bedPatientsLocal = localPatients.filter(p => p.status === 'Checked In');
   const localPatientIds = bedPatientsLocal.map(p => p.id);
   
   if (localPatientIds.length > 0) {
