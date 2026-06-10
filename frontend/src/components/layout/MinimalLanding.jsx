@@ -218,7 +218,7 @@ const MinimalLanding = () => {
             <Activity size={28} />
           </div>
           <h1>AeroHealth</h1>
-          <p>System under development.</p>
+          <p>Advanced School Clinic Management & Real-time Health Analytics</p>
         </div>
         <div className="brand-footer">
           <span>Protected under the Data Privacy Act</span>
