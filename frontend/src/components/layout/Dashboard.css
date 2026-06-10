@@ -22,7 +22,6 @@
   box-shadow: var(--shadow-sm);
   width: 100%;
   min-width: 0;
-  overflow: hidden;
 }
 
 /* Brand */
