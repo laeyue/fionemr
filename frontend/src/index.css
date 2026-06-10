@@ -299,6 +299,7 @@ h5 { font-size: var(--text-base); font-weight: 600; color: var(--gray-700); }
 .badge-yellow { background: var(--warning-bg); color: #92400e; }
 .badge-red    { background: var(--danger-bg); color: #991b1b; }
 .badge-gray   { background: var(--gray-100); color: var(--gray-600); }
+.badge-amber  { background: #fef3c7; color: #b45309; }
 
 /* ===== AVATAR ===== */
 .avatar {

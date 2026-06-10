@@ -1980,11 +1980,11 @@ app.post('/api/patients/:id/checkout', async (req, res) => {
 
   if (!useFallback) {
     try {
-      // Update patient status to 'Active' and status_color to 'green'
+      // Update patient status to 'Checked Out' and status_color to 'gray'
       const { error: updateErr } = await supabase.from('patients')
         .update({
-          status: 'Active',
-          status_color: 'green'
+          status: 'Checked Out',
+          status_color: 'gray'
         })
         .eq('id', id);
 
@@ -2014,8 +2014,8 @@ app.post('/api/patients/:id/checkout', async (req, res) => {
   const patient = localPatients.find(p => p.id === id);
   if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-  patient.status = 'Active';
-  patient.status_color = 'green';
+  patient.status = 'Checked Out';
+  patient.status_color = 'gray';
 
   const newLog = {
     id: 'l_' + Date.now(),
