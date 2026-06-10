@@ -1,3 +1,12 @@
+// Polyfill WebSocket for older Node versions (like Node 20) before importing Supabase
+if (typeof global.WebSocket === 'undefined') {
+  try {
+    global.WebSocket = require('ws');
+  } catch (err) {
+    console.warn('[WARNING] Failed to load "ws" polyfill for WebSocket support.');
+  }
+}
+
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
