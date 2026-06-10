@@ -125,6 +125,10 @@ export const api = {
     body: { chief_complaint: chiefComplaint },
   }),
 
+  checkOutPatient: (id) => request(`/patients/${id}/checkout`, {
+    method: 'POST',
+  }),
+
   getExcuseSlips: (patientId) => request(`/patients/${patientId}/excuse-slips`),
 
   createExcuseSlip: (patientId, excuseData) => request(`/patients/${patientId}/excuse-slips`, {

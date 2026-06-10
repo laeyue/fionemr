@@ -1908,6 +1908,13 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
 
   if (!useFallback) {
     try {
+      // 1. Update patient status to 'Under Observation'
+      await supabase.from('patients').update({
+        status: 'Under Observation',
+        status_color: 'amber'
+      }).eq('id', id);
+
+      // 2. Insert check-in log
       const { data, error } = await supabase.from('visit_logs').insert([{
         patient_id: id,
         event_type: 'Check-in',
@@ -1930,12 +1937,18 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
 
       return res.json({ data: data[0] });
     } catch (err) {
-      console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
+      console.warn("[WARNING] Supabase checkin insert/update failed. Falling back to local db:", err.message);
       useFallback = true;
     }
   }
 
   // Fallback DB
+  const patient = localPatients.find(p => p.id === id);
+  if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+  patient.status = 'Under Observation';
+  patient.status_color = 'amber';
+
   const newLog = {
     id: 'l_' + Date.now(),
     patient_id: id,
@@ -1948,11 +1961,74 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
 
   // Trigger Simulated Parent Notification in Fallback
   triggerParentNotification(id, `checked into the school clinic. Reason: ${chief_complaint}`);
+  triggerCheckinEmails(patient, chief_complaint);
 
-  const patient = localPatients.find(p => p.id === id);
-  if (patient) {
-    triggerCheckinEmails(patient, chief_complaint);
+  res.json({ data: newLog });
+});
+
+// Patients Route: Check-Out Patient
+app.post('/api/patients/:id/checkout', async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid patient ID' });
+
+  const practitioner = getPractitioner(req);
+  if (practitioner.role !== 'physician' && practitioner.role !== 'nurse') {
+    return res.status(403).json({ error: 'Access denied. Only physicians and nurses can check out patients.' });
   }
+
+  const auditDetails = 'Student checked out of the clinic.';
+
+  if (!useFallback) {
+    try {
+      // Update patient status to 'Active' and status_color to 'green'
+      const { error: updateErr } = await supabase.from('patients')
+        .update({
+          status: 'Active',
+          status_color: 'green'
+        })
+        .eq('id', id);
+
+      if (updateErr) throw updateErr;
+
+      // Log checkout event
+      const { data, error: logErr } = await supabase.from('visit_logs').insert([{
+        patient_id: id,
+        event_type: 'Check-out',
+        details: auditDetails,
+        performed_by: practitioner.email
+      }]).select();
+
+      if (logErr) throw logErr;
+
+      // Trigger Simulated Parent Notification on Check-out
+      triggerParentNotification(id, 'checked out of the school clinic.');
+
+      return res.json({ data: data[0] });
+    } catch (err) {
+      console.warn("[WARNING] Supabase checkout failed. Falling back to local db:", err.message);
+      useFallback = true;
+    }
+  }
+
+  // Fallback DB
+  const patient = localPatients.find(p => p.id === id);
+  if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+  patient.status = 'Active';
+  patient.status_color = 'green';
+
+  const newLog = {
+    id: 'l_' + Date.now(),
+    patient_id: id,
+    event_type: 'Check-out',
+    details: auditDetails,
+    performed_by: practitioner.email,
+    created_at: new Date().toISOString()
+  };
+  localVisitLogs.push(newLog);
+
+  // Trigger Simulated Parent Notification in Fallback
+  triggerParentNotification(id, 'checked out of the school clinic.');
 
   res.json({ data: newLog });
 });

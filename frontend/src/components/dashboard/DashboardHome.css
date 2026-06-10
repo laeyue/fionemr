@@ -224,6 +224,25 @@
   border-color: var(--info);
 }
 
+.btn-checkout-quick {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--gray-400);
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--fast) var(--ease);
+}
+
+.btn-checkout-quick:hover {
+  color: var(--danger);
+  background: #fee2e2;
+  transform: scale(1.05);
+}
+
 .sidebar-item-main {
   display: flex;
   flex-direction: column;

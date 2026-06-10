@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   UserCheck, Bed, AlertTriangle, FileText,
   ArrowUpRight, Calendar, ChevronLeft, ChevronRight,
-  Activity, Users, TrendingUp, Clock, Pill, Home
+  Activity, Users, TrendingUp, Clock, Pill, Home, LogOut
 } from 'lucide-react';
 import { useAuth } from '../../App';
 import { api } from '../../api';
@@ -14,6 +14,7 @@ const DashboardHome = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const now = new Date();
+  const isRestrictedRole = user?.role !== 'physician' && user?.role !== 'nurse';
   const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
 
   /* Date selector state */
@@ -101,6 +102,18 @@ const DashboardHome = () => {
       }
     } catch (err) {
       console.error("Error fetching activity feed:", err);
+    }
+  };
+
+  const handleQuickCheckOut = async (e, id) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to check out this student?")) return;
+    try {
+      await api.checkOutPatient(id);
+      fetchDashboardData();
+      fetchActivityFeed(selectedDate);
+    } catch (err) {
+      console.error("Error checking out patient:", err);
     }
   };
 
@@ -383,9 +396,20 @@ const DashboardHome = () => {
                       <span className="sidebar-item-name">{bed.name}</span>
                       <span className="sidebar-item-sub">{bed.section} • {bed.age} {bed.gender}</span>
                     </div>
-                    <div className="sidebar-item-badge badge-cyan">
-                      <Clock size={12} className="margin-right-xs" />
-                      {formatDuration(bed.entryTime)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className="sidebar-item-badge badge-cyan">
+                        <Clock size={12} className="margin-right-xs" />
+                        {formatDuration(bed.entryTime)}
+                      </div>
+                      {!isRestrictedRole && (
+                        <button
+                          className="btn-checkout-quick"
+                          title="Check-Out Student"
+                          onClick={(e) => handleQuickCheckOut(e, bed.id)}
+                        >
+                          <LogOut size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))

@@ -72,6 +72,16 @@ const PatientChart = () => {
     }
   };
 
+  const handleCheckOut = async () => {
+    if (!window.confirm("Are you sure you want to check out this student?")) return;
+    try {
+      await api.checkOutPatient(id);
+      fetchPatient();
+    } catch (err) {
+      console.error("Error checking out patient:", err);
+    }
+  };
+
   useEffect(() => {
     if (id) {
       fetchPatient();
@@ -190,9 +200,15 @@ const PatientChart = () => {
         <div className="id-flags" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className={`badge badge-${patient.status_color || 'green'}`}>{patient.status}</span>
           {!isRestrictedRole && (
-            <button className="btn btn-primary btn-sm" onClick={() => setShowCheckInModal(true)} type="button">
-              Check-In Student
-            </button>
+            patient.status === 'Under Observation' ? (
+              <button className="btn btn-secondary btn-sm" onClick={handleCheckOut} type="button">
+                Check-Out Student
+              </button>
+            ) : (
+              <button className="btn btn-primary btn-sm" onClick={() => setShowCheckInModal(true)} type="button">
+                Check-In Student
+              </button>
+            )
           )}
         </div>
       </div>
