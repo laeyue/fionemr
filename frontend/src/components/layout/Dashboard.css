@@ -630,8 +630,8 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 500px;
-  height: 500px;
+  width: 1600px;
+  height: 1600px;
   opacity: 0.035; /* Extremely subtle watermark */
   pointer-events: none; /* Let all clicks pass through */
   z-index: 0; /* Behind dashboard contents, but above page background */
