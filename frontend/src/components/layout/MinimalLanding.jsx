@@ -20,7 +20,24 @@ const isSeededAccount = (email) => {
 
 const MinimalLanding = () => {
   const { login } = useAuth();
-  const [step, setStep] = useState('login'); // 'login', 'register', 'mfa_choose', 'mfa_setup_totp', 'mfa_setup_email', 'mfa'
+  const [step, setStep] = useState('login');
+  const [logoUrl, setLogoUrl] = useState('');
+
+  useEffect(() => {
+    const fetchLogo = async () => {
+      try {
+        const res = await api.getClinicSettings();
+        if (res && res.data && res.data.school_logo_url) {
+          setLogoUrl(res.data.school_logo_url);
+        } else {
+          setLogoUrl('');
+        }
+      } catch (err) {
+        // It's ok if this fails, we fall back to the default icon
+      }
+    };
+    fetchLogo();
+  }, []); // 'login', 'register', 'mfa_choose', 'mfa_setup_totp', 'mfa_setup_email', 'mfa'
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -214,9 +231,18 @@ const MinimalLanding = () => {
       {/* Left panel — branding */}
       <div className="login-brand-panel">
         <div className="brand-content">
-          <div className="brand-logo">
-            <Activity size={28} />
-          </div>
+          {logoUrl ? (
+            <img 
+              src={logoUrl} 
+              alt="School Logo" 
+              className="landing-logo-img" 
+              style={{ width: '56px', height: '56px', objectFit: 'contain', borderRadius: '8px', marginBottom: '16px', filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))' }} 
+            />
+          ) : (
+            <div className="brand-logo">
+              <Activity size={28} />
+            </div>
+          )}
           <h1>AeroHealth</h1>
           <p>Advanced School Clinic Management & Real-time Health Analytics</p>
         </div>

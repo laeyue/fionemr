@@ -41,7 +41,25 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [logoUrl, setLogoUrl] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const fetchLogo = async () => {
+    try {
+      const res = await api.getClinicSettings();
+      if (res && res.data && res.data.school_logo_url) {
+        setLogoUrl(res.data.school_logo_url);
+      } else {
+        setLogoUrl('');
+      }
+    } catch (err) {
+      console.error('Failed to load logo in Dashboard:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchLogo();
+  }, [location.pathname]);
   const [searchResults, setSearchResults] = useState([]);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -204,9 +222,18 @@ const Dashboard = () => {
       <header className="topbar">
         {/* Left — Brand */}
         <div className="topbar-brand" onClick={() => navigate('/dashboard')}>
-          <div className="brand-mark">
-            <Activity size={20} />
-          </div>
+          {logoUrl ? (
+            <img 
+              src={logoUrl} 
+              alt="School Logo" 
+              className="brand-logo-img" 
+              style={{ width: '28px', height: '28px', objectFit: 'contain', borderRadius: '4px', marginRight: '8px' }} 
+            />
+          ) : (
+            <div className="brand-mark">
+              <Activity size={20} />
+            </div>
+          )}
           <span className="brand-name">AeroHealth</span>
         </div>
 

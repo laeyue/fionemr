@@ -53,6 +53,7 @@ const SettingsPage = () => {
   // Clinic Settings
   const [principalEmail, setPrincipalEmail] = useState('');
   const [securityGuardEmail, setSecurityGuardEmail] = useState('');
+  const [schoolLogoUrl, setSchoolLogoUrl] = useState('');
   const [settingsSuccess, setSettingsSuccess] = useState('');
   const [settingsError, setSettingsError] = useState('');
 
@@ -63,6 +64,7 @@ const SettingsPage = () => {
       if (res && res.data) {
         setPrincipalEmail(res.data.principal_email || '');
         setSecurityGuardEmail(res.data.security_guard_email || '');
+        setSchoolLogoUrl(res.data.school_logo_url || '');
       }
     } catch (err) {
       console.error("Failed to fetch clinic settings:", err);
@@ -80,7 +82,8 @@ const SettingsPage = () => {
     try {
       await api.updateClinicSettings({
         principal_email: principalEmail.trim(),
-        security_guard_email: securityGuardEmail.trim()
+        security_guard_email: securityGuardEmail.trim(),
+        school_logo_url: schoolLogoUrl.trim()
       });
       setSettingsSuccess('Clinic settings updated successfully.');
     } catch (err) {
@@ -781,6 +784,21 @@ const SettingsPage = () => {
                     />
                     <span style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '4px', display: 'block' }}>
                       Security gate clearance permits will be emailed here automatically upon student checkout.
+                    </span>
+                  </div>
+
+                  <div className="form-group" style={{ marginTop: '20px' }}>
+                    <label className="form-label" htmlFor="logo-url-input">School Logo Image URL</label>
+                    <input 
+                      id="logo-url-input"
+                      type="url" 
+                      className="form-input" 
+                      value={schoolLogoUrl} 
+                      onChange={(e) => setSchoolLogoUrl(e.target.value)} 
+                      placeholder="https://example.com/logo.png"
+                    />
+                    <span style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '4px', display: 'block' }}>
+                      Paste a URL to an image file (PNG, JPG, or SVG) representing your school logo. This will replace the default logo icon across the EMR shell and landing pages.
                     </span>
                   </div>
 

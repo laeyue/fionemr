@@ -2147,7 +2147,8 @@ app.get('/api/settings/clinic', async (req, res) => {
       return res.json({
         data: {
           principal_email: settings.principal_email || 'principal@aerohealth.com',
-          security_guard_email: settings.security_guard_email || 'guard@aerohealth.com'
+          security_guard_email: settings.security_guard_email || 'guard@aerohealth.com',
+          school_logo_url: settings.school_logo_url || ''
         }
       });
   } catch (err) {
@@ -2157,7 +2158,7 @@ app.get('/api/settings/clinic', async (req, res) => {
 
 // Settings Route: Update Clinic settings
 app.post('/api/settings/clinic', async (req, res) => {
-  const { principal_email, security_guard_email } = req.body;
+  const { principal_email, security_guard_email, school_logo_url } = req.body;
   
   const practitioner = getPractitioner(req);
   if (practitioner.role !== 'admin' && practitioner.role !== 'nurse' && practitioner.role !== 'physician') {
@@ -2169,6 +2170,8 @@ app.post('/api/settings/clinic', async (req, res) => {
       if (err1) throw err1;
       const { error: err2 } = await supabase.from('clinic_settings').upsert({ key: 'security_guard_email', value: security_guard_email });
       if (err2) throw err2;
+      const { error: err3 } = await supabase.from('clinic_settings').upsert({ key: 'school_logo_url', value: school_logo_url || '' });
+      if (err3) throw err3;
 
       return res.json({ message: 'Clinic settings updated successfully.' });
   } catch (err) {
