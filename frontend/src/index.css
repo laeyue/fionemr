@@ -10,17 +10,17 @@
   --bg-input: #f5f7fa;
   --bg-overlay: rgba(255, 255, 255, 0.65);
 
-    /* Blue Accent (Re-mapped to Custom Multi-Color Gradient Theme) */
-  --blue-50: #f3fff0;
-  --blue-100: #e3ffd9;
-  --blue-200: #00dd98;
-  --blue-300: #00c4ae;
-  --blue-400: #00aeb5;
-  --blue-500: #0099b3;
-  --blue-600: #0086ad;
-  --blue-700: #0073a7;
-  --blue-800: #005daf;
-  --blue-900: #363aab;
+  /* Blue Accent */
+  --blue-50: #eff6ff;
+  --blue-100: #dbeafe;
+  --blue-200: #bfdbfe;
+  --blue-300: #93c5fd;
+  --blue-400: #60a5fa;
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+  --blue-800: #1e40af;
+  --blue-900: #1e3a8a;
 
   --primary: var(--blue-500);
   --primary-hover: var(--blue-600);
@@ -54,7 +54,7 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
   --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.1);
-  --shadow-blue: 0 4px 14px rgba(0, 153, 179, 0.25);
+  --shadow-blue: 0 4px 14px rgba(59, 130, 246, 0.25);
 
   /* Glass */
   --glass-bg: rgba(255, 255, 255, 0.6);
