@@ -23,7 +23,6 @@ app.use(express.json());
 
 // Initialize Supabase Client
 let supabase = null;
-let useFallback = false;
 
 let supabaseUrl = process.env.SUPABASE_URL || '';
 let supabaseKey = process.env.SUPABASE_KEY || '';
@@ -36,27 +35,94 @@ if (supabaseUrl) {
 }
 if (supabaseKey) supabaseKey = supabaseKey.replace(/^['"]|['"]$/g, '').trim();
 
-if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('dummy') || supabaseUrl.includes('your-project-id')) {
-  useFallback = true;
-} else {
-  console.log('[DEBUG] Initializing Supabase client with URL:', supabaseUrl);
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey);
-  } catch (err) {
-    console.error('[WARNING] Failed to initialize Supabase client:', err.message);
-    useFallback = true;
-  }
+if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('dummy') || supabaseUrl.includes('your-project-id') || supabaseUrl.includes('placeholder')) {
+  throw new Error("Supabase URL and Key are required to start the application. Fallback database is disabled.");
 }
 
-if (useFallback) {
-  console.log('--------------------------------------------------');
-  console.log('[INFO] Supabase URL/Key not set, invalid, or using placeholder values.');
-  console.log('[INFO] Backend will run using the local in-memory store.');
-  console.log('--------------------------------------------------');
+console.log('[DEBUG] Initializing Supabase client with URL:', supabaseUrl);
+try {
+  supabase = createClient(supabaseUrl, supabaseKey);
+} catch (err) {
+  console.error('[FATAL] Failed to initialize Supabase client:', err.message);
+  throw err;
 }
 
 let simulatedNotifications = [];
 let emailCodes = {}; // { userId: { code, expiresAt } }
+
+const seedAccountsTable = async () => {
+  const defaultAccounts = [
+    { 
+      name: 'Developer Tester', 
+      email: 'dev@aerohealth.com', 
+      password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
+      role: 'physician'
+    },
+    { 
+      name: 'Dr. AeroHealth', 
+      email: 'doctor@aerohealth.com', 
+      password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
+      role: 'physician'
+    },
+    { 
+      name: 'Nurse Joy', 
+      email: 'nurse@aerohealth.com', 
+      password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
+      role: 'nurse'
+    },
+    { 
+      name: 'Teacher Sarah', 
+      email: 'teacher@aerohealth.com', 
+      password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
+      role: 'teacher'
+    },
+    { 
+      name: 'Counselor Troy', 
+      email: 'counselor@aerohealth.com', 
+      password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
+      role: 'guidance_counselor'
+    },
+    { 
+      name: 'Admin Alex', 
+      email: 'admin@aerohealth.com', 
+      password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
+      role: 'admin'
+    }
+  ];
+
+  console.log('[DEBUG] Checking if seeded accounts need to be inserted in database...');
+  try {
+    for (const acc of defaultAccounts) {
+      const { data: existing, error } = await supabase
+        .from('accounts')
+        .select('email')
+        .eq('email', acc.email)
+        .maybeSingle();
+
+      if (error) {
+        console.error('[WARNING] Failed to check existence of seeded account ' + acc.email + ':', error.message);
+        continue;
+      }
+
+      if (!existing) {
+        console.log('[DEBUG] Seeding account: ' + acc.email);
+        const { error: insertErr } = await supabase
+          .from('accounts')
+          .insert([acc]);
+
+        if (insertErr) {
+          console.error('[WARNING] Failed to seed account ' + acc.email + ':', insertErr.message);
+        }
+      }
+    }
+    console.log('[DEBUG] Seeded accounts validation completed.');
+  } catch (err) {
+    console.error('[WARNING] Seeding accounts failed:', err.message);
+  }
+};
+
+// Execute seeding asynchronously on startup
+seedAccountsTable();
 
 // Password Hashing Utility
 const hashPassword = (password) => {
