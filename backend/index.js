@@ -200,7 +200,7 @@ const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlConten
   const smtpPass = process.env.SMTP_PASS;
   const smtpUser = process.env.SMTP_USER || process.env.SENDER_EMAIL;
   const senderEmail = process.env.SENDER_EMAIL || 'clinic@aerohealth.com';
-  const senderName = process.env.SENDER_NAME || 'AeroHealth Clinic';
+  const senderName = process.env.SENDER_NAME || 'OLPHA AeroHealth Clinic';
 
   // Fall back to SMTP Relay (tries port 587 first, then port 2525, then port 465)
   const smtpKey = smtpPass || brevoApiKey;
@@ -282,7 +282,7 @@ const getEmailTemplate = (recipientName, studentName, incidentDetails, respondUr
     <body>
       <div class="container">
         <div class="header">
-          <h1>AeroHealth EMR Clinic Alert</h1>
+          <h1>OLPHA AeroHealth EMR Clinic Alert</h1>
         </div>
         <div class="content">
           <p>Dear <strong>${recipientName}</strong>,</p>
@@ -298,7 +298,7 @@ const getEmailTemplate = (recipientName, studentName, incidentDetails, respondUr
           <p style="font-size: 13px; color: #718096; margin-top: 30px; font-style: italic;">Note: Clicking either button logs your confirmation timestamp directly in our clinic records as verified proof of receipt.</p>
         </div>
         <div class="footer">
-          &copy; 2026 AeroHealth EMR System. All rights reserved.
+          &copy; 2026 OLPHA AeroHealth EMR System. All rights reserved.
         </div>
       </div>
     </body>
@@ -352,7 +352,7 @@ const getResponseLandingPage = (status, recipientEmail, recipientType, studentNa
             <span class="value">	ext{new Date(timestamp).toLocaleString()}</span>
           </div>
         </div>
-        <p class="footer-text">AeroHealth School EMR System &bull; Real-time active response gateway</p>
+        <p class="footer-text">OLPHA AeroHealth School EMR System &bull; Real-time active response gateway</p>
       </div>
     </body>
     </html>
@@ -367,7 +367,7 @@ const triggerCheckinEmails = async (patient, chiefComplaint) => {
   if (patient.parent_email?.trim()) {
     const parentAlertId = generateAlertId();
     const parentName = patient.emergency_contact_name || 'Parent/Guardian';
-    const parentSubject = "[AeroHealth Clinic] Incident Alert for " + patient.name;
+    const parentSubject = "[OLPHA AeroHealth Clinic] Incident Alert for " + patient.name;
     const parentHtmlContent = getEmailTemplate(parentName, patient.name, chiefComplaint, respondUrlBase, parentAlertId);
 
     // Record in DB
@@ -405,7 +405,7 @@ const triggerCheckinEmails = async (patient, chiefComplaint) => {
   if (patient.adviser_email?.trim()) {
     const adviserAlertId = generateAlertId();
     const adviserName = patient.adviser_name || 'Homeroom Adviser';
-    const adviserSubject = "[AeroHealth Clinic] Class Incident Alert for " + patient.name;
+    const adviserSubject = "[OLPHA AeroHealth Clinic] Class Incident Alert for " + patient.name;
     const adviserHtmlContent = getEmailTemplate(adviserName, patient.name, chiefComplaint, respondUrlBase, adviserAlertId);
 
     // Record in DB
@@ -462,7 +462,7 @@ const getCheckoutEmailTemplate = (recipientName, studentName) => {
     <body>
       <div class="container">
         <div class="header">
-          <h1>AeroHealth Clinic Checkout Alert</h1>
+          <h1>OLPHA AeroHealth Clinic Checkout Alert</h1>
         </div>
         <div class="content">
           <p>Dear <strong>${recipientName}</strong>,</p>
@@ -473,7 +473,7 @@ const getCheckoutEmailTemplate = (recipientName, studentName) => {
           <p>The student is now cleared to return to class or head home according to their disposition plan.</p>
         </div>
         <div class="footer">
-          &copy; 2026 AeroHealth EMR System. All rights reserved.
+          &copy; 2026 OLPHA AeroHealth EMR System. All rights reserved.
         </div>
       </div>
     </body>
@@ -487,7 +487,7 @@ const triggerCheckoutEmails = async (patient) => {
   // 1. Send Parent Checkout Email
   if (patient.parent_email?.trim()) {
     const parentName = patient.emergency_contact_name || 'Parent/Guardian';
-    const parentSubject = "[AeroHealth Clinic] Checkout Alert for " + patient.name;
+    const parentSubject = "[OLPHA AeroHealth Clinic] Checkout Alert for " + patient.name;
     const parentHtmlContent = getCheckoutEmailTemplate(parentName, patient.name);
     sendBrevoEmail(patient.parent_email, parentName, parentSubject, parentHtmlContent);
   }
@@ -495,7 +495,7 @@ const triggerCheckoutEmails = async (patient) => {
   // 2. Send Adviser Checkout Email
   if (patient.adviser_email?.trim()) {
     const adviserName = patient.adviser_name || 'Homeroom Adviser';
-    const adviserSubject = "[AeroHealth Clinic] Class Checkout Alert for " + patient.name;
+    const adviserSubject = "[OLPHA AeroHealth Clinic] Class Checkout Alert for " + patient.name;
     const adviserHtmlContent = getCheckoutEmailTemplate(adviserName, patient.name);
     sendBrevoEmail(patient.adviser_email, adviserName, adviserSubject, adviserHtmlContent);
   }
@@ -534,7 +534,7 @@ const triggerCheckoutEmails = async (patient) => {
 
       // Email Principal
       if (principalEmail?.trim()) {
-        const principalSubject = "[AeroHealth Clinic] Excuse Slip Approval Required for " + patient.name;
+        const principalSubject = "[OLPHA AeroHealth Clinic] Excuse Slip Approval Required for " + patient.name;
         const principalHtml = `
           <!DOCTYPE html>
           <html>
@@ -554,7 +554,7 @@ const triggerCheckoutEmails = async (patient) => {
               <p><strong>Excuse Period:</strong> ${latestSlip.start_date} to ${latestSlip.end_date}</p>
               <p>Please click the button below to acknowledge and stamp this excuse certificate:</p>
               <a href="${ackLink}" class="btn">Acknowledge & Approve Excuse Slip</a>
-              <p style="margin-top: 24px; font-size: 11px; color: #94a3b8;">AeroHealth School EMR System</p>
+              <p style="margin-top: 24px; font-size: 11px; color: #94a3b8;">OLPHA AeroHealth School EMR System</p>
             </div>
           </body>
           </html>
@@ -570,7 +570,7 @@ const triggerCheckoutEmails = async (patient) => {
 
       // Email Security Guard
       if (guardEmail?.trim()) {
-        const guardSubject = "[AeroHealth Clinic] Gate Clearance Notification: " + patient.name;
+        const guardSubject = "[OLPHA AeroHealth Clinic] Gate Clearance Notification: " + patient.name;
         const guardHtml = `
           <!DOCTYPE html>
           <html>
@@ -588,7 +588,7 @@ const triggerCheckoutEmails = async (patient) => {
               <p><strong>Excuse Reason:</strong> ${latestSlip.excuse_reason}</p>
               <p><strong>Excuse Period:</strong> ${latestSlip.start_date} to ${latestSlip.end_date}</p>
               <p>An excuse permission slip is being processed with the principal's approval. Please grant clearance for departure.</p>
-              <p style="margin-top: 24px; font-size: 11px; color: #94a3b8;">AeroHealth School EMR System</p>
+              <p style="margin-top: 24px; font-size: 11px; color: #94a3b8;">OLPHA AeroHealth School EMR System</p>
             </div>
           </body>
           </html>
@@ -847,7 +847,7 @@ app.post('/api/auth/mfa/setup', async (req, res) => {
 
       if (updateErr) throw updateErr;
 
-      const qrCodeUri = `otpauth://totp/AeroHealth:${user.email}?secret=${secret}&issuer=AeroHealth`;
+      const qrCodeUri = `otpauth://totp/OLPHA AeroHealth:${user.email}?secret=${secret}&issuer=OLPHA AeroHealth`;
       const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`;
 
       return res.json({ secret, qrCodeUrl });
@@ -917,7 +917,7 @@ const getMfaEmailTemplate = (recipientName, code) => {
     <html>
     <head>
       <meta charset="utf-8">
-      <title>AeroHealth EMR Security Code</title>
+      <title>OLPHA AeroHealth EMR Security Code</title>
       <style>
         body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f6f9; color: #333333; margin: 0; padding: 0; }
         .container { max-width: 500px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e1e4e8; }
@@ -932,7 +932,7 @@ const getMfaEmailTemplate = (recipientName, code) => {
     <body>
       <div class="container">
         <div class="header">
-          <h1>AeroHealth EMR Security Verification</h1>
+          <h1>OLPHA AeroHealth EMR Security Verification</h1>
         </div>
         <div class="content">
           <p>Dear <strong>${recipientName}</strong>,</p>
@@ -941,7 +941,7 @@ const getMfaEmailTemplate = (recipientName, code) => {
           <p style="font-size: 13px; color: #718096; margin-top: 20px; text-align: left;">If you did not request this code, please secure your account immediately or notify system administration.</p>
         </div>
         <div class="footer">
-          &copy; 2026 AeroHealth EMR Security. All rights reserved.
+          &copy; 2026 OLPHA AeroHealth EMR Security. All rights reserved.
         </div>
       </div>
     </body>
@@ -980,7 +980,7 @@ app.post('/api/auth/mfa/send-email', async (req, res) => {
 
     // Trigger targeted email via Brevo
     const recipientName = user.name || 'Practitioner';
-    const emailSubject = '[AeroHealth EMR] Login Verification Security Code';
+    const emailSubject = '[OLPHA AeroHealth EMR] Login Verification Security Code';
     const htmlContent = getMfaEmailTemplate(recipientName, code);
     
     sendBrevoEmail(user.email, recipientName, emailSubject, htmlContent).catch(err => {
@@ -2229,7 +2229,7 @@ app.get('/api/excuse-slips/:id/acknowledge', async (req, res) => {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Excuse Slip Verification - AeroHealth</title>
+        <title>Excuse Slip Verification - OLPHA AeroHealth</title>
         <style>
           body {
             margin: 0;
@@ -2335,7 +2335,7 @@ app.get('/api/excuse-slips/:id/acknowledge', async (req, res) => {
             </div>
           </div>
 
-          <p class="footer-text">AeroHealth School EMR System • Real-time active response gateway</p>
+          <p class="footer-text">OLPHA AeroHealth School EMR System • Real-time active response gateway</p>
         </div>
       </body>
       </html>

@@ -1641,7 +1641,7 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
               {/* Subtle watermark background seal */}
               <div style={{ position: 'absolute', top: '45%', left: '50%', transform: 'translate(-50%, -50%) rotate(-12deg)', width: '280px', height: '280px', border: '5px double var(--primary-light)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-light)', fontSize: '24px', fontWeight: 800, letterSpacing: '0.15em', pointerEvents: 'none', select: 'none', opacity: 0.25, zIndex: 0 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span>AEROHEALTH CLINIC</span>
+                  <span>OLPHA AEROHEALTH CLINIC</span>
                   <span style={{ fontSize: '12px', borderTop: '2.5px solid var(--primary-light)', marginTop: '8px', paddingTop: '4px' }}>OFFICIALLY VERIFIED</span>
                 </div>
               </div>
@@ -1655,7 +1655,7 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
                       <Activity size={24} style={{ color: '#fff' }} />
                     </div>
                     <div>
-                      <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>AeroHealth Academy</h2>
+                      <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>OLPHA AeroHealth Academy</h2>
                       <span style={{ fontSize: '10px', color: 'var(--gray-500)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Clinic & Health Services</span>
                     </div>
                   </div>
@@ -1671,7 +1671,7 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
                   Medical Excuse Certificate
                 </h3>
                 <p style={{ fontSize: '12px', color: 'var(--gray-500)', margin: '0 0 20px 0' }}>
-                  This official document certifies clinical evaluation at the AeroHealth Academy Health Center.
+                  This official document certifies clinical evaluation at the OLPHA AeroHealth Academy Health Center.
                 </p>
 
                 {/* Student Details Grid */}
@@ -1723,7 +1723,7 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
 
                   {/* Center Circular Stamp Seal */}
                   <div style={{ border: '2px dashed var(--primary)', borderRadius: '50%', width: '74px', height: '74px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.65, transform: 'rotate(12deg)', color: 'var(--primary)', fontSize: '8px', fontWeight: 800, margin: '0 8px', userSelect: 'none' }}>
-                    <div style={{ fontSize: '7px' }}>AEROHEALTH ACADEMY</div>
+                    <div style={{ fontSize: '7px' }}>OLPHA AEROHEALTH ACADEMY</div>
                     <div style={{ borderTop: '1px solid var(--primary)', borderBottom: '1px solid var(--primary)', padding: '1px 0', margin: '2px 0', fontSize: '6px', fontWeight: 700 }}>CLINIC STAMP</div>
                     <div style={{ fontSize: '7px', letterSpacing: '0.05em' }}>VERIFIED</div>
                   </div>

@@ -243,7 +243,7 @@ const MinimalLanding = () => {
               <Activity size={28} />
             </div>
           )}
-          <h1>AeroHealth</h1>
+          <h1>OLPHA AeroHealth</h1>
           <p>Advanced School Clinic Management & Real-time Health Analytics</p>
         </div>
         <div className="brand-footer">

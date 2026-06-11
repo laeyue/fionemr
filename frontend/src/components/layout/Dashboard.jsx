@@ -225,7 +225,7 @@ const Dashboard = () => {
           <div className="brand-mark">
             <Activity size={20} />
           </div>
-          <span className="brand-name">AeroHealth</span>
+          <span className="brand-name">OLPHA AeroHealth</span>
         </div>
 
         {/* Center — Pill Nav */}
