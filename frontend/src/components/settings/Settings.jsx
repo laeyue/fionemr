@@ -791,7 +791,7 @@ const SettingsPage = () => {
                     <label className="form-label" htmlFor="logo-url-input">School Logo Image URL</label>
                     <input 
                       id="logo-url-input"
-                      type="url" 
+                      type="text" 
                       className="form-input" 
                       value={schoolLogoUrl} 
                       onChange={(e) => setSchoolLogoUrl(e.target.value)} 
