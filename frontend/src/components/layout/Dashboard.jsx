@@ -226,7 +226,7 @@ const Dashboard = () => {
             src={logoUrl || '/logo.png'} 
             alt="OLPHA AeroHealth Logo" 
             className="brand-logo-img" 
-            style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '8px' }} 
+            style={{ width: '120px', height: '120px', objectFit: 'contain', borderRadius: '8px' }} 
           />
           <span className="brand-name">OLPHA AeroHealth</span>
         </div>
