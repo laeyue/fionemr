@@ -1,8 +1,13 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_KEY || '';
+let supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = (process.env.SUPABASE_KEY || '').replace(/^['"]|['"]$/g, '').trim();
+
+if (supabaseUrl) {
+  supabaseUrl = supabaseUrl.replace(/^['"]|['"]$/g, '').trim();
+  supabaseUrl = supabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+}
 
 console.log('SUPABASE_URL:', supabaseUrl);
 console.log('SUPABASE_KEY exists:', !!supabaseKey);

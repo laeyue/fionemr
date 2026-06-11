@@ -2,7 +2,43 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 let currentSession = null;
 
+// In-memory request cache for GET endpoints
+const requestCache = new Map();
+const CACHE_TTL = 30000; // 30 seconds
+
+function getCache(key) {
+  if (!requestCache.has(key)) return null;
+  const entry = requestCache.get(key);
+  if (Date.now() - entry.timestamp > CACHE_TTL) {
+    requestCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCache(key, data) {
+  requestCache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+}
+
+function clearCache() {
+  requestCache.clear();
+}
+
 async function request(path, options = {}) {
+  const method = options.method || 'GET';
+
+  // Only use cache for GET requests
+  if (method === 'GET') {
+    const cachedData = getCache(path);
+    if (cachedData !== null) {
+      // Return deep copy to prevent mutations affecting cache
+      return JSON.parse(JSON.stringify(cachedData));
+    }
+  }
+
   const url = `${API_BASE}${path}`;
   const headers = {
     'Content-Type': 'application/json',
@@ -27,7 +63,17 @@ async function request(path, options = {}) {
     const errData = await response.json().catch(() => ({}));
     throw new Error(errData.error || `HTTP error! status: ${response.status}`);
   }
-  return response.json();
+  
+  const result = await response.json();
+
+  if (method === 'GET') {
+    setCache(path, result);
+  } else {
+    // Invalidate cache on mutations (POST, PUT, DELETE)
+    clearCache();
+  }
+
+  return result;
 }
 
 export const api = {
@@ -161,10 +207,12 @@ export const api = {
 
   setSession: (session) => {
     currentSession = session;
+    clearCache();
   },
 
   clearSession: () => {
     currentSession = null;
+    clearCache();
   },
 };
 
