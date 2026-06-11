@@ -222,9 +222,12 @@ const Dashboard = () => {
       <header className="topbar">
                 {/* Left — Brand */}
         <div className="topbar-brand" onClick={() => navigate('/dashboard')}>
-          <div className="brand-mark">
-            <Activity size={20} />
-          </div>
+          <img 
+            src={logoUrl || '/logo.png'} 
+            alt="OLPHA AeroHealth Logo" 
+            className="brand-logo-img" 
+            style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '8px' }} 
+          />
           <span className="brand-name">OLPHA AeroHealth</span>
         </div>
 
