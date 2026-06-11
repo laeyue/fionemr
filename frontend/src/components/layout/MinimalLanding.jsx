@@ -236,7 +236,7 @@ const MinimalLanding = () => {
               src={logoUrl} 
               alt="School Logo" 
               className="landing-logo-img" 
-              style={{ width: '96px', height: '96px', objectFit: 'contain', borderRadius: '12px', marginBottom: '16px', filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))' }} 
+              style={{ width: '160px', height: '160px', objectFit: 'contain', borderRadius: '16px', marginBottom: '16px', filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))' }} 
             />
           ) : (
             <div className="brand-logo">

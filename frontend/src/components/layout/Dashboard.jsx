@@ -227,7 +227,7 @@ const Dashboard = () => {
               src={logoUrl} 
               alt="School Logo" 
               className="brand-logo-img" 
-              style={{ width: '36px', height: '36px', objectFit: 'contain', borderRadius: '6px', marginRight: '8px' }} 
+              style={{ width: '48px', height: '48px', objectFit: 'contain', borderRadius: '8px', marginRight: '8px' }} 
             />
           ) : (
             <div className="brand-mark">
