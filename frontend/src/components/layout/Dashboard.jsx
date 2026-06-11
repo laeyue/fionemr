@@ -220,20 +220,11 @@ const Dashboard = () => {
     <div className="app-shell">
       {/* ===== TOP NAVIGATION BAR ===== */}
       <header className="topbar">
-        {/* Left — Brand */}
+                {/* Left — Brand */}
         <div className="topbar-brand" onClick={() => navigate('/dashboard')}>
-          {logoUrl ? (
-            <img 
-              src={logoUrl} 
-              alt="School Logo" 
-              className="brand-logo-img" 
-              style={{ width: '60px', height: '60px', objectFit: 'contain', borderRadius: '10px', marginRight: '8px' }} 
-            />
-          ) : (
-            <div className="brand-mark">
-              <Activity size={20} />
-            </div>
-          )}
+          <div className="brand-mark">
+            <Activity size={20} />
+          </div>
           <span className="brand-name">AeroHealth</span>
         </div>
 
@@ -420,7 +411,7 @@ const Dashboard = () => {
       </main>
 
       {/* ===== MOBILE BOTTOM NAVIGATION BAR ===== */}
-      <nav className="mobile-bottom-nav">
+            <nav className="mobile-bottom-nav">
         {NAV_ITEMS.map(item => {
           const Icon = item.icon;
           const active = isActive(item.path, item.exact);
@@ -436,6 +427,13 @@ const Dashboard = () => {
           );
         })}
       </nav>
+
+      {/* ===== BACKGROUND WATERMARK ===== */}
+      {logoUrl && (
+        <div className="app-watermark">
+          <img src={logoUrl} alt="School Logo Watermark" />
+        </div>
+      )}
     </div>
   );
 };

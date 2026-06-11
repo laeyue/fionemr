@@ -7,7 +7,7 @@
 /* ===== BRAND PANEL (Left) ===== */
 .login-brand-panel {
   width: 44%;
-  background: linear-gradient(160deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%);
+  background: linear-gradient(160deg, #064e3b 0%, #059669 60%, #10b981 100%);
   color: #fff;
   display: flex;
   flex-direction: column;
