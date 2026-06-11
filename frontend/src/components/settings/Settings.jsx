@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   User, Shield, Key, ClipboardList, ShieldCheck, ShieldAlert, 
-  Loader2, ArrowRight, CheckCircle2, AlertTriangle, Smartphone, Mail, Eye, EyeOff
+  Loader2, ArrowRight, CheckCircle2, AlertTriangle, Smartphone, Mail, Eye, EyeOff, Sliders
 } from 'lucide-react';
 import { useAuth } from '../../App';
 import { api } from '../../api';
@@ -50,6 +50,46 @@ const SettingsPage = () => {
   const [notifications, setNotifications] = useState([]);
   const [isLoadingNotifs, setIsLoadingNotifs] = useState(false);
 
+  // Clinic Settings
+  const [principalEmail, setPrincipalEmail] = useState('');
+  const [securityGuardEmail, setSecurityGuardEmail] = useState('');
+  const [settingsSuccess, setSettingsSuccess] = useState('');
+  const [settingsError, setSettingsError] = useState('');
+
+  const fetchClinicSettings = async () => {
+    setIsLoading(true);
+    try {
+      const res = await api.getClinicSettings();
+      if (res && res.data) {
+        setPrincipalEmail(res.data.principal_email || '');
+        setSecurityGuardEmail(res.data.security_guard_email || '');
+      }
+    } catch (err) {
+      console.error("Failed to fetch clinic settings:", err);
+      setSettingsError('Failed to load clinic settings.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleClinicSettingsSubmit = async (e) => {
+    e.preventDefault();
+    setSettingsSuccess('');
+    setSettingsError('');
+    setIsLoading(true);
+    try {
+      await api.updateClinicSettings({
+        principal_email: principalEmail.trim(),
+        security_guard_email: securityGuardEmail.trim()
+      });
+      setSettingsSuccess('Clinic settings updated successfully.');
+    } catch (err) {
+      setSettingsError(err.message || 'Failed to update clinic settings.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchNotifications = async () => {
     setIsLoadingNotifs(true);
     try {
@@ -96,9 +136,13 @@ const SettingsPage = () => {
     setMfaSetupStep('none');
     setPurgeSuccess('');
     setPurgeError('');
+    setSettingsSuccess('');
+    setSettingsError('');
     clearPasswordFields();
     if (activeTab === 'compliance') {
       fetchNotifications();
+    } else if (activeTab === 'clinic') {
+      fetchClinicSettings();
     }
   }, [activeTab]);
 
@@ -278,6 +322,14 @@ const SettingsPage = () => {
           >
             <ClipboardList size={18} />
             <span>DPA Compliance</span>
+          </button>
+          <button 
+            type="button" 
+            className={`settings-tab-btn ${activeTab === 'clinic' ? 'active' : ''}`}
+            onClick={() => setActiveTab('clinic')}
+          >
+            <Sliders size={18} />
+            <span>Clinic Settings</span>
           </button>
         </aside>
 
@@ -682,6 +734,60 @@ const SettingsPage = () => {
                     )}
                   </div>
                 </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'clinic' && (
+            <>
+              <div className="settings-card-header">
+                <h2>Clinic Administration Settings</h2>
+              </div>
+              <div className="settings-section">
+                <p className="text-muted" style={{ fontSize: 'var(--text-sm)', marginBottom: '24px' }}>
+                  Configure institutional email addresses for excuse slip dispatch and active approval workflows.
+                </p>
+
+                <form onSubmit={handleClinicSettingsSubmit} style={{ maxWidth: '520px' }}>
+                  {settingsSuccess && <div className="form-success" style={{ marginBottom: 16 }}>{settingsSuccess}</div>}
+                  {settingsError && <div className="form-error" style={{ marginBottom: 16 }}>{settingsError}</div>}
+
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="principal-email-input">Principal Email Address</label>
+                    <input 
+                      id="principal-email-input"
+                      type="email" 
+                      className="form-input" 
+                      required 
+                      value={principalEmail} 
+                      onChange={(e) => setPrincipalEmail(e.target.value)} 
+                      placeholder="principal@aerohealth.com"
+                    />
+                    <span style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '4px', display: 'block' }}>
+                      Excuse slips generated on student checkout will be emailed here for active principal acknowledgment.
+                    </span>
+                  </div>
+
+                  <div className="form-group" style={{ marginTop: '20px' }}>
+                    <label className="form-label" htmlFor="guard-email-input">Security Guard Email Address</label>
+                    <input 
+                      id="guard-email-input"
+                      type="email" 
+                      className="form-input" 
+                      required 
+                      value={securityGuardEmail} 
+                      onChange={(e) => setSecurityGuardEmail(e.target.value)} 
+                      placeholder="guard@aerohealth.com"
+                    />
+                    <span style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '4px', display: 'block' }}>
+                      Security gate clearance permits will be emailed here automatically upon student checkout.
+                    </span>
+                  </div>
+
+                  <button type="submit" className="btn btn-primary" style={{ marginTop: '24px' }} disabled={isLoading}>
+                    {isLoading ? <Loader2 size={16} className="spin" /> : 'Save Settings'}
+                  </button>
+                </form>
               </div>
             </>
           )}

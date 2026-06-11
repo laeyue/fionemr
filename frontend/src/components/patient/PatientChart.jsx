@@ -1520,6 +1520,9 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
                     Teacher Notified: <strong>{slip.teacher_notified || 'No'}</strong>
                   </span>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
+                    Principal Acknowledged: <strong style={{ color: slip.principal_acknowledged ? 'var(--success)' : 'var(--warning)' }}>{slip.principal_acknowledged ? 'Yes' : 'No'}</strong>
+                  </span>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>
                     Issued by: {slip.created_by || 'Unknown'} on {new Date(slip.created_at).toLocaleDateString()}
                   </span>
@@ -1612,6 +1615,29 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
           <div className="modal-card print-modal-card" style={{ maxWidth: 580, padding: 32 }} onClick={(e) => e.stopPropagation()}>
             <div className="print-certificate-container" style={{ border: '2.5px solid var(--primary)', padding: 32, borderRadius: 'var(--radius-lg)', background: '#fff', position: 'relative', overflow: 'hidden', textAlign: 'center', fontFamily: 'var(--font)' }}>
               
+              {/* Principal Approved Stamp Seal */}
+              {selectedSlip.principal_acknowledged && (
+                <div style={{ 
+                  position: 'absolute', 
+                  top: '16px', 
+                  right: '20px', 
+                  border: '3px solid var(--success)', 
+                  color: 'var(--success)', 
+                  padding: '6px 12px', 
+                  fontSize: '11px', 
+                  fontWeight: '800', 
+                  borderRadius: '4px', 
+                  textTransform: 'uppercase', 
+                  transform: 'rotate(-8deg)', 
+                  zIndex: 10,
+                  background: '#fff',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                  letterSpacing: '0.05em'
+                }}>
+                  ✓ Principal Approved
+                </div>
+              )}
+
               {/* Subtle watermark background seal */}
               <div style={{ position: 'absolute', top: '45%', left: '50%', transform: 'translate(-50%, -50%) rotate(-12deg)', width: '280px', height: '280px', border: '5px double var(--primary-light)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-light)', fontSize: '24px', fontWeight: 800, letterSpacing: '0.15em', pointerEvents: 'none', select: 'none', opacity: 0.25, zIndex: 0 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -1678,6 +1704,7 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
                   </div>
                   <div style={{ marginTop: '10px', fontSize: '10.5px', color: 'var(--gray-500)' }}>
                     Based on this evaluation, the student is excused from classroom attendance and physical activities for the duration specified. Homeroom teacher notification: <strong>{selectedSlip.teacher_notified || 'No'}</strong>.
+                    Principal Acknowledged: <strong>{selectedSlip.principal_acknowledged ? `Yes (${new Date(selectedSlip.principal_acknowledged_at).toLocaleDateString()})` : 'No'}</strong>.
                   </div>
                 </div>
 

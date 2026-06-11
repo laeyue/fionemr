@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS email_alerts CASCADE;
 DROP TABLE IF EXISTS parental_consents CASCADE;
 DROP TABLE IF EXISTS excuse_slips CASCADE;
 DROP TABLE IF EXISTS incident_alerts CASCADE;
+DROP TABLE IF EXISTS clinic_settings CASCADE;
 
 
 -- 1. Patients Table
@@ -134,6 +135,8 @@ CREATE TABLE excuse_slips (
     teacher_notified TEXT,
     verification_hash TEXT UNIQUE NOT NULL,
     created_by TEXT NOT NULL DEFAULT 'System',
+    principal_acknowledged BOOLEAN DEFAULT FALSE,
+    principal_acknowledged_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -178,6 +181,18 @@ VALUES
 ON CONFLICT (email) DO NOTHING;
 
 
+-- 12. Clinic Settings Table
+CREATE TABLE clinic_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+
+INSERT INTO clinic_settings (key, value) VALUES
+('principal_email', 'principal@aerohealth.com'),
+('security_guard_email', 'guard@aerohealth.com')
+ON CONFLICT (key) DO NOTHING;
+
+
 -- Disable Row Level Security (RLS) for all tables to allow development API access
 ALTER TABLE accounts DISABLE ROW LEVEL SECURITY;
 ALTER TABLE patients DISABLE ROW LEVEL SECURITY;
@@ -190,6 +205,7 @@ ALTER TABLE parental_consents DISABLE ROW LEVEL SECURITY;
 ALTER TABLE excuse_slips DISABLE ROW LEVEL SECURITY;
 ALTER TABLE incident_alerts DISABLE ROW LEVEL SECURITY;
 ALTER TABLE email_alerts DISABLE ROW LEVEL SECURITY;
+ALTER TABLE clinic_settings DISABLE ROW LEVEL SECURITY;
 
 
 

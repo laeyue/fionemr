@@ -152,6 +152,13 @@ export const api = {
 
   getEmailAlertLogs: () => request('/notifications/logs'),
 
+  getClinicSettings: () => request('/settings/clinic'),
+
+  updateClinicSettings: (settings) => request('/settings/clinic', {
+    method: 'POST',
+    body: settings,
+  }),
+
   setSession: (session) => {
     currentSession = session;
   },

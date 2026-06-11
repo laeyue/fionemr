@@ -209,6 +209,11 @@ let localParentalConsents = [
 
 let localExcuseSlips = [];
 
+let localClinicSettings = {
+  principal_email: 'principal@aerohealth.com',
+  security_guard_email: 'guard@aerohealth.com'
+};
+
 let localEmailAlerts = [];
 
 let simulatedNotifications = [
@@ -596,7 +601,6 @@ const triggerCheckoutEmails = async (patient) => {
     const parentName = patient.emergency_contact_name || 'Parent/Guardian';
     const parentSubject = `[AeroHealth Clinic] Checkout Alert for ${patient.name}`;
     const parentHtmlContent = getCheckoutEmailTemplate(parentName, patient.name);
-
     sendBrevoEmail(patient.parent_email, parentName, parentSubject, parentHtmlContent);
   }
 
@@ -605,8 +609,116 @@ const triggerCheckoutEmails = async (patient) => {
     const adviserName = patient.adviser_name || 'Homeroom Adviser';
     const adviserSubject = `[AeroHealth Clinic] Class Checkout Alert for ${patient.name}`;
     const adviserHtmlContent = getCheckoutEmailTemplate(adviserName, patient.name);
-
     sendBrevoEmail(patient.adviser_email, adviserName, adviserSubject, adviserHtmlContent);
+  }
+
+  // 3. Fetch latest excuse slip for student to email Principal and Guard
+  try {
+    let latestSlip = null;
+    if (!useFallback) {
+      const { data: slips } = await supabase
+        .from('excuse_slips')
+        .select('*')
+        .eq('patient_id', patient.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (slips && slips.length > 0) {
+        latestSlip = slips[0];
+      }
+    } else {
+      const slips = localExcuseSlips.filter(e => e.patient_id === patient.id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      if (slips.length > 0) {
+        latestSlip = slips[0];
+      }
+    }
+
+    if (latestSlip) {
+      // Get clinic settings
+      let principalEmail = 'principal@aerohealth.com';
+      let guardEmail = 'guard@aerohealth.com';
+
+      if (!useFallback) {
+        const { data: dbSettings } = await supabase.from('clinic_settings').select('*');
+        if (dbSettings) {
+          const pS = dbSettings.find(s => s.key === 'principal_email');
+          const gS = dbSettings.find(s => s.key === 'security_guard_email');
+          if (pS) principalEmail = pS.value;
+          if (gS) guardEmail = gS.value;
+        }
+      } else {
+        principalEmail = localClinicSettings.principal_email;
+        guardEmail = localClinicSettings.security_guard_email;
+      }
+
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+      const ackLink = `${backendUrl}/api/excuse-slips/${latestSlip.id}/acknowledge`;
+
+      // Email Principal
+      if (principalEmail?.trim()) {
+        const principalSubject = `[AeroHealth Clinic] Excuse Slip Approval Required for ${patient.name}`;
+        const principalHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: sans-serif; line-height: 1.5; color: #334155; }
+              .card { border: 1px solid #e2e8f0; padding: 24px; border-radius: 8px; max-width: 500px; }
+              .btn { background: #0284c7; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-top: 16px; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <h2>Excuse Slip Acknowledgment Required</h2>
+              <p>Dear Principal,</p>
+              <p>A medical excuse slip has been generated for student <strong>${patient.name}</strong> (${patient.section}) upon checkout from the clinic.</p>
+              <p><strong>Excuse Reason:</strong> ${latestSlip.excuse_reason}</p>
+              <p><strong>Excuse Period:</strong> ${latestSlip.start_date} to ${latestSlip.end_date}</p>
+              <p>Please click the button below to acknowledge and stamp this excuse certificate:</p>
+              <a href="${ackLink}" class="btn">Acknowledge & Approve Excuse Slip</a>
+              <p style="margin-top: 24px; font-size: 11px; color: #94a3b8;">AeroHealth School EMR System</p>
+            </div>
+          </body>
+          </html>
+        `;
+        
+        sendBrevoEmail(principalEmail, 'School Principal', principalSubject, principalHtml).then(result => {
+          if (result && result.simulated) {
+            console.log(`[SIMULATION LINK] Principal Action Link:`);
+            console.log(`- Acknowledge Excuse Slip: ${ackLink}`);
+          }
+        });
+      }
+
+      // Email Security Guard
+      if (guardEmail?.trim()) {
+        const guardSubject = `[AeroHealth Clinic] Gate Clearance Notification: ${patient.name}`;
+        const guardHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: sans-serif; line-height: 1.5; color: #334155; }
+              .card { border: 1px solid #e2e8f0; padding: 24px; border-radius: 8px; max-width: 500px; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <h2>Student Gate Clearance Permit</h2>
+              <p>Dear Gate Security,</p>
+              <p>This is to notify you that student <strong>${patient.name}</strong> (${patient.section}) has been officially checked out of the clinic and is cleared to leave the school premises.</p>
+              <p><strong>Excuse Reason:</strong> ${latestSlip.excuse_reason}</p>
+              <p><strong>Excuse Period:</strong> ${latestSlip.start_date} to ${latestSlip.end_date}</p>
+              <p>An excuse permission slip is being processed with the principal's approval. Please grant clearance for departure.</p>
+              <p style="margin-top: 24px; font-size: 11px; color: #94a3b8;">AeroHealth School EMR System</p>
+            </div>
+          </body>
+          </html>
+        `;
+        sendBrevoEmail(guardEmail, 'Gate Security Guard', guardSubject, guardHtml);
+      }
+    }
+  } catch (err) {
+    console.error('[NOTIFICATIONS] Failed to trigger checkout excuse slips emails:', err.message);
   }
 };
 
@@ -2818,6 +2930,257 @@ app.post('/api/admin/purge-graduates', async (req, res) => {
 // Admin Route: Get Simulated Notifications Log
 app.get('/api/admin/notifications', (req, res) => {
   res.json({ data: simulatedNotifications });
+});
+
+// Settings Route: Get Clinic settings (principal and security guard emails)
+app.get('/api/settings/clinic', async (req, res) => {
+  if (!useFallback) {
+    try {
+      const { data, error } = await supabase.from('clinic_settings').select('*');
+      if (error) throw error;
+      
+      const settings = {};
+      data.forEach(s => {
+        settings[s.key] = s.value;
+      });
+      
+      return res.json({
+        data: {
+          principal_email: settings.principal_email || 'principal@aerohealth.com',
+          security_guard_email: settings.security_guard_email || 'guard@aerohealth.com'
+        }
+      });
+    } catch (err) {
+      console.warn("[WARNING] Supabase query failed for clinic_settings. Falling back to local:", err.message);
+    }
+  }
+  
+  res.json({ data: localClinicSettings });
+});
+
+// Settings Route: Update Clinic settings
+app.post('/api/settings/clinic', async (req, res) => {
+  const { principal_email, security_guard_email } = req.body;
+  
+  const practitioner = getPractitioner(req);
+  if (practitioner.role !== 'admin' && practitioner.role !== 'nurse' && practitioner.role !== 'physician') {
+    return res.status(403).json({ error: 'Access denied. Only clinical staff and admins can update settings.' });
+  }
+
+  if (!useFallback) {
+    try {
+      const { error: err1 } = await supabase.from('clinic_settings').upsert({ key: 'principal_email', value: principal_email });
+      if (err1) throw err1;
+      const { error: err2 } = await supabase.from('clinic_settings').upsert({ key: 'security_guard_email', value: security_guard_email });
+      if (err2) throw err2;
+
+      return res.json({ message: 'Clinic settings updated successfully.' });
+    } catch (err) {
+      console.warn("[WARNING] Supabase upsert failed for clinic_settings. Falling back to local:", err.message);
+    }
+  }
+
+  localClinicSettings.principal_email = principal_email || 'principal@aerohealth.com';
+  localClinicSettings.security_guard_email = security_guard_email || 'guard@aerohealth.com';
+  
+  res.json({ message: 'Clinic settings updated successfully (local store).' });
+});
+
+// Excuse Slip Route: Principal Acknowledgment Response
+app.get('/api/excuse-slips/:id/acknowledge', async (req, res) => {
+  const excuseSlipId = req.params.id;
+  const nowStr = new Date().toISOString();
+
+  let patientId = null;
+  let excuseReason = '';
+  let patientName = 'Student';
+
+  if (!useFallback) {
+    try {
+      // Fetch excuse slip and patient name
+      const { data: slip, error: fetchErr } = await supabase
+        .from('excuse_slips')
+        .select('*, patients(name)')
+        .eq('id', excuseSlipId)
+        .maybeSingle();
+
+      if (fetchErr) throw fetchErr;
+
+      if (slip) {
+        patientId = slip.patient_id;
+        excuseReason = slip.excuse_reason;
+        const p = (slip.patients && Array.isArray(slip.patients) ? slip.patients[0] : slip.patients) || {};
+        patientName = p.name || 'Student';
+
+        // Update principal acknowledgment status
+        const { error: updateErr } = await supabase
+          .from('excuse_slips')
+          .update({
+            principal_acknowledged: true,
+            principal_acknowledged_at: nowStr
+          })
+          .eq('id', excuseSlipId);
+
+        if (updateErr) throw updateErr;
+
+        // Log audit event
+        await supabase.from('visit_logs').insert([{
+          patient_id: patientId,
+          event_type: 'Excuse Slip Approved',
+          details: `Principal email acknowledged excuse slip (ID: ${excuseSlipId})`,
+          performed_by: 'Principal'
+        }]);
+      } else {
+        return res.status(404).send('<h1>Excuse Slip not found</h1>');
+      }
+    } catch (err) {
+      console.warn("[WARNING] Supabase query/update failed. Falling back to local db:", err.message);
+      patientId = null;
+    }
+  }
+
+  if (useFallback || !patientId) {
+    const slip = localExcuseSlips.find(s => s.id === excuseSlipId);
+    if (slip) {
+      slip.principal_acknowledged = true;
+      slip.principal_acknowledged_at = nowStr;
+
+      patientId = slip.patient_id;
+      excuseReason = slip.excuse_reason;
+      const p = localPatients.find(x => x.id === patientId) || {};
+      patientName = p.name || 'Student';
+
+      localVisitLogs.push({
+        id: 'l_' + Date.now(),
+        patient_id: patientId,
+        event_type: 'Excuse Slip Approved',
+        details: `Principal email acknowledged excuse slip (ID: ${excuseSlipId})`,
+        performed_by: 'Principal',
+        created_at: nowStr
+      });
+    } else {
+      return res.status(404).send('<h1>Excuse Slip not found (local)</h1>');
+    }
+  }
+
+  // Render a beautiful acknowledgement success landing page
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Excuse Slip Verification - AeroHealth</title>
+      <style>
+        body {
+          margin: 0;
+          padding: 0;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          background: #f8fafc;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+        }
+        .container {
+          background: #ffffff;
+          padding: 40px;
+          border-radius: 16px;
+          box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+          text-align: center;
+          max-width: 440px;
+          width: 90%;
+          border: 1px solid #e2e8f0;
+        }
+        .icon {
+          width: 64px;
+          height: 64px;
+          background: #f0fdf4;
+          color: #16a34a;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 24px auto;
+          border: 2px solid #bbf7d0;
+        }
+        .icon svg {
+          width: 32px;
+          height: 32px;
+        }
+        h1 {
+          font-size: 20px;
+          font-weight: 800;
+          color: #0f172a;
+          margin: 0 0 12px 0;
+        }
+        p {
+          font-size: 14px;
+          color: #64748b;
+          line-height: 1.6;
+          margin: 0 0 24px 0;
+        }
+        .details {
+          background: #f8fafc;
+          border-radius: 8px;
+          padding: 16px;
+          text-align: left;
+          font-size: 13px;
+          border: 1px solid #edf2f7;
+          margin-bottom: 24px;
+        }
+        .details-row {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 8px;
+        }
+        .details-row:last-child {
+          margin-bottom: 0;
+        }
+        .details-label {
+          color: #94a3b8;
+          font-weight: 600;
+        }
+        .details-val {
+          color: #334155;
+          font-weight: 700;
+        }
+        .footer-text {
+          font-size: 11px;
+          color: #94a3b8;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+          </svg>
+        </div>
+        <h1>Excuse Slip Acknowledged</h1>
+        <p>You have successfully approved and stamped the medical excuse slip for departure permission clearance.</p>
+        
+        <div class="details">
+          <div class="details-row">
+            <span class="details-label">Student Name:</span>
+            <span class="details-val">${patientName}</span>
+          </div>
+          <div class="details-row">
+            <span class="details-label">Reason:</span>
+            <span class="details-val">${excuseReason}</span>
+          </div>
+          <div class="details-row">
+            <span class="details-label">Status:</span>
+            <span class="details-val" style="color:#16a34a">Officially Approved</span>
+          </div>
+        </div>
+
+        <p class="footer-text">AeroHealth School EMR System • Real-time active response gateway</p>
+      </div>
+    </body>
+    </html>
+  `);
 });
 
 // Start Server
