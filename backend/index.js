@@ -1750,118 +1750,113 @@ app.get('/api/dashboard/stats', async (req, res) => {
   };
 
   try {
-    // 1. Total Patients
-      const { count: pCount } = await supabase.from('patients').select('*', { count: 'exact', head: true });
-      totalPatients = pCount || 0;
+    const [
+      totalPatientsRes,
+      checkinsTodayRes,
+      paracetamolStockRes,
+      sentHomeTodayRes,
+      bedPatientsRes,
+      vitalsTodayRes,
+      recentLogsRes
+    ] = await Promise.all([
+      supabase.from('patients').select('*', { count: 'exact', head: true }),
+      supabase.from('visit_logs').select('*', { count: 'exact', head: true }).eq('event_type', 'Check-in').gte('created_at', startOfDay.toISOString()),
+      supabase.from('medication_orders').select('*', { count: 'exact', head: true }).ilike('medication', '%paracetamol%'),
+      supabase.from('soap_notes').select('*', { count: 'exact', head: true }).eq('disposition', 'Sent Home').gte('created_at', startOfDay.toISOString()),
+      supabase.from('patients').select('id, name, section, gender, age, created_at').eq('status', 'Checked In'),
+      supabase.from('vitals').select('*, patients(name, section, gender, age)').gte('recorded_at', startOfDay.toISOString()).order('recorded_at', { ascending: false }),
+      supabase.from('visit_logs').select('*, patients(section)').eq('event_type', 'Check-in').gte('created_at', fortyEightHoursAgo.toISOString())
+    ]);
 
-      // 2. Check-ins Today
-      const { count: cCount } = await supabase.from('visit_logs')
-        .select('*', { count: 'exact', head: true })
+    if (totalPatientsRes.error) throw totalPatientsRes.error;
+    if (checkinsTodayRes.error) throw checkinsTodayRes.error;
+    if (paracetamolStockRes.error) throw paracetamolStockRes.error;
+    if (sentHomeTodayRes.error) throw sentHomeTodayRes.error;
+    if (bedPatientsRes.error) throw bedPatientsRes.error;
+    if (vitalsTodayRes.error) throw vitalsTodayRes.error;
+    if (recentLogsRes.error) throw recentLogsRes.error;
+
+    totalPatients = totalPatientsRes.count || 0;
+    checkinsToday = checkinsTodayRes.count || 0;
+    paracetamolStock = Math.max(0, 120 - (paracetamolStockRes.count || 0));
+    sentHomeToday = sentHomeTodayRes.count || 0;
+
+    const bedPatients = bedPatientsRes.data || [];
+    if (bedPatients.length > 0) {
+      const bedPatientIds = bedPatients.map(p => p.id);
+      const { data: logs, error: logsErr } = await supabase.from('visit_logs')
+        .select('patient_id, created_at')
         .eq('event_type', 'Check-in')
-        .gte('created_at', startOfDay.toISOString());
-      checkinsToday = cCount || 0;
+        .in('patient_id', bedPatientIds)
+        .order('created_at', { ascending: false });
 
-      // 3. Paracetamol Stock (starting at 120 and decrementing per order)
-      const { count: pOrdersCount } = await supabase.from('medication_orders')
-        .select('*', { count: 'exact', head: true })
-        .ilike('medication', '%paracetamol%');
-      paracetamolStock = Math.max(0, 120 - (pOrdersCount || 0));
+      if (logsErr) throw logsErr;
 
-      // 4. Sent Home Today (disposition count)
-      const { count: shCount } = await supabase.from('soap_notes')
-        .select('*', { count: 'exact', head: true })
-        .eq('disposition', 'Sent Home')
-        .gte('created_at', startOfDay.toISOString());
-      sentHomeToday = shCount || 0;
-
-      // 5. Occupied Beds List (patients with status 'Checked In')
-      const { data: bedPatients } = await supabase.from('patients')
-        .select('id, name, section, gender, age, created_at')
-        .eq('status', 'Checked In');
-
-      if (bedPatients && bedPatients.length > 0) {
-        const bedPatientIds = bedPatients.map(p => p.id);
-        const { data: logs } = await supabase.from('visit_logs')
-          .select('patient_id, created_at')
-          .eq('event_type', 'Check-in')
-          .in('patient_id', bedPatientIds)
-          .order('created_at', { ascending: false });
-
-        const entryTimesMap = {};
-        if (logs) {
-          for (const log of logs) {
-            if (!entryTimesMap[log.patient_id]) {
-              entryTimesMap[log.patient_id] = log.created_at;
-            }
-          }
-        }
-
-        occupiedBedsList = bedPatients.map(p => ({
-          id: p.id,
-          name: p.name,
-          section: p.section,
-          gender: p.gender,
-          age: p.age,
-          entryTime: entryTimesMap[p.id] || p.created_at
-        }));
-        bedsOccupied = occupiedBedsList.length;
-      }
-
-      // 6. High-Risk Patients Today
-      const { data: vitalsToday } = await supabase.from('vitals')
-        .select('*, patients(name, section, gender, age)')
-        .gte('recorded_at', startOfDay.toISOString())
-        .order('recorded_at', { ascending: false });
-
-      const highRiskMap = {};
-      if (vitalsToday) {
-        for (const v of vitalsToday) {
-          const alerts = checkVitals(v);
-          if (alerts.length > 0) {
-            const patientId = v.patient_id;
-            const p = (v.patients && Array.isArray(v.patients) ? v.patients[0] : v.patients) || {};
-            if (!highRiskMap[patientId]) {
-              highRiskMap[patientId] = {
-                id: patientId,
-                name: p.name || 'Unknown',
-                section: p.section || '—',
-                gender: p.gender || '—',
-                age: p.age || '—',
-                alerts: new Set(),
-                vitals: {
-                  temperature: v.temperature,
-                  heart_rate: v.heart_rate,
-                  blood_pressure: v.blood_pressure,
-                  o2_sat: v.o2_sat,
-                  respiratory_rate: v.respiratory_rate
-                }
-              };
-            }
-            alerts.forEach(a => highRiskMap[patientId].alerts.add(a));
+      const entryTimesMap = {};
+      if (logs) {
+        for (const log of logs) {
+          if (!entryTimesMap[log.patient_id]) {
+            entryTimesMap[log.patient_id] = log.created_at;
           }
         }
       }
 
-      highRiskPatients = Object.values(highRiskMap).map(p => ({
-        ...p,
-        alerts: Array.from(p.alerts)
+      occupiedBedsList = bedPatients.map(p => ({
+        id: p.id,
+        name: p.name,
+        section: p.section,
+        gender: p.gender,
+        age: p.age,
+        entryTime: entryTimesMap[p.id] || p.created_at
       }));
-      activeAlerts = highRiskPatients.length;
+      bedsOccupied = occupiedBedsList.length;
+    }
 
-      // 7. Outbreak Detection
-      const { data: recentLogs } = await supabase.from('visit_logs')
-        .select('*, patients(section)')
-        .eq('event_type', 'Check-in')
-        .gte('created_at', fortyEightHoursAgo.toISOString());
+    // 6. High-Risk Patients Today
+    const vitalsToday = vitalsTodayRes.data || [];
+    const highRiskMap = {};
+    for (const v of vitalsToday) {
+      const alerts = checkVitals(v);
+      if (alerts.length > 0) {
+        const patientId = v.patient_id;
+        const p = (v.patients && Array.isArray(v.patients) ? v.patients[0] : v.patients) || {};
+        if (!highRiskMap[patientId]) {
+          highRiskMap[patientId] = {
+            id: patientId,
+            name: p.name || 'Unknown',
+            section: p.section || '—',
+            gender: p.gender || '—',
+            age: p.age || '—',
+            alerts: new Set(),
+            vitals: {
+              temperature: v.temperature,
+              heart_rate: v.heart_rate,
+              blood_pressure: v.blood_pressure,
+              o2_sat: v.o2_sat,
+              respiratory_rate: v.respiratory_rate
+            }
+          };
+        }
+        alerts.forEach(a => highRiskMap[patientId].alerts.add(a));
+      }
+    }
 
-      const sectionFluPatients = {};
+    highRiskPatients = Object.values(highRiskMap).map(p => ({
+      ...p,
+      alerts: Array.from(p.alerts)
+    }));
+    activeAlerts = highRiskPatients.length;
 
-      const symptomsBreakdown = {
-        fever_flu: 0,
-        respiratory: 0,
-        gastrointestinal: 0,
-        injury_sprains: 0
-      };
+    // 7. Outbreak Detection
+    const recentLogs = recentLogsRes.data || [];
+    const sectionFluPatients = {};
+
+    const symptomsBreakdown = {
+      fever_flu: 0,
+      respiratory: 0,
+      gastrointestinal: 0,
+      injury_sprains: 0
+    };
 
       if (recentLogs) {
         for (const log of recentLogs) {

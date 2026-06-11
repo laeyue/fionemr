@@ -19,16 +19,19 @@ const ClinicTracker = () => {
   const fetchClinicData = async () => {
     try {
       setIsLoading(true);
-      const resStats = await api.getDashboardStats();
+      const [resStats, resPatients] = await Promise.all([
+        api.getDashboardStats(),
+        api.getPatients()
+      ]);
+
       if (resStats) {
         setBedsList(resStats.occupiedBedsList || []);
         setStats(resStats);
       }
       
-      const resPatients = await api.getPatients();
       if (resPatients && resPatients.data) {
         // Only list patients who are NOT currently in a bed
-        const bedIds = (resStats.occupiedBedsList || []).map(b => b.id);
+        const bedIds = (resStats ? resStats.occupiedBedsList || [] : []).map(b => b.id);
         const available = resPatients.data.filter(p => !bedIds.includes(p.id));
         setPatients(available);
       }
