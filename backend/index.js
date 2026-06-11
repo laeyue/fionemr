@@ -55,172 +55,8 @@ if (useFallback) {
   console.log('--------------------------------------------------');
 }
 
-// In-Memory Database Fallback Store
-let localAccounts = [
-  { 
-    id: 'a1', 
-    name: 'Developer Tester', 
-    email: 'dev@aerohealth.com', 
-    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
-    role: 'physician', 
-    mfa_enabled: false,
-    mfa_type: 'none',
-    mfa_secret: null,
-    created_at: new Date().toISOString() 
-  },
-  { 
-    id: 'a2', 
-    name: 'Dr. AeroHealth', 
-    email: 'doctor@aerohealth.com', 
-    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
-    role: 'physician', 
-    mfa_enabled: false,
-    mfa_type: 'none',
-    mfa_secret: null,
-    created_at: new Date().toISOString() 
-  },
-  { 
-    id: 'a3', 
-    name: 'Nurse Joy', 
-    email: 'nurse@aerohealth.com', 
-    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
-    role: 'nurse', 
-    mfa_enabled: false,
-    mfa_type: 'none',
-    mfa_secret: null,
-    created_at: new Date().toISOString() 
-  },
-  { 
-    id: 'a4', 
-    name: 'Teacher Sarah', 
-    email: 'teacher@aerohealth.com', 
-    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
-    role: 'teacher', 
-    mfa_enabled: false,
-    mfa_type: 'none',
-    mfa_secret: null,
-    created_at: new Date().toISOString() 
-  },
-  { 
-    id: 'a5', 
-    name: 'Counselor Troy', 
-    email: 'counselor@aerohealth.com', 
-    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
-    role: 'guidance_counselor', 
-    mfa_enabled: false,
-    mfa_type: 'none',
-    mfa_secret: null,
-    created_at: new Date().toISOString() 
-  },
-  { 
-    id: 'a6', 
-    name: 'Admin Alex', 
-    email: 'admin@aerohealth.com', 
-    password: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', // password123
-    role: 'admin', 
-    mfa_enabled: false,
-    mfa_type: 'none',
-    mfa_secret: null,
-    created_at: new Date().toISOString() 
-  }
-];
-
+let simulatedNotifications = [];
 let emailCodes = {}; // { userId: { code, expiresAt } }
-
-let localPatients = [
-  { 
-    id: 1023, 
-    name: 'John Doe', 
-    section: 'Grade 5-A', 
-    age: 10, 
-    gender: 'Male', 
-    status: 'Checked Out', 
-    status_color: 'gray', 
-    date_of_birth: '2016-04-12', 
-    grade_level: 'Grade 5', 
-    allergies: 'Peanut, Penicillin', 
-    chronic_conditions: 'Asthma', 
-    emergency_contact_name: 'Jane Doe', 
-    emergency_contact_phone: '555-0199', 
-    emergency_contact_relationship: 'Mother', 
-    parent_email: 'parent.doe@example.com',
-    adviser_name: 'Teacher Sarah',
-    adviser_email: 'teacher@aerohealth.com',
-    graduation_year: 2028,
-    created_at: new Date(Date.now() - 7200000).toISOString() 
-  },
-  { 
-    id: 4091, 
-    name: 'Alice Smith', 
-    section: 'Grade 3-B', 
-    age: 8, 
-    gender: 'Female', 
-    status: 'Checked In', 
-    status_color: 'amber', 
-    date_of_birth: '2018-09-22', 
-    grade_level: 'Grade 3', 
-    allergies: 'None', 
-    chronic_conditions: 'None', 
-    emergency_contact_name: 'Robert Smith', 
-    emergency_contact_phone: '555-0244', 
-    emergency_contact_relationship: 'Father', 
-    parent_email: 'parent.smith@example.com',
-    adviser_name: 'Teacher Sarah',
-    adviser_email: 'teacher@aerohealth.com',
-    graduation_year: 2030,
-    created_at: new Date(Date.now() - 3600000).toISOString() 
-  }
-];
-
-let localImmunizations = [
-  { id: 'i1', patient_id: 1023, vaccine_name: 'Measles (MMR)', doses_received: 2, doses_required: 2 },
-  { id: 'i2', patient_id: 1023, vaccine_name: 'Polio (IPV)', doses_received: 3, doses_required: 4 },
-  { id: 'i3', patient_id: 1023, vaccine_name: 'Hepatitis B', doses_received: 3, doses_required: 3 },
-  { id: 'i4', patient_id: 1023, vaccine_name: 'Varicella (Chickenpox)', doses_received: 1, doses_required: 2 },
-  { id: 'i5', patient_id: 4091, vaccine_name: 'Measles (MMR)', doses_received: 1, doses_required: 2 },
-  { id: 'i6', patient_id: 4091, vaccine_name: 'Polio (IPV)', doses_received: 2, doses_required: 4 },
-  { id: 'i7', patient_id: 4091, vaccine_name: 'Hepatitis B', doses_received: 3, doses_required: 3 },
-  { id: 'i8', patient_id: 4091, vaccine_name: 'Varicella (Chickenpox)', doses_received: 0, doses_required: 2 }
-];
-
-let localVitals = [
-  { id: 'v1', patient_id: 1023, temperature: 37.2, heart_rate: 82, blood_pressure: '115/75', o2_sat: 98, respiratory_rate: 18, recorded_at: new Date(Date.now() - 7200000).toISOString() }
-];
-
-let localSoapNotes = [
-  { id: 's1', patient_id: 1023, subjective: 'Complaining of slight shortness of breath and mild cough since morning.', objective: 'Temp: 37.2C. Lungs have mild expiratory wheezing bilaterally.', assessment: 'Mild exacerbation of known Asthma.', plan: 'Administered 2 puffs of Salbutamol inhaler. Rest in clinic for 30 minutes. Re-evaluate vitals.', disposition: 'Returned to Class', created_at: new Date(Date.now() - 7200000).toISOString() }
-];
-
-let localOrders = [
-  { id: 'o1', patient_id: 1023, medication: 'salbutamol', dosage: '2 puffs inhaler', strength: '2 puffs', form: 'inhaler', route: 'inhaled', administered_by: 'Dr. T', consent: true, created_at: new Date(Date.now() - 7200000).toISOString() }
-];
-
-let localVisitLogs = [
-  { id: 'l1', patient_id: 1023, event_type: 'Check-in', details: 'Checked in due to difficulty breathing.', performed_by: 'dev@aerohealth.com', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'l2', patient_id: 1023, event_type: 'Vitals Recorded', details: 'Temp: 37.2°C, HR: 82 bpm, BP: 115/75, O₂: 98%', performed_by: 'dev@aerohealth.com', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'l3', patient_id: 1023, event_type: 'Clinical Note Added', details: 'SOAP Note saved by Dr. Test', performed_by: 'dev@aerohealth.com', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'l4', patient_id: 1023, event_type: 'Medication Ordered', details: 'Salbutamol 2 puffs via inhaled route', performed_by: 'dev@aerohealth.com', created_at: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'l5', patient_id: 4091, event_type: 'Check-in', details: 'Checked in for routine immunization review.', performed_by: 'dev@aerohealth.com', created_at: new Date(Date.now() - 3600000).toISOString() }
-];
-
-let localParentalConsents = [
-  { id: 'c1', patient_id: 1023, consent_type: 'Medication', document_name: 'consent_john_doe.pdf', parent_name: 'Jane Doe', date_granted: '2026-06-08', notes: 'Allowed stock medications for fever and asthma.', created_at: new Date(Date.now() - 7200000).toISOString() }
-];
-
-let localExcuseSlips = [];
-
-let localClinicSettings = {
-  principal_email: 'principal@aerohealth.com',
-  security_guard_email: 'guard@aerohealth.com'
-};
-
-let localEmailAlerts = [];
-
-let simulatedNotifications = [
-  { id: 'n1', patient_id: 1023, recipient: 'Jane Doe (555-0199)', type: 'SMS', message: 'Hi Jane, John Doe has checked into the school clinic at 2:31 PM. Reason: checked in due to difficulty breathing.', sent_at: new Date(Date.now() - 7200000).toISOString() }
-];
-
-let nextPatientId = 4092;
 
 // Password Hashing Utility
 const hashPassword = (password) => {
@@ -255,29 +91,21 @@ const triggerParentNotification = async (patientId, message) => {
     let contactPhone = 'Unknown';
     let patientName = 'Student';
 
-    if (!useFallback) {
-      const { data: p } = await supabase.from('patients').select('name, emergency_contact_name, emergency_contact_phone').eq('id', patientId).maybeSingle();
-      if (p) {
-        parentName = p.emergency_contact_name || 'Guardian';
-        contactPhone = p.emergency_contact_phone || 'Unknown';
-        patientName = p.name || 'Student';
-      }
-    } else {
-      const p = localPatients.find(x => x.id === patientId);
-      if (p) {
-        parentName = p.emergency_contact_name || 'Guardian';
-        contactPhone = p.emergency_contact_phone || 'Unknown';
-        patientName = p.name || 'Student';
-      }
+    const { data: p, error } = await supabase.from('patients').select('name, emergency_contact_name, emergency_contact_phone').eq('id', patientId).maybeSingle();
+    if (error) throw error;
+    if (p) {
+      parentName = p.emergency_contact_name || 'Guardian';
+      contactPhone = p.emergency_contact_phone || 'Unknown';
+      patientName = p.name || 'Student';
     }
 
-    const formattedMessage = `Hi ${parentName}, alert for ${patientName}: ${message}`;
+    const formattedMessage = "Hi " + parentName + ", alert for " + patientName + ": " + message;
 
     // Add to our simulated notifications array
     const newNotif = {
       id: 'n_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
       patient_id: patientId,
-      recipient: `${parentName} (${contactPhone})`,
+      recipient: parentName + " (" + contactPhone + ")",
       type: 'SMS/Email',
       message: formattedMessage,
       sent_at: new Date().toISOString()
@@ -286,9 +114,9 @@ const triggerParentNotification = async (patientId, message) => {
 
     // Highlight in backend logs
     console.log('\n┌────────────────────────────────────────────────────────┐');
-    console.log(`│ [SMS/EMAIL GATEWAY] Notification Sent to:             │`);
-    console.log(`│ Recipient: ${newNotif.recipient.padEnd(43)} │`);
-    console.log(`│ Message: ${newNotif.message.substring(0, 45).padEnd(45)}... │`);
+    console.log('│ [SMS/EMAIL GATEWAY] Notification Sent to:             │');
+    console.log('│ Recipient: ' + newNotif.recipient.padEnd(43) + ' │');
+    console.log('│ Message: ' + newNotif.message.substring(0, 45).padEnd(45) + '... │');
     console.log('└────────────────────────────────────────────────────────┘\n');
 
   } catch (err) {
@@ -312,11 +140,11 @@ const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlConten
   const smtpKey = smtpPass || brevoApiKey;
   if (!smtpKey || smtpKey.includes('dummy') || smtpKey.includes('your-api-key') || smtpKey.includes('your_brevo_api_key_here')) {
     console.log('\n┌────────────────────────────────────────────────────────┐');
-    console.log(`│ [BREVO OFFLINE SIMULATION]                             │`);
-    console.log(`│ To: ${recipientName} <${recipientEmail}>`);
-    console.log(`│ Subject: ${subject}`);
-    console.log(`│ HTML Content preview (first 150 chars):`);
-    console.log(`│ ${htmlContent.replace(/<[^>]*>/g, ' ').substring(0, 150).trim().replace(/\s+/g, ' ')}...`);
+    console.log('│ [BREVO OFFLINE SIMULATION]                             │');
+    console.log('│ To: ' + recipientName + ' <' + recipientEmail + '>');
+    console.log('│ Subject: ' + subject);
+    console.log('│ HTML Content preview (first 150 chars):');
+    console.log('│ ' + htmlContent.replace(/<[^>]*>/g, ' ').substring(0, 150).trim().replace(/\s+/g, ' ') + '...');
     console.log('└────────────────────────────────────────────────────────┘\n');
     return { simulated: true };
   }
@@ -328,7 +156,7 @@ const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlConten
   ];
 
   for (const connection of portsToTry) {
-    console.log(`[SMTP RELAY] Attempting to send email via port ${connection.port} (secure: ${connection.secure}) to: ${recipientEmail}...`);
+    console.log('[SMTP RELAY] Attempting to send email via port ' + connection.port + ' (secure: ' + connection.secure + ') to: ' + recipientEmail + '...');
     try {
       const transporter = nodemailer.createTransport({
         host: 'smtp-relay.brevo.com',
@@ -342,16 +170,16 @@ const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlConten
       });
 
       const info = await transporter.sendMail({
-        from: `"${senderName}" <${senderEmail}>`,
-        to: `"${recipientName}" <${recipientEmail}>`,
+        from: '"' + senderName + '" <' + senderEmail + '>',
+        to: '"' + recipientName + '" <' + recipientEmail + '>',
         subject,
         html: htmlContent
       });
 
-      console.log(`[SMTP SUCCESS] Email sent via SMTP Relay (Port ${connection.port}): ${info.messageId}`);
+      console.log('[SMTP SUCCESS] Email sent via SMTP Relay (Port ' + connection.port + '): ' + info.messageId);
       return { success: true, messageId: info.messageId };
     } catch (err) {
-      console.error(`[SMTP ERROR] Port ${connection.port} failed: ${err.message}`);
+      console.error('[SMTP ERROR] Port ' + connection.port + ' failed: ' + err.message);
     }
   }
 
@@ -360,8 +188,8 @@ const sendBrevoEmail = async (recipientEmail, recipientName, subject, htmlConten
 };
 
 const getEmailTemplate = (recipientName, studentName, incidentDetails, respondUrlBase, alertId) => {
-  const ackUrl = `${respondUrlBase}/api/notifications/respond?alertId=${alertId}&response=Acknowledged`;
-  const omwUrl = `${respondUrlBase}/api/notifications/respond?alertId=${alertId}&response=On%20My%20Way`;
+  const ackUrl = respondUrlBase + "/api/notifications/respond?alertId=" + alertId + "&response=Acknowledged";
+  const omwUrl = respondUrlBase + "/api/notifications/respond?alertId=" + alertId + "&response=On%20My%20Way";
 
   return `
     <!DOCTYPE html>
@@ -443,19 +271,19 @@ const getResponseLandingPage = (status, recipientEmail, recipientType, studentNa
         <div class="details-table">
           <div class="details-row">
             <span class="label">Student:</span>
-            <span class="value">${studentName}</span>
+            <span class="value">	ext{studentName}</span>
           </div>
           <div class="details-row">
             <span class="label">Recipient:</span>
-            <span class="value">${recipientEmail} (${recipientType === 'parent' ? 'Parent/Guardian' : 'Homeroom Adviser'})</span>
+            <span class="value">	ext{recipientEmail} (	ext{recipientType} === 'parent' ? 'Parent/Guardian' : 'Homeroom Adviser')</span>
           </div>
           <div class="details-row">
             <span class="label">Response:</span>
-            <span class="value"><span class="badge">${status}</span></span>
+            <span class="value"><span class="badge">	ext{status}</span></span>
           </div>
           <div class="details-row">
             <span class="label">Timestamp:</span>
-            <span class="value">${new Date(timestamp).toLocaleString()}</span>
+            <span class="value">	ext{new Date(timestamp).toLocaleString()}</span>
           </div>
         </div>
         <p class="footer-text">AeroHealth School EMR System &bull; Real-time active response gateway</p>
@@ -473,7 +301,7 @@ const triggerCheckinEmails = async (patient, chiefComplaint) => {
   if (patient.parent_email?.trim()) {
     const parentAlertId = generateAlertId();
     const parentName = patient.emergency_contact_name || 'Parent/Guardian';
-    const parentSubject = `[AeroHealth Clinic] Incident Alert for ${patient.name}`;
+    const parentSubject = "[AeroHealth Clinic] Incident Alert for " + patient.name;
     const parentHtmlContent = getEmailTemplate(parentName, patient.name, chiefComplaint, respondUrlBase, parentAlertId);
 
     // Record in DB
@@ -490,22 +318,19 @@ const triggerCheckinEmails = async (patient, chiefComplaint) => {
       response_status: null
     };
 
-    if (!useFallback) {
-      try {
-        await supabase.from('email_alerts').insert([newAlert]);
-      } catch (err) {
-        console.error('[DATABASE ERROR] Failed to record parent email alert:', err.message);
-      }
-    } else {
-      localEmailAlerts.push(newAlert);
+    try {
+      const { error } = await supabase.from('email_alerts').insert([newAlert]);
+      if (error) throw error;
+    } catch (err) {
+      console.error('[DATABASE ERROR] Failed to record parent email alert:', err.message);
     }
 
     // Call Brevo
     sendBrevoEmail(patient.parent_email, parentName, parentSubject, parentHtmlContent).then(result => {
       if (result && result.simulated) {
-        console.log(`[SIMULATION LINK] Parent Action Links:`);
-        console.log(`- Acknowledge: ${respondUrlBase}/api/notifications/respond?alertId=${parentAlertId}&response=Acknowledged`);
-        console.log(`- On My Way: ${respondUrlBase}/api/notifications/respond?alertId=${parentAlertId}&response=On%20My%20Way`);
+        console.log("[SIMULATION LINK] Parent Action Links:");
+        console.log("- Acknowledge: " + respondUrlBase + "/api/notifications/respond?alertId=" + parentAlertId + "&response=Acknowledged");
+        console.log("- On My Way: " + respondUrlBase + "/api/notifications/respond?alertId=" + parentAlertId + "&response=On%20My%20Way");
       }
     });
   }
@@ -514,7 +339,7 @@ const triggerCheckinEmails = async (patient, chiefComplaint) => {
   if (patient.adviser_email?.trim()) {
     const adviserAlertId = generateAlertId();
     const adviserName = patient.adviser_name || 'Homeroom Adviser';
-    const adviserSubject = `[AeroHealth Clinic] Class Incident Alert for ${patient.name}`;
+    const adviserSubject = "[AeroHealth Clinic] Class Incident Alert for " + patient.name;
     const adviserHtmlContent = getEmailTemplate(adviserName, patient.name, chiefComplaint, respondUrlBase, adviserAlertId);
 
     // Record in DB
@@ -531,22 +356,19 @@ const triggerCheckinEmails = async (patient, chiefComplaint) => {
       response_status: null
     };
 
-    if (!useFallback) {
-      try {
-        await supabase.from('email_alerts').insert([newAlert]);
-      } catch (err) {
-        console.error('[DATABASE ERROR] Failed to record adviser email alert:', err.message);
-      }
-    } else {
-      localEmailAlerts.push(newAlert);
+    try {
+      const { error } = await supabase.from('email_alerts').insert([newAlert]);
+      if (error) throw error;
+    } catch (err) {
+      console.error('[DATABASE ERROR] Failed to record adviser email alert:', err.message);
     }
 
     // Call Brevo
     sendBrevoEmail(patient.adviser_email, adviserName, adviserSubject, adviserHtmlContent).then(result => {
       if (result && result.simulated) {
-        console.log(`[SIMULATION LINK] Adviser Action Links:`);
-        console.log(`- Acknowledge: ${respondUrlBase}/api/notifications/respond?alertId=${adviserAlertId}&response=Acknowledged`);
-        console.log(`- On My Way: ${respondUrlBase}/api/notifications/respond?alertId=${adviserAlertId}&response=On%20My%20Way`);
+        console.log("[SIMULATION LINK] Adviser Action Links:");
+        console.log("- Acknowledge: " + respondUrlBase + "/api/notifications/respond?alertId=" + adviserAlertId + "&response=Acknowledged");
+        console.log("- On My Way: " + respondUrlBase + "/api/notifications/respond?alertId=" + adviserAlertId + "&response=On%20My%20Way");
       }
     });
   }
@@ -599,7 +421,7 @@ const triggerCheckoutEmails = async (patient) => {
   // 1. Send Parent Checkout Email
   if (patient.parent_email?.trim()) {
     const parentName = patient.emergency_contact_name || 'Parent/Guardian';
-    const parentSubject = `[AeroHealth Clinic] Checkout Alert for ${patient.name}`;
+    const parentSubject = "[AeroHealth Clinic] Checkout Alert for " + patient.name;
     const parentHtmlContent = getCheckoutEmailTemplate(parentName, patient.name);
     sendBrevoEmail(patient.parent_email, parentName, parentSubject, parentHtmlContent);
   }
@@ -607,7 +429,7 @@ const triggerCheckoutEmails = async (patient) => {
   // 2. Send Adviser Checkout Email
   if (patient.adviser_email?.trim()) {
     const adviserName = patient.adviser_name || 'Homeroom Adviser';
-    const adviserSubject = `[AeroHealth Clinic] Class Checkout Alert for ${patient.name}`;
+    const adviserSubject = "[AeroHealth Clinic] Class Checkout Alert for " + patient.name;
     const adviserHtmlContent = getCheckoutEmailTemplate(adviserName, patient.name);
     sendBrevoEmail(patient.adviser_email, adviserName, adviserSubject, adviserHtmlContent);
   }
@@ -615,21 +437,16 @@ const triggerCheckoutEmails = async (patient) => {
   // 3. Fetch latest excuse slip for student to email Principal and Guard
   try {
     let latestSlip = null;
-    if (!useFallback) {
-      const { data: slips } = await supabase
-        .from('excuse_slips')
-        .select('*')
-        .eq('patient_id', patient.id)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      if (slips && slips.length > 0) {
-        latestSlip = slips[0];
-      }
-    } else {
-      const slips = localExcuseSlips.filter(e => e.patient_id === patient.id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      if (slips.length > 0) {
-        latestSlip = slips[0];
-      }
+    const { data: slips, error: fetchSlipsErr } = await supabase
+      .from('excuse_slips')
+      .select('*')
+      .eq('patient_id', patient.id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (fetchSlipsErr) throw fetchSlipsErr;
+    if (slips && slips.length > 0) {
+      latestSlip = slips[0];
     }
 
     if (latestSlip) {
@@ -637,25 +454,21 @@ const triggerCheckoutEmails = async (patient) => {
       let principalEmail = 'principal@aerohealth.com';
       let guardEmail = 'guard@aerohealth.com';
 
-      if (!useFallback) {
-        const { data: dbSettings } = await supabase.from('clinic_settings').select('*');
-        if (dbSettings) {
-          const pS = dbSettings.find(s => s.key === 'principal_email');
-          const gS = dbSettings.find(s => s.key === 'security_guard_email');
-          if (pS) principalEmail = pS.value;
-          if (gS) guardEmail = gS.value;
-        }
-      } else {
-        principalEmail = localClinicSettings.principal_email;
-        guardEmail = localClinicSettings.security_guard_email;
+      const { data: dbSettings, error: settingsErr } = await supabase.from('clinic_settings').select('*');
+      if (settingsErr) throw settingsErr;
+      if (dbSettings) {
+        const pS = dbSettings.find(s => s.key === 'principal_email');
+        const gS = dbSettings.find(s => s.key === 'security_guard_email');
+        if (pS) principalEmail = pS.value;
+        if (gS) guardEmail = gS.value;
       }
 
       const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
-      const ackLink = `${backendUrl}/api/excuse-slips/${latestSlip.id}/acknowledge`;
+      const ackLink = backendUrl + "/api/excuse-slips/" + latestSlip.id + "/acknowledge";
 
       // Email Principal
       if (principalEmail?.trim()) {
-        const principalSubject = `[AeroHealth Clinic] Excuse Slip Approval Required for ${patient.name}`;
+        const principalSubject = "[AeroHealth Clinic] Excuse Slip Approval Required for " + patient.name;
         const principalHtml = `
           <!DOCTYPE html>
           <html>
@@ -683,15 +496,15 @@ const triggerCheckoutEmails = async (patient) => {
         
         sendBrevoEmail(principalEmail, 'School Principal', principalSubject, principalHtml).then(result => {
           if (result && result.simulated) {
-            console.log(`[SIMULATION LINK] Principal Action Link:`);
-            console.log(`- Acknowledge Excuse Slip: ${ackLink}`);
+            console.log("[SIMULATION LINK] Principal Action Link:");
+            console.log("- Acknowledge Excuse Slip: " + ackLink);
           }
         });
       }
 
       // Email Security Guard
       if (guardEmail?.trim()) {
-        const guardSubject = `[AeroHealth Clinic] Gate Clearance Notification: ${patient.name}`;
+        const guardSubject = "[AeroHealth Clinic] Gate Clearance Notification: " + patient.name;
         const guardHtml = `
           <!DOCTYPE html>
           <html>
@@ -718,15 +531,12 @@ const triggerCheckoutEmails = async (patient) => {
       }
     }
   } catch (err) {
-    console.error('[NOTIFICATIONS] Failed to trigger checkout excuse slips emails:', err.message);
+    console.error('[DATABASE ERROR] Failed in triggerCheckoutEmails:', err.message);
   }
 };
 
-
-
-// Basic Health Route
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'EMR API is running', supabase: useFallback ? 'fallback' : 'connected' });
+  res.json({ status: 'ok', message: 'EMR API is running', supabase: 'connected' });
 });
 
 // Active Response Tracking Route
@@ -738,9 +548,8 @@ app.get('/api/notifications/respond', async (req, res) => {
 
   const nowStr = new Date().toISOString();
 
-  if (!useFallback) {
-    try {
-      const { data: alert, error: fetchErr } = await supabase
+  try {
+    const { data: alert, error: fetchErr } = await supabase
         .from('email_alerts')
         .select('*, patients(name)')
         .eq('id', alertId)
@@ -763,31 +572,15 @@ app.get('/api/notifications/respond', async (req, res) => {
         const patientName = alert.patients ? (Array.isArray(alert.patients) ? alert.patients[0]?.name : alert.patients.name) : 'Student';
         return res.send(getResponseLandingPage(response, alert.recipient_email, alert.recipient_type, patientName, nowStr));
       }
-    } catch (err) {
-      console.error('[RESPOND ROUTE ERROR]', err.message);
-    }
-  }
-
-  const alert = localEmailAlerts.find(a => a.id === alertId);
-  if (!alert) {
-    return res.status(404).send('<h1>Alert not found</h1>');
-  }
-
-  alert.acknowledged = true;
-  alert.acknowledged_at = nowStr;
-  alert.response_status = response;
-
-  const patient = localPatients.find(p => p.id === alert.patient_id);
-  const studentName = patient ? patient.name : 'Student';
-
-  res.send(getResponseLandingPage(response, alert.recipient_email, alert.recipient_type, studentName, nowStr));
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).send('<h1>Database Error</h1><p>' + err.message + '</p>');
+  }});
 
 // Email Tracking Endpoint
 app.get('/api/notifications/logs', async (req, res) => {
-  if (!useFallback) {
-    try {
-      const { data, error } = await supabase
+  try {
+    const { data, error } = await supabase
         .from('email_alerts')
         .select('*, patients(name)')
         .order('sent_at', { ascending: false });
@@ -807,30 +600,10 @@ app.get('/api/notifications/logs', async (req, res) => {
         response_status: a.response_status
       }));
       return res.json({ data: formatted });
-    } catch (err) {
-      console.warn("[WARNING] Supabase email logs query failed. Falling back to local db:", err.message);
-    }
-  }
-
-  const formatted = localEmailAlerts.map(a => {
-    const p = localPatients.find(x => x.id === a.patient_id);
-    return {
-      id: a.id,
-      patient_id: a.patient_id,
-      student_name: p ? p.name : 'Unknown',
-      recipient_type: a.recipient_type,
-      recipient_email: a.recipient_email,
-      subject: a.subject,
-      body: a.body,
-      sent_at: a.sent_at,
-      acknowledged: a.acknowledged,
-      acknowledged_at: a.acknowledged_at,
-      response_status: a.response_status
-    };
-  }).sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
-
-  res.json({ data: formatted });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Authentication Route: Register User
 app.post('/api/auth/register', async (req, res) => {
@@ -841,9 +614,8 @@ app.post('/api/auth/register', async (req, res) => {
 
   const hashedPassword = hashPassword(password);
 
-  if (!useFallback) {
-    try {
-      // Check if user already exists
+  try {
+    // Check if user already exists
       const { data: existingUser, error: checkError } = await supabase
         .from('accounts')
         .select('email')
@@ -868,34 +640,10 @@ app.post('/api/auth/register', async (req, res) => {
 
       if (error) throw error;
       return res.json({ data: data[0] });
-    } catch (err) {
-      console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
-    }
-  }
-
-  // Fallback local db
-  const existingLocal = localAccounts.find(a => a.email.toLowerCase() === email.toLowerCase());
-  if (existingLocal) {
-    return res.status(400).json({ error: 'Email already registered.' });
-  }
-
-  const newUser = {
-    id: 'a_' + Date.now(),
-    name,
-    email: email.toLowerCase(),
-    password: hashedPassword,
-    role,
-    mfa_enabled: false,
-    mfa_type: 'none',
-    mfa_secret: null,
-    created_at: new Date().toISOString()
-  };
-
-  localAccounts.push(newUser);
-
-  const { password: _, mfa_secret: __, ...userWithoutPassword } = newUser;
-  return res.json({ data: userWithoutPassword });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Base32 Decode for TOTP Secrets (Google Authenticator)
 const base32Decode = (base32) => {
@@ -974,9 +722,8 @@ app.post('/api/auth/login', async (req, res) => {
 
   const hashedPassword = hashPassword(password);
 
-  if (!useFallback) {
-    try {
-      const { data: user, error } = await supabase
+  try {
+    const { data: user, error } = await supabase
         .from('accounts')
         .select('*')
         .eq('email', email.toLowerCase())
@@ -1002,29 +749,10 @@ app.post('/api/auth/login', async (req, res) => {
 
       const { password: _, mfa_secret: __, ...userWithoutPassword } = user;
       return res.json({ data: userWithoutPassword });
-    } catch (err) {
-      console.warn("[WARNING] Supabase login failed. Falling back to local db:", err.message);
-    }
-  }
-
-  // Fallback local db
-  const user = localAccounts.find(a => a.email.toLowerCase() === email.toLowerCase());
-  if (!user || user.password !== hashedPassword) {
-    return res.status(401).json({ error: 'Invalid email or password.' });
-  }
-
-  if (user.mfa_enabled) {
-    return res.json({
-      mfaRequired: true,
-      mfaType: user.mfa_type,
-      userId: user.id,
-      email: user.email
-    });
-  }
-
-  const { password: _, mfa_secret: __, ...userWithoutPassword } = user;
-  return res.json({ data: userWithoutPassword });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // MFA Route: Generate TOTP Setup Secret
 app.post('/api/auth/mfa/setup', async (req, res) => {
@@ -1035,9 +763,8 @@ app.post('/api/auth/mfa/setup', async (req, res) => {
 
   const secret = generateBase32Secret();
 
-  if (!useFallback) {
-    try {
-      const { data: user, error: fetchErr } = await supabase
+  try {
+    const { data: user, error: fetchErr } = await supabase
         .from('accounts')
         .select('email')
         .eq('id', userId)
@@ -1058,22 +785,10 @@ app.post('/api/auth/mfa/setup', async (req, res) => {
       const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`;
 
       return res.json({ secret, qrCodeUrl });
-    } catch (err) {
-      console.warn("[WARNING] Supabase MFA setup failed. Falling back to local db:", err.message);
-    }
-  }
-
-  // Fallback local db
-  const user = localAccounts.find(a => a.id === userId);
-  if (!user) return res.status(404).json({ error: 'User not found.' });
-
-  user.mfa_secret = secret;
-
-  const qrCodeUri = `otpauth://totp/AeroHealth:${user.email}?secret=${secret}&issuer=AeroHealth`;
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUri)}`;
-
-  return res.json({ secret, qrCodeUrl });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // MFA Route: Verify & Enable MFA Setup
 app.post('/api/auth/mfa/verify-setup', async (req, res) => {
@@ -1082,74 +797,53 @@ app.post('/api/auth/mfa/verify-setup', async (req, res) => {
     return res.status(400).json({ error: 'User ID, verification code, and MFA type are required.' });
   }
 
-  let userObj = null;
+  try {
+    const { data: user, error: fetchErr } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
 
-  if (!useFallback) {
-    try {
-      const { data: user, error: fetchErr } = await supabase
-        .from('accounts')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+    if (fetchErr) throw fetchErr;
+    if (!user) return res.status(404).json({ error: 'User not found.' });
 
-      if (fetchErr) throw fetchErr;
-      if (!user) return res.status(404).json({ error: 'User not found.' });
-      userObj = user;
-    } catch (err) {
-      console.warn("[WARNING] Supabase fetch during MFA verification failed. Falling back to local db:", err.message);
+    // Verification Logic
+    if (mfaType === 'totp') {
+      if (!user.mfa_secret) {
+        return res.status(400).json({ error: 'MFA Secret has not been initialized. Please run setup first.' });
+      }
+      const isCodeValid = verifyTOTP(code, user.mfa_secret);
+      if (!isCodeValid) {
+        return res.status(400).json({ error: 'Invalid authenticator code. Please check and try again.' });
+      }
+    } else if (mfaType === 'email') {
+      const cached = emailCodes[userId];
+      if (!cached || cached.code !== code || cached.expiresAt < Date.now()) {
+        return res.status(400).json({ error: 'Invalid or expired email verification code.' });
+      }
+      delete emailCodes[userId]; // Consume code
+    } else {
+      return res.status(400).json({ error: 'Invalid MFA type.' });
     }
+
+    // Update User Profile
+    const { data, error: updateErr } = await supabase
+      .from('accounts')
+      .update({
+        mfa_enabled: true,
+        mfa_type: mfaType
+      })
+      .eq('id', userId)
+      .select('*');
+
+    if (updateErr) throw updateErr;
+    const { password: _, mfa_secret: __, ...userWithoutPassword } = data[0];
+    return res.json({ data: userWithoutPassword });
+  } catch (err) {
+    console.error('[DATABASE ERROR] POST /api/auth/mfa/verify-setup: ', err.message);
+    return res.status(500).json({ error: err.message });
   }
-
-  if (!userObj) {
-    userObj = localAccounts.find(a => a.id === userId);
-    if (!userObj) return res.status(404).json({ error: 'User not found.' });
-  }
-
-  // Verification Logic
-  if (mfaType === 'totp') {
-    if (!userObj.mfa_secret) {
-      return res.status(400).json({ error: 'MFA Secret has not been initialized. Please run setup first.' });
-    }
-    const isCodeValid = verifyTOTP(code, userObj.mfa_secret);
-    if (!isCodeValid) {
-      return res.status(400).json({ error: 'Invalid authenticator code. Please check and try again.' });
-    }
-  } else if (mfaType === 'email') {
-    const cached = emailCodes[userId];
-    if (!cached || cached.code !== code || cached.expiresAt < Date.now()) {
-      return res.status(400).json({ error: 'Invalid or expired email verification code.' });
-    }
-    delete emailCodes[userId]; // Consume code
-  } else {
-    return res.status(400).json({ error: 'Invalid MFA type.' });
-  }
-
-  // Update User Profile
-  if (!useFallback) {
-    try {
-      const { data, error: updateErr } = await supabase
-        .from('accounts')
-        .update({
-          mfa_enabled: true,
-          mfa_type: mfaType
-        })
-        .eq('id', userId)
-        .select('*');
-
-      if (updateErr) throw updateErr;
-      const { password: _, mfa_secret: __, ...userWithoutPassword } = data[0];
-      return res.json({ data: userWithoutPassword });
-    } catch (err) {
-      console.warn("[WARNING] Supabase MFA update failed. Falling back to local db:", err.message);
-    }
-  }
-
-  // Fallback local db
-  userObj.mfa_enabled = true;
-  userObj.mfa_type = mfaType;
-  const { password: _, mfa_secret: __, ...userWithoutPassword } = userObj;
-  return res.json({ data: userWithoutPassword });
-});
+});;
 
 const getMfaEmailTemplate = (recipientName, code) => {
   return `
@@ -1196,51 +890,43 @@ app.post('/api/auth/mfa/send-email', async (req, res) => {
     return res.status(400).json({ error: 'User ID is required.' });
   }
 
-  let userObj = null;
+  try {
+    const { data: user, error: fetchErr } = await supabase
+      .from('accounts')
+      .select('email, name')
+      .eq('id', userId)
+      .maybeSingle();
 
-  if (!useFallback) {
-    try {
-      const { data: user, error: fetchErr } = await supabase
-        .from('accounts')
-        .select('email, name')
-        .eq('id', userId)
-        .maybeSingle();
+    if (fetchErr) throw fetchErr;
+    if (!user) return res.status(404).json({ error: 'User not found.' });
 
-      if (fetchErr) throw fetchErr;
-      if (user) userObj = user;
-    } catch (err) {
-      console.warn("[WARNING] Supabase user query failed. Falling back to local db:", err.message);
-    }
+    // Generate 6-digit random code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+    emailCodes[userId] = { code, expiresAt };
+
+    // Log in a highlighted console banner for development
+    console.log('\n┌────────────────────────────────────────────────────────┐');
+    console.log("│ [MFA EMAIL] Verification Code for: " + user.email.padEnd(20) + " │");
+    console.log("│ CODE: " + code + "                                             │");
+    console.log('└────────────────────────────────────────────────────────┘\n');
+
+    // Trigger targeted email via Brevo
+    const recipientName = user.name || 'Practitioner';
+    const emailSubject = '[AeroHealth EMR] Login Verification Security Code';
+    const htmlContent = getMfaEmailTemplate(recipientName, code);
+    
+    sendBrevoEmail(user.email, recipientName, emailSubject, htmlContent).catch(err => {
+      console.error('[MFA EMAIL ERROR] Failed to deliver code via Brevo:', err.message);
+    });
+
+    return res.json({ success: true, message: 'Verification code sent to email.' });
+  } catch (err) {
+    console.error('[DATABASE ERROR] POST /api/auth/mfa/send-email:', err.message);
+    return res.status(500).json({ error: err.message });
   }
-
-  if (!userObj) {
-    userObj = localAccounts.find(a => a.id === userId);
-    if (!userObj) return res.status(404).json({ error: 'User not found.' });
-  }
-
-  // Generate 6-digit random code
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
-
-  emailCodes[userId] = { code, expiresAt };
-
-  // Log in a highlighted console banner for development
-  console.log('\n┌────────────────────────────────────────────────────────┐');
-  console.log(`│ [MFA EMAIL] Verification Code for: ${userObj.email.padEnd(20)} │`);
-  console.log(`│ CODE: ${code}                                             │`);
-  console.log('└────────────────────────────────────────────────────────┘\n');
-
-  // Trigger targeted email via Brevo
-  const recipientName = userObj.name || 'Practitioner';
-  const emailSubject = '[AeroHealth EMR] Login Verification Security Code';
-  const htmlContent = getMfaEmailTemplate(recipientName, code);
-  
-  sendBrevoEmail(userObj.email, recipientName, emailSubject, htmlContent).catch(err => {
-    console.error('[MFA EMAIL ERROR] Failed to deliver code via Brevo:', err.message);
-  });
-
-  return res.json({ success: true, message: 'Verification code sent to email.' });
-});
+});;
 
 // MFA Route: Verify Login Code (TOTP or Email)
 app.post('/api/auth/mfa/verify', async (req, res) => {
@@ -1249,50 +935,42 @@ app.post('/api/auth/mfa/verify', async (req, res) => {
     return res.status(400).json({ error: 'User ID and verification code are required.' });
   }
 
-  let userObj = null;
+  try {
+    const { data: user, error: fetchErr } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
 
-  if (!useFallback) {
-    try {
-      const { data: user, error: fetchErr } = await supabase
-        .from('accounts')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+    if (fetchErr) throw fetchErr;
+    if (!user) return res.status(404).json({ error: 'User not found.' });
 
-      if (fetchErr) throw fetchErr;
-      if (user) userObj = user;
-    } catch (err) {
-      console.warn("[WARNING] Supabase user query failed. Falling back to local db:", err.message);
+    if (!user.mfa_enabled) {
+      return res.status(400).json({ error: 'MFA is not enabled for this account.' });
     }
-  }
 
-  if (!userObj) {
-    userObj = localAccounts.find(a => a.id === userId);
-    if (!userObj) return res.status(404).json({ error: 'User not found.' });
-  }
-
-  if (!userObj.mfa_enabled) {
-    return res.status(400).json({ error: 'MFA is not enabled for this account.' });
-  }
-
-  if (userObj.mfa_type === 'totp') {
-    const isCodeValid = verifyTOTP(code, userObj.mfa_secret);
-    if (!isCodeValid) {
-      return res.status(400).json({ error: 'Invalid verification code.' });
+    if (user.mfa_type === 'totp') {
+      const isCodeValid = verifyTOTP(code, user.mfa_secret);
+      if (!isCodeValid) {
+        return res.status(400).json({ error: 'Invalid verification code.' });
+      }
+    } else if (user.mfa_type === 'email') {
+      const cached = emailCodes[userId];
+      if (!cached || cached.code !== code || cached.expiresAt < Date.now()) {
+        return res.status(400).json({ error: 'Invalid or expired email verification code.' });
+      }
+      delete emailCodes[userId]; // Consume code
+    } else {
+      return res.status(400).json({ error: 'Unsupported MFA method.' });
     }
-  } else if (userObj.mfa_type === 'email') {
-    const cached = emailCodes[userId];
-    if (!cached || cached.code !== code || cached.expiresAt < Date.now()) {
-      return res.status(400).json({ error: 'Invalid or expired email verification code.' });
-    }
-    delete emailCodes[userId]; // Consume code
-  } else {
-    return res.status(400).json({ error: 'Unsupported MFA method.' });
-  }
 
-  const { password: _, mfa_secret: __, ...userWithoutPassword } = userObj;
-  return res.json({ data: userWithoutPassword });
-});
+    const { password: _, mfa_secret: __, ...userWithoutPassword } = user;
+    return res.json({ data: userWithoutPassword });
+  } catch (err) {
+    console.error('[DATABASE ERROR] POST /api/auth/mfa/verify:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});;
 
 // Authentication Route: Change Password
 app.post('/api/auth/change-password', async (req, res) => {
@@ -1306,9 +984,8 @@ app.post('/api/auth/change-password', async (req, res) => {
 
   let userObj = null;
 
-  if (!useFallback) {
-    try {
-      const { data: user, error: fetchErr } = await supabase
+  try {
+    const { data: user, error: fetchErr } = await supabase
         .from('accounts')
         .select('*')
         .eq('id', userId)
@@ -1328,22 +1005,10 @@ app.post('/api/auth/change-password', async (req, res) => {
 
       if (updateErr) throw updateErr;
       return res.json({ success: true, message: 'Password updated successfully.' });
-    } catch (err) {
-      console.warn("[WARNING] Supabase password update failed. Falling back to local db:", err.message);
-    }
-  }
-
-  // Fallback local db
-  userObj = localAccounts.find(a => a.id === userId);
-  if (!userObj) return res.status(404).json({ error: 'User not found.' });
-
-  if (userObj.password !== currentHashed) {
-    return res.status(400).json({ error: 'Incorrect current password.' });
-  }
-
-  userObj.password = newHashed;
-  return res.json({ success: true, message: 'Password updated successfully.' });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Authentication Route: Disable MFA
 app.post('/api/auth/mfa/disable', async (req, res) => {
@@ -1354,9 +1019,8 @@ app.post('/api/auth/mfa/disable', async (req, res) => {
 
   let userObj = null;
 
-  if (!useFallback) {
-    try {
-      // Fetch user details first to check if they are seeded
+  try {
+    // Fetch user details first to check if they are seeded
       const { data: existingUser, error: findErr } = await supabase
         .from('accounts')
         .select('*')
@@ -1385,35 +1049,18 @@ app.post('/api/auth/mfa/disable', async (req, res) => {
 
       const { password: _, mfa_secret: __, ...userWithoutPassword } = data[0];
       return res.json({ data: userWithoutPassword });
-    } catch (err) {
-      console.warn("[WARNING] Supabase MFA disable failed. Falling back to local db:", err.message);
-    }
-  }
-
-  // Fallback local db
-  userObj = localAccounts.find(a => a.id === userId);
-  if (!userObj) return res.status(404).json({ error: 'User not found.' });
-
-  if (!isSeededAccount(userObj.email)) {
-    return res.status(403).json({ error: 'Multi-Factor Authentication is mandatory for this account and cannot be disabled.' });
-  }
-
-  userObj.mfa_enabled = false;
-  userObj.mfa_type = 'none';
-  userObj.mfa_secret = null;
-
-  const { password: _, mfa_secret: __, ...userWithoutPassword } = userObj;
-  return res.json({ data: userWithoutPassword });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 
 
 
 // Patients Route: Fetch List
 app.get('/api/patients', async (req, res) => {
-  if (!useFallback) {
-    try {
-      let query = supabase.from('patients').select('*');
+  try {
+    let query = supabase.from('patients').select('*');
       if (req.query.search) {
         const search = req.query.search;
         if (!isNaN(search)) {
@@ -1429,25 +1076,10 @@ app.get('/api/patients', async (req, res) => {
       const { data, error } = await query;
       if (error) throw error;
       return res.json({ data });
-    } catch (err) {
-      console.warn("[WARNING] Supabase query failed. Falling back to local db:", err.message);
-      useFallback = true;
-    }
-  }
-
-  // Fallback DB
-  let filtered = [...localPatients];
-  if (req.query.search) {
-    const search = req.query.search.toLowerCase();
-    filtered = filtered.filter(p => p.name.toLowerCase().includes(search) || p.id.toString().includes(search));
-  }
-  if (req.query.letter) {
-    const letter = req.query.letter.toUpperCase();
-    filtered = filtered.filter(p => p.name.toUpperCase().startsWith(letter));
-  }
-  filtered.sort((a, b) => a.name.localeCompare(b.name));
-  res.json({ data: filtered });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Register New Patient
 app.post('/api/patients', async (req, res) => {
@@ -1469,9 +1101,8 @@ app.post('/api/patients', async (req, res) => {
   const ageParsed = age ? parseInt(age) : null;
   const gradYearParsed = graduation_year ? parseInt(graduation_year) : null;
 
-  if (!useFallback) {
-    try {
-      const { data, error } = await supabase.from('patients').insert([{
+  try {
+    const { data, error } = await supabase.from('patients').insert([{
         name, section, age: ageParsed, gender, status: status || 'Checked Out', status_color: status_color || 'gray',
         date_of_birth: date_of_birth || null,
         grade_level: grade_level || null,
@@ -1512,60 +1143,10 @@ app.post('/api/patients', async (req, res) => {
       triggerParentNotification(newPatient.id, 'registered and checked into the school clinic.');
 
       return res.json({ data: newPatient });
-    } catch (err) {
-      console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
-      useFallback = true;
-    }
-  }
-
-  // Fallback DB
-  const newPatient = {
-    id: nextPatientId++,
-    name, section, age: ageParsed, gender, status: status || 'Checked Out', status_color: status_color || 'gray',
-    date_of_birth: date_of_birth || null,
-    grade_level: grade_level || null,
-    allergies: allergies || 'None',
-    chronic_conditions: chronic_conditions || 'None',
-    emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
-    parent_email: parent_email || null,
-    adviser_name: adviser_name || null,
-    adviser_email: adviser_email || null,
-    graduation_year: gradYearParsed,
-    created_at: new Date().toISOString()
-  };
-  localPatients.push(newPatient);
-
-  // Seed default immunizations for new patient in fallback store
-  const defaultVaccines = [
-    { vaccine: 'Measles (MMR)', req: 2 },
-    { vaccine: 'Polio (IPV)', req: 4 },
-    { vaccine: 'Hepatitis B', req: 3 },
-    { vaccine: 'Varicella (Chickenpox)', req: 2 }
-  ];
-  defaultVaccines.forEach((v, idx) => {
-    localImmunizations.push({
-      id: 'i_seed_' + newPatient.id + '_' + idx,
-      patient_id: newPatient.id,
-      vaccine_name: v.vaccine,
-      doses_received: 0,
-      doses_required: v.req
-    });
-  });
-
-  localVisitLogs.push({
-    id: 'l_' + Date.now(),
-    patient_id: newPatient.id,
-    event_type: 'Check-in',
-    details: 'Patient registered and checked in.',
-    performed_by: practitioner.email,
-    created_at: new Date().toISOString()
-  });
-
-  // Trigger Simulated Parent Notification
-  triggerParentNotification(newPatient.id, 'registered and checked into the school clinic.');
-
-  res.json({ data: newPatient });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Fetch Detail (Demographics + Vitals + SOAP + Orders + Logs + Immunizations + Consents + Excuse Slips)
 app.get('/api/patients/:id', async (req, res) => {
@@ -1578,9 +1159,8 @@ app.get('/api/patients/:id', async (req, res) => {
   // Audit Log: Record Viewed
   const auditDetails = `Patient record viewed by ${practitioner.name} (${practitioner.role})${isRestrictedRole ? ' [REDACTED VIEW]' : ''}`;
 
-  if (!useFallback) {
-    try {
-      const { data: patient, error: pError } = await supabase.from('patients').select('*').eq('id', id).maybeSingle();
+  try {
+    const { data: patient, error: pError } = await supabase.from('patients').select('*').eq('id', id).maybeSingle();
       if (pError) throw pError;
       if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
@@ -1638,61 +1218,10 @@ app.get('/api/patients/:id', async (req, res) => {
           excuseSlips: excuseSlips || []
         }
       });
-    } catch (err) {
-      console.warn("[WARNING] Supabase query failed. Falling back to local db:", err.message);
-      useFallback = true;
-    }
-  }
-
-  // Fallback DB
-  const patient = { ...localPatients.find(p => p.id === id) };
-  if (!patient.id) return res.status(404).json({ error: 'Patient not found' });
-
-  // Log view action in fallback store
-  localVisitLogs.push({
-    id: 'l_' + Date.now(),
-    patient_id: id,
-    event_type: 'Record Viewed',
-    details: auditDetails,
-    performed_by: practitioner.email,
-    created_at: new Date().toISOString()
-  });
-
-  let vitals = [];
-  let soapNotes = [];
-  let orders = [];
-  let immunizations = [];
-  let consents = [];
-  let logs = [];
-  const excuseSlips = localExcuseSlips.filter(e => e.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-  if (!isRestrictedRole) {
-    vitals = localVitals.filter(v => v.patient_id === id).sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
-    soapNotes = localSoapNotes.filter(s => s.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    orders = localOrders.filter(o => o.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    immunizations = localImmunizations.filter(i => i.patient_id === id).sort((a, b) => a.vaccine_name.localeCompare(b.vaccine_name));
-    consents = localParentalConsents.filter(c => c.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    logs = localVisitLogs.filter(l => l.patient_id === id).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  } else {
-    // Only show non-sensitive logs
-    logs = localVisitLogs.filter(l => l.patient_id === id && l.event_type === 'Check-in').sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    patient.allergies = 'Restricted View';
-    patient.chronic_conditions = 'Restricted View';
-  }
-
-  res.json({
-    data: {
-      ...patient,
-      vitals,
-      soapNotes,
-      orders,
-      logs,
-      immunizations,
-      consents,
-      excuseSlips
-    }
-  });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Update Patient Demographics
 app.put('/api/patients/:id', async (req, res) => {
@@ -1744,9 +1273,8 @@ app.put('/api/patients/:id', async (req, res) => {
     graduation_year: gradYearParsed
   };
 
-  if (!useFallback) {
-    try {
-      const { data, error } = await supabase
+  try {
+    const { data, error } = await supabase
         .from('patients')
         .update(updates)
         .eq('id', id)
@@ -1764,29 +1292,10 @@ app.put('/api/patients/:id', async (req, res) => {
       }]);
 
       return res.json({ data: data[0] });
-    } catch (err) {
-      console.warn("[WARNING] Supabase update failed. Falling back to local db:", err.message);
-      useFallback = true;
-    }
-  }
-
-  // Fallback local db
-  const patient = localPatients.find(p => p.id === id);
-  if (!patient) return res.status(404).json({ error: 'Patient not found' });
-
-  Object.assign(patient, updates);
-
-  localVisitLogs.push({
-    id: 'l_' + Date.now(),
-    patient_id: id,
-    event_type: 'Demographics Updated',
-    details: `Patient demographics updated by ${practitioner.name} (${practitioner.role})`,
-    performed_by: practitioner.email,
-    created_at: new Date().toISOString()
-  });
-
-  res.json({ data: patient });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Update/Record Immunization Dose
 app.post('/api/patients/:id/immunizations', async (req, res) => {
@@ -1814,9 +1323,8 @@ app.post('/api/patients/:id/immunizations', async (req, res) => {
 
   const auditDetails = `Immunization '${vaccine_name}' updated to ${doses_received}/${doses_required} doses.`;
 
-  if (!useFallback) {
-    try {
-      // Check if this vaccine already has a record for the patient
+  try {
+    // Check if this vaccine already has a record for the patient
       const { data: existing, error: findErr } = await supabase
         .from('immunizations')
         .select('*')
@@ -1860,39 +1368,10 @@ app.post('/api/patients/:id/immunizations', async (req, res) => {
       }]);
 
       return res.json({ data: result });
-    } catch (err) {
-      console.warn("[WARNING] Supabase immunization update failed. Falling back to local db:", err.message);
-      useFallback = true;
-    }
-  }
-
-  // Fallback local db
-  let record = localImmunizations.find(i => i.patient_id === patientId && i.vaccine_name === vaccine_name);
-  if (record) {
-    record.doses_received = parseInt(doses_received);
-  } else {
-    record = {
-      id: 'i_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
-      patient_id: patientId,
-      vaccine_name,
-      doses_received: parseInt(doses_received),
-      doses_required: parseInt(doses_required)
-    };
-    localImmunizations.push(record);
-  }
-
-  // Audit Log Fallback
-  localVisitLogs.push({
-    id: 'l_' + Date.now(),
-    patient_id: patientId,
-    event_type: 'Immunization Updated',
-    details: auditDetails,
-    performed_by: practitioner.email,
-    created_at: new Date().toISOString()
-  });
-
-  return res.json({ data: record });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Save SOAP Clinical Note
 app.post('/api/patients/:id/soap', async (req, res) => {
@@ -1911,9 +1390,8 @@ app.post('/api/patients/:id/soap', async (req, res) => {
 
   const auditDetails = `SOAP Note saved by ${practitioner.name} (Disposition: ${disposition})`;
 
-  if (!useFallback) {
-    try {
-      const { data, error } = await supabase.from('soap_notes').insert([{
+  try {
+    const { data, error } = await supabase.from('soap_notes').insert([{
         patient_id: id, subjective, objective, assessment, plan, disposition
       }]).select();
       if (error) throw error;
@@ -1926,30 +1404,10 @@ app.post('/api/patients/:id/soap', async (req, res) => {
       }]);
 
       return res.json({ data: data[0] });
-    } catch (err) {
-      console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
-      useFallback = true;
-    }
-  }
-
-  // Fallback DB
-  const newNote = {
-    id: 's_' + Date.now(),
-    patient_id: id,
-    subjective, objective, assessment, plan, disposition,
-    created_at: new Date().toISOString()
-  };
-  localSoapNotes.push(newNote);
-  localVisitLogs.push({
-    id: 'l_' + Date.now(),
-    patient_id: id,
-    event_type: 'Clinical Note Added',
-    details: auditDetails,
-    performed_by: practitioner.email,
-    created_at: new Date().toISOString()
-  });
-  res.json({ data: newNote });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Save Medication Order
 app.post('/api/patients/:id/orders', async (req, res) => {
@@ -1973,9 +1431,8 @@ app.post('/api/patients/:id/orders', async (req, res) => {
 
   const auditDetails = `${medication.charAt(0).toUpperCase() + medication.slice(1)} ${dosage} via ${route} (Administered by: ${administered_by})`;
 
-  if (!useFallback) {
-    try {
-      const { data, error } = await supabase.from('medication_orders').insert([{
+  try {
+    const { data, error } = await supabase.from('medication_orders').insert([{
         patient_id: id, medication, dosage, strength, form, route, administered_by, consent: !!consent
       }]).select();
       if (error) throw error;
@@ -1991,34 +1448,10 @@ app.post('/api/patients/:id/orders', async (req, res) => {
       triggerParentNotification(id, `Medication Administered: ${medication} ${dosage} given by ${administered_by}.`);
 
       return res.json({ data: data[0] });
-    } catch (err) {
-      console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
-      useFallback = true;
-    }
-  }
-
-  // Fallback DB
-  const newOrder = {
-    id: 'o_' + Date.now(),
-    patient_id: id,
-    medication, dosage, strength, form, route, administered_by, consent: !!consent,
-    created_at: new Date().toISOString()
-  };
-  localOrders.push(newOrder);
-  localVisitLogs.push({
-    id: 'l_' + Date.now(),
-    patient_id: id,
-    event_type: 'Medication Ordered',
-    details: auditDetails,
-    performed_by: practitioner.email,
-    created_at: new Date().toISOString()
-  });
-
-  // Trigger Simulated Parent Notification in Fallback
-  triggerParentNotification(id, `Medication Administered: ${medication} ${dosage} given by ${administered_by}.`);
-
-  res.json({ data: newOrder });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Save Vital Signs
 app.post('/api/patients/:id/vitals', async (req, res) => {
@@ -2059,9 +1492,8 @@ app.post('/api/patients/:id/vitals', async (req, res) => {
 
   const auditDetails = `Temp: ${temperature}°C, HR: ${heart_rate} bpm, BP: ${blood_pressure}, O₂: ${o2_sat}%, RR: ${respiratory_rate} bpm`;
 
-  if (!useFallback) {
-    try {
-      const { data, error } = await supabase.from('vitals').insert([{
+  try {
+    const { data, error } = await supabase.from('vitals').insert([{
         patient_id: id,
         temperature: parseFloat(temperature),
         heart_rate: parseInt(heart_rate),
@@ -2079,34 +1511,10 @@ app.post('/api/patients/:id/vitals', async (req, res) => {
       }]);
 
       return res.json({ data: data[0] });
-    } catch (err) {
-      console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
-      useFallback = true;
-    }
-  }
-
-  // Fallback DB
-  const newVitals = {
-    id: 'v_' + Date.now(),
-    patient_id: id,
-    temperature: parseFloat(temperature),
-    heart_rate: parseInt(heart_rate),
-    blood_pressure,
-    o2_sat: parseInt(o2_sat),
-    respiratory_rate: parseInt(respiratory_rate),
-    recorded_at: new Date().toISOString()
-  };
-  localVitals.push(newVitals);
-  localVisitLogs.push({
-    id: 'l_' + Date.now(),
-    patient_id: id,
-    event_type: 'Vitals Recorded',
-    details: auditDetails,
-    performed_by: practitioner.email,
-    created_at: new Date().toISOString()
-  });
-  res.json({ data: newVitals });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Check-In Existing Patient
 app.post('/api/patients/:id/checkin', async (req, res) => {
@@ -2123,9 +1531,8 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
     return res.status(403).json({ error: 'Access denied. Only physicians and nurses can check in patients.' });
   }
 
-  if (!useFallback) {
-    try {
-      // 1. Update patient status to 'Checked In'
+  try {
+    // 1. Update patient status to 'Checked In'
       await supabase.from('patients').update({
         status: 'Checked In',
         status_color: 'amber'
@@ -2153,35 +1560,10 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
       });
 
       return res.json({ data: data[0] });
-    } catch (err) {
-      console.warn("[WARNING] Supabase checkin insert/update failed. Falling back to local db:", err.message);
-      useFallback = true;
-    }
-  }
-
-  // Fallback DB
-  const patient = localPatients.find(p => p.id === id);
-  if (!patient) return res.status(404).json({ error: 'Patient not found' });
-
-  patient.status = 'Checked In';
-  patient.status_color = 'amber';
-
-  const newLog = {
-    id: 'l_' + Date.now(),
-    patient_id: id,
-    event_type: 'Check-in',
-    details: chief_complaint,
-    performed_by: practitioner.email,
-    created_at: new Date().toISOString()
-  };
-  localVisitLogs.push(newLog);
-
-  // Trigger Simulated Parent Notification in Fallback
-  triggerParentNotification(id, `checked into the school clinic. Reason: ${chief_complaint}`);
-  triggerCheckinEmails(patient, chief_complaint);
-
-  res.json({ data: newLog });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Check-Out Patient
 app.post('/api/patients/:id/checkout', async (req, res) => {
@@ -2195,9 +1577,8 @@ app.post('/api/patients/:id/checkout', async (req, res) => {
 
   const auditDetails = 'Student checked out of the clinic.';
 
-  if (!useFallback) {
-    try {
-      // Get patient info first to send emails
+  try {
+    // Get patient info first to send emails
       const { data: patient } = await supabase.from('patients').select('*').eq('id', id).maybeSingle();
 
       // Update patient status to 'Checked Out' and status_color to 'gray'
@@ -2229,35 +1610,10 @@ app.post('/api/patients/:id/checkout', async (req, res) => {
       }
 
       return res.json({ data: data[0] });
-    } catch (err) {
-      console.warn("[WARNING] Supabase checkout failed. Falling back to local db:", err.message);
-      useFallback = true;
-    }
-  }
-
-  // Fallback DB
-  const patient = localPatients.find(p => p.id === id);
-  if (!patient) return res.status(404).json({ error: 'Patient not found' });
-
-  patient.status = 'Checked Out';
-  patient.status_color = 'gray';
-
-  const newLog = {
-    id: 'l_' + Date.now(),
-    patient_id: id,
-    event_type: 'Check-out',
-    details: auditDetails,
-    performed_by: practitioner.email,
-    created_at: new Date().toISOString()
-  };
-  localVisitLogs.push(newLog);
-
-  // Trigger Simulated Parent Notification in Fallback
-  triggerParentNotification(id, 'checked out of the school clinic.');
-  triggerCheckoutEmails(patient);
-
-  res.json({ data: newLog });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Dashboard Route: Summary Stats
 // Helper to check for abnormal vitals
@@ -2327,9 +1683,8 @@ app.get('/api/dashboard/stats', async (req, res) => {
     injury_sprains: ['injury', 'sprain', 'bruise', 'wound', 'cut', 'scrape', 'fall', 'sprained', 'pain', 'hurt', 'scratch']
   };
 
-  if (!useFallback) {
-    try {
-      // 1. Total Patients
+  try {
+    // 1. Total Patients
       const { count: pCount } = await supabase.from('patients').select('*', { count: 'exact', head: true });
       totalPatients = pCount || 0;
 
@@ -2487,133 +1842,10 @@ app.get('/api/dashboard/stats', async (req, res) => {
         outbreakAlert,
         symptomsBreakdown
       });
-    } catch (err) {
-      console.warn("[WARNING] Supabase stats query failed. Falling back to local db:", err.message);
-    }
-  }
-
-  // Fallback DB
-  totalPatients = localPatients.length;
-  checkinsToday = localVisitLogs.filter(l => l.event_type === 'Check-in' && new Date(l.created_at) >= startOfDay).length;
-
-  const localPOrders = localOrders.filter(o => o.medication && o.medication.toLowerCase().includes('paracetamol'));
-  paracetamolStock = Math.max(0, 120 - localPOrders.length);
-
-  sentHomeToday = localSoapNotes.filter(s => s.disposition === 'Sent Home' && new Date(s.created_at) >= startOfDay).length;
-
-  const bedPatientsLocal = localPatients.filter(p => p.status === 'Checked In');
-  const localPatientIds = bedPatientsLocal.map(p => p.id);
-  
-  if (localPatientIds.length > 0) {
-    const logsLocal = localVisitLogs.filter(l => l.event_type === 'Check-in' && localPatientIds.includes(l.patient_id));
-    logsLocal.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    
-    const entryTimesMapLocal = {};
-    for (const log of logsLocal) {
-      if (!entryTimesMapLocal[log.patient_id]) {
-        entryTimesMapLocal[log.patient_id] = log.created_at;
-      }
-    }
-
-    occupiedBedsList = bedPatientsLocal.map(p => ({
-      id: p.id,
-      name: p.name,
-      section: p.section,
-      gender: p.gender,
-      age: p.age,
-      entryTime: entryTimesMapLocal[p.id] || p.created_at
-    }));
-  }
-  bedsOccupied = occupiedBedsList.length;
-
-  const vitalsTodayLocal = localVitals.filter(v => new Date(v.recorded_at) >= startOfDay);
-  const highRiskMapLocal = {};
-  for (const v of vitalsTodayLocal) {
-    const alerts = checkVitals(v);
-    if (alerts.length > 0) {
-      const patientId = v.patient_id;
-      const p = localPatients.find(p => p.id === patientId) || {};
-      if (!highRiskMapLocal[patientId]) {
-        highRiskMapLocal[patientId] = {
-          id: patientId,
-          name: p.name || 'Unknown',
-          section: p.section || '—',
-          gender: p.gender || '—',
-          age: p.age || '—',
-          alerts: new Set(),
-          vitals: {
-            temperature: v.temperature,
-            heart_rate: v.heart_rate,
-            blood_pressure: v.blood_pressure,
-            o2_sat: v.o2_sat,
-            respiratory_rate: v.respiratory_rate
-          }
-        };
-      }
-      alerts.forEach(a => highRiskMapLocal[patientId].alerts.add(a));
-    }
-  }
-
-  highRiskPatients = Object.values(highRiskMapLocal).map(p => ({
-    ...p,
-    alerts: Array.from(p.alerts)
-  }));
-  activeAlerts = highRiskPatients.length;
-
-  // Fallback Outbreak Detection
-  const recentLogsLocal = localVisitLogs.filter(l => l.event_type === 'Check-in' && new Date(l.created_at) >= fortyEightHoursAgo);
-  const sectionFluPatientsLocal = {};
-  const symptomsBreakdown = {
-    fever_flu: 0,
-    respiratory: 0,
-    gastrointestinal: 0,
-    injury_sprains: 0
-  };
-
-  for (const log of recentLogsLocal) {
-    const complaint = (log.details || '').toLowerCase();
-    const hasFluSymptom = fluKeywords.some(kw => complaint.includes(kw));
-    const p = localPatients.find(x => x.id === log.patient_id) || {};
-    const section = p.section;
-
-    if (hasFluSymptom && section && section !== 'Unassigned' && section.trim() !== '') {
-      if (!sectionFluPatientsLocal[section]) {
-        sectionFluPatientsLocal[section] = new Set();
-      }
-      sectionFluPatientsLocal[section].add(log.patient_id);
-    }
-
-    // Compute symptom breakdown fallback
-    if (categories.fever_flu.some(kw => complaint.includes(kw))) symptomsBreakdown.fever_flu++;
-    if (categories.respiratory.some(kw => complaint.includes(kw))) symptomsBreakdown.respiratory++;
-    if (categories.gastrointestinal.some(kw => complaint.includes(kw))) symptomsBreakdown.gastrointestinal++;
-    if (categories.injury_sprains.some(kw => complaint.includes(kw))) symptomsBreakdown.injury_sprains++;
-  }
-
-  for (const section of Object.keys(sectionFluPatientsLocal)) {
-    if (sectionFluPatientsLocal[section].size >= 5) {
-      outbreakAlert = {
-        section,
-        count: sectionFluPatientsLocal[section].size,
-        message: `⚠️ Outbreak Warning: ${sectionFluPatientsLocal[section].size} students from section ${section} checked in with flu-like symptoms in the last 48 hours!`
-      };
-      break;
-    }
-  }
-
-  res.json({
-    totalPatients,
-    checkinsToday,
-    activeAlerts,
-    bedsOccupied,
-    paracetamolStock,
-    sentHomeToday,
-    occupiedBedsList,
-    highRiskPatients,
-    outbreakAlert,
-    symptomsBreakdown
-  });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Dashboard Route: Activity Audit Log
 app.get('/api/dashboard/activity', async (req, res) => {
@@ -2622,9 +1854,8 @@ app.get('/api/dashboard/activity', async (req, res) => {
   const startOfTarget = new Date(targetDate.setHours(0, 0, 0, 0));
   const endOfTarget = new Date(targetDate.setHours(23, 59, 59, 999));
 
-  if (!useFallback) {
-    try {
-      const { data: logs, error: lErr } = await supabase.from('visit_logs')
+  try {
+    const { data: logs, error: lErr } = await supabase.from('visit_logs')
         .select('*, patients(name)')
         .gte('created_at', startOfTarget.toISOString())
         .lte('created_at', endOfTarget.toISOString())
@@ -2640,30 +1871,10 @@ app.get('/api/dashboard/activity', async (req, res) => {
         created_at: l.created_at
       }));
       return res.json({ data: formatted });
-    } catch (err) {
-      console.warn("[WARNING] Supabase activity query failed. Falling back to local db:", err.message);
-    }
-  }
-
-  // Fallback DB
-  const logs = localVisitLogs.filter(l => {
-    const d = new Date(l.created_at);
-    return d >= startOfTarget && d <= endOfTarget;
-  }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-  const formatted = logs.map(l => {
-    const p = localPatients.find(p => p.id === l.patient_id);
-    return {
-      id: l.id,
-      patient_id: l.patient_id,
-      patient_name: p ? p.name : 'Unknown Patient',
-      event_type: l.event_type,
-      details: l.details,
-      created_at: l.created_at
-    };
-  });
-  res.json({ data: formatted });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Dashboard Route: Weekly Trends
 app.get('/api/dashboard/trends', async (req, res) => {
@@ -2682,9 +1893,8 @@ app.get('/api/dashboard/trends', async (req, res) => {
 
   const trendData = {};
 
-  if (!useFallback) {
-    try {
-      const { data: checkins } = await supabase.from('visit_logs')
+  try {
+    const { data: checkins } = await supabase.from('visit_logs')
         .select('created_at')
         .eq('event_type', 'Check-in');
 
@@ -2701,43 +1911,23 @@ app.get('/api/dashboard/trends', async (req, res) => {
       });
 
       return res.json({ data: trendData });
-    } catch (err) {
-      console.warn("[WARNING] Supabase trends query failed. Falling back to local db:", err.message);
-    }
-  }
-
-  // Fallback DB
-  weekdays.forEach((day, index) => {
-    const start = getWeekdayDate(index + 1);
-    const end = new Date(start);
-    end.setHours(23, 59, 59, 999);
-
-    const count = localVisitLogs.filter(c => {
-      const cd = new Date(c.created_at);
-      return c.event_type === 'Check-in' && cd >= start && cd <= end;
-    }).length;
-    trendData[day] = count;
-  });
-
-  res.json({ data: trendData });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Get Parental Consents
 app.get('/api/patients/:id/consents', async (req, res) => {
   const patientId = parseInt(req.params.id);
   if (isNaN(patientId)) return res.status(400).json({ error: 'Invalid patient ID' });
-  if (!useFallback) {
-    try {
-      const { data, error } = await supabase.from('parental_consents').select('*').eq('patient_id', patientId).order('created_at', { ascending: false });
+  try {
+    const { data, error } = await supabase.from('parental_consents').select('*').eq('patient_id', patientId).order('created_at', { ascending: false });
       if (error) throw error;
       return res.json({ data: data || [] });
-    } catch (err) {
-      console.warn("[WARNING] Supabase query failed. Falling back to local db:", err.message);
-    }
-  }
-  const filtered = localParentalConsents.filter(c => c.patient_id === patientId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  res.json({ data: filtered });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Save Parental Consent
 app.post('/api/patients/:id/consents', async (req, res) => {
@@ -2772,9 +1962,8 @@ app.post('/api/patients/:id/consents', async (req, res) => {
   
   const auditDetails = `Uploaded parental consent: ${consent_type} document '${document_name}' signed by parent ${parent_name}`;
 
-  if (!useFallback) {
-    try {
-      const { data, error } = await supabase.from('parental_consents').insert([{
+  try {
+    const { data, error } = await supabase.from('parental_consents').insert([{
         patient_id: patientId, consent_type, document_name, parent_name, date_granted: parsedDateGranted, notes
       }]).select();
       if (error) throw error;
@@ -2787,44 +1976,23 @@ app.post('/api/patients/:id/consents', async (req, res) => {
       }]);
 
       return res.json({ data: data[0] });
-    } catch (err) {
-      console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
-    }
-  }
-  const newConsent = {
-    id: 'c_' + Date.now(),
-    patient_id: patientId,
-    consent_type, document_name, parent_name, date_granted: parsedDateGranted, notes,
-    created_at: new Date().toISOString()
-  };
-  localParentalConsents.push(newConsent);
-  localVisitLogs.push({
-    id: 'l_' + Date.now(),
-    patient_id: patientId,
-    event_type: 'Consent Form Registered',
-    details: auditDetails,
-    performed_by: practitioner.email,
-    created_at: new Date().toISOString()
-  });
-  res.json({ data: newConsent });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Get Excuse Slips
 app.get('/api/patients/:id/excuse-slips', async (req, res) => {
   const patientId = parseInt(req.params.id);
   if (isNaN(patientId)) return res.status(400).json({ error: 'Invalid patient ID' });
-  if (!useFallback) {
-    try {
-      const { data, error } = await supabase.from('excuse_slips').select('*').eq('patient_id', patientId).order('created_at', { ascending: false });
+  try {
+    const { data, error } = await supabase.from('excuse_slips').select('*').eq('patient_id', patientId).order('created_at', { ascending: false });
       if (error) throw error;
       return res.json({ data: data || [] });
-    } catch (err) {
-      console.warn("[WARNING] Supabase query failed. Falling back to local db:", err.message);
-    }
-  }
-  const filtered = localExcuseSlips.filter(e => e.patient_id === patientId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  res.json({ data: filtered });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Patients Route: Save Excuse Slip
 app.post('/api/patients/:id/excuse-slips', async (req, res) => {
@@ -2847,9 +2015,8 @@ app.post('/api/patients/:id/excuse-slips', async (req, res) => {
   const verification_hash = crypto.createHash('md5').update(`${patientId}_${start_date}_${Date.now()}`).digest('hex').substring(0, 12).toUpperCase();
   const auditDetails = `Excused student from ${start_date} to ${end_date} due to: ${excuse_reason} (Verification Hash: ${verification_hash})`;
 
-  if (!useFallback) {
-    try {
-      const { data, error } = await supabase.from('excuse_slips').insert([{
+  try {
+    const { data, error } = await supabase.from('excuse_slips').insert([{
         patient_id: patientId, excuse_reason, start_date, end_date, teacher_notified, verification_hash, created_by: practitioner.email
       }]).select();
       if (error) throw error;
@@ -2862,28 +2029,10 @@ app.post('/api/patients/:id/excuse-slips', async (req, res) => {
       }]);
 
       return res.json({ data: data[0] });
-    } catch (err) {
-      console.warn("[WARNING] Supabase insert failed. Falling back to local db:", err.message);
-    }
-  }
-  const newSlip = {
-    id: 'e_' + Date.now(),
-    patient_id: patientId,
-    excuse_reason, start_date, end_date, teacher_notified, verification_hash,
-    created_by: practitioner.email,
-    created_at: new Date().toISOString()
-  };
-  localExcuseSlips.push(newSlip);
-  localVisitLogs.push({
-    id: 'l_' + Date.now(),
-    patient_id: patientId,
-    event_type: 'Excuse Slip Issued',
-    details: auditDetails,
-    performed_by: practitioner.email,
-    created_at: new Date().toISOString()
-  });
-  res.json({ data: newSlip });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Admin Route: Purge Graduate Patients (Data Retention)
 app.post('/api/admin/purge-graduates', async (req, res) => {
@@ -2900,9 +2049,8 @@ app.post('/api/admin/purge-graduates', async (req, res) => {
 
   let deletedCount = 0;
 
-  if (!useFallback) {
-    try {
-      // Find patients who graduated on or before cutoffYear
+  try {
+    // Find patients who graduated on or before cutoffYear
       const { data: toDelete, error: findErr } = await supabase.from('patients').select('id, name').lte('graduation_year', cutoffYear);
       if (findErr) throw findErr;
 
@@ -2914,18 +2062,10 @@ app.post('/api/admin/purge-graduates', async (req, res) => {
       }
 
       return res.json({ success: true, message: `Successfully purged ${deletedCount} student records graduated on or before ${cutoffYear}.` });
-    } catch (err) {
-      console.warn("[WARNING] Supabase purge failed. Falling back to local db:", err.message);
-    }
-  }
-
-  // Fallback DB
-  const initialCount = localPatients.length;
-  localPatients = localPatients.filter(p => !p.graduation_year || p.graduation_year > cutoffYear);
-  deletedCount = initialCount - localPatients.length;
-
-  res.json({ success: true, message: `Successfully purged ${deletedCount} student records graduated on or before ${cutoffYear}.` });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Admin Route: Get Simulated Notifications Log
 app.get('/api/admin/notifications', (req, res) => {
@@ -2934,9 +2074,8 @@ app.get('/api/admin/notifications', (req, res) => {
 
 // Settings Route: Get Clinic settings (principal and security guard emails)
 app.get('/api/settings/clinic', async (req, res) => {
-  if (!useFallback) {
-    try {
-      const { data, error } = await supabase.from('clinic_settings').select('*');
+  try {
+    const { data, error } = await supabase.from('clinic_settings').select('*');
       if (error) throw error;
       
       const settings = {};
@@ -2950,13 +2089,10 @@ app.get('/api/settings/clinic', async (req, res) => {
           security_guard_email: settings.security_guard_email || 'guard@aerohealth.com'
         }
       });
-    } catch (err) {
-      console.warn("[WARNING] Supabase query failed for clinic_settings. Falling back to local:", err.message);
-    }
-  }
-  
-  res.json({ data: localClinicSettings });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Settings Route: Update Clinic settings
 app.post('/api/settings/clinic', async (req, res) => {
@@ -2967,221 +2103,184 @@ app.post('/api/settings/clinic', async (req, res) => {
     return res.status(403).json({ error: 'Access denied. Only clinical staff and admins can update settings.' });
   }
 
-  if (!useFallback) {
-    try {
-      const { error: err1 } = await supabase.from('clinic_settings').upsert({ key: 'principal_email', value: principal_email });
+  try {
+    const { error: err1 } = await supabase.from('clinic_settings').upsert({ key: 'principal_email', value: principal_email });
       if (err1) throw err1;
       const { error: err2 } = await supabase.from('clinic_settings').upsert({ key: 'security_guard_email', value: security_guard_email });
       if (err2) throw err2;
 
       return res.json({ message: 'Clinic settings updated successfully.' });
-    } catch (err) {
-      console.warn("[WARNING] Supabase upsert failed for clinic_settings. Falling back to local:", err.message);
-    }
-  }
-
-  localClinicSettings.principal_email = principal_email || 'principal@aerohealth.com';
-  localClinicSettings.security_guard_email = security_guard_email || 'guard@aerohealth.com';
-  
-  res.json({ message: 'Clinic settings updated successfully (local store).' });
-});
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }});
 
 // Excuse Slip Route: Principal Acknowledgment Response
 app.get('/api/excuse-slips/:id/acknowledge', async (req, res) => {
   const excuseSlipId = req.params.id;
   const nowStr = new Date().toISOString();
 
-  let patientId = null;
-  let excuseReason = '';
-  let patientName = 'Student';
+  try {
+    // Fetch excuse slip and patient name
+    const { data: slip, error: fetchErr } = await supabase
+      .from('excuse_slips')
+      .select('*, patients(name)')
+      .eq('id', excuseSlipId)
+      .maybeSingle();
 
-  if (!useFallback) {
-    try {
-      // Fetch excuse slip and patient name
-      const { data: slip, error: fetchErr } = await supabase
-        .from('excuse_slips')
-        .select('*, patients(name)')
-        .eq('id', excuseSlipId)
-        .maybeSingle();
+    if (fetchErr) throw fetchErr;
 
-      if (fetchErr) throw fetchErr;
-
-      if (slip) {
-        patientId = slip.patient_id;
-        excuseReason = slip.excuse_reason;
-        const p = (slip.patients && Array.isArray(slip.patients) ? slip.patients[0] : slip.patients) || {};
-        patientName = p.name || 'Student';
-
-        // Update principal acknowledgment status
-        const { error: updateErr } = await supabase
-          .from('excuse_slips')
-          .update({
-            principal_acknowledged: true,
-            principal_acknowledged_at: nowStr
-          })
-          .eq('id', excuseSlipId);
-
-        if (updateErr) throw updateErr;
-
-        // Log audit event
-        await supabase.from('visit_logs').insert([{
-          patient_id: patientId,
-          event_type: 'Excuse Slip Approved',
-          details: `Principal email acknowledged excuse slip (ID: ${excuseSlipId})`,
-          performed_by: 'Principal'
-        }]);
-      } else {
-        return res.status(404).send('<h1>Excuse Slip not found</h1>');
-      }
-    } catch (err) {
-      console.warn("[WARNING] Supabase query/update failed. Falling back to local db:", err.message);
-      patientId = null;
+    if (!slip) {
+      return res.status(404).send('<h1>Excuse Slip not found</h1>');
     }
-  }
 
-  if (useFallback || !patientId) {
-    const slip = localExcuseSlips.find(s => s.id === excuseSlipId);
-    if (slip) {
-      slip.principal_acknowledged = true;
-      slip.principal_acknowledged_at = nowStr;
+    const patientId = slip.patient_id;
+    const excuseReason = slip.excuse_reason;
+    const p = (slip.patients && Array.isArray(slip.patients) ? slip.patients[0] : slip.patients) || {};
+    const patientName = p.name || 'Student';
 
-      patientId = slip.patient_id;
-      excuseReason = slip.excuse_reason;
-      const p = localPatients.find(x => x.id === patientId) || {};
-      patientName = p.name || 'Student';
+    // Update principal acknowledgment status
+    const { error: updateErr } = await supabase
+      .from('excuse_slips')
+      .update({
+        principal_acknowledged: true,
+        principal_acknowledged_at: nowStr
+      })
+      .eq('id', excuseSlipId);
 
-      localVisitLogs.push({
-        id: 'l_' + Date.now(),
-        patient_id: patientId,
-        event_type: 'Excuse Slip Approved',
-        details: `Principal email acknowledged excuse slip (ID: ${excuseSlipId})`,
-        performed_by: 'Principal',
-        created_at: nowStr
-      });
-    } else {
-      return res.status(404).send('<h1>Excuse Slip not found (local)</h1>');
-    }
-  }
+    if (updateErr) throw updateErr;
 
-  // Render a beautiful acknowledgement success landing page
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Excuse Slip Verification - AeroHealth</title>
-      <style>
-        body {
-          margin: 0;
-          padding: 0;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          background: #f8fafc;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 100vh;
-        }
-        .container {
-          background: #ffffff;
-          padding: 40px;
-          border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-          text-align: center;
-          max-width: 440px;
-          width: 90%;
-          border: 1px solid #e2e8f0;
-        }
-        .icon {
-          width: 64px;
-          height: 64px;
-          background: #f0fdf4;
-          color: #16a34a;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto 24px auto;
-          border: 2px solid #bbf7d0;
-        }
-        .icon svg {
-          width: 32px;
-          height: 32px;
-        }
-        h1 {
-          font-size: 20px;
-          font-weight: 800;
-          color: #0f172a;
-          margin: 0 0 12px 0;
-        }
-        p {
-          font-size: 14px;
-          color: #64748b;
-          line-height: 1.6;
-          margin: 0 0 24px 0;
-        }
-        .details {
-          background: #f8fafc;
-          border-radius: 8px;
-          padding: 16px;
-          text-align: left;
-          font-size: 13px;
-          border: 1px solid #edf2f7;
-          margin-bottom: 24px;
-        }
-        .details-row {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 8px;
-        }
-        .details-row:last-child {
-          margin-bottom: 0;
-        }
-        .details-label {
-          color: #94a3b8;
-          font-weight: 600;
-        }
-        .details-val {
-          color: #334155;
-          font-weight: 700;
-        }
-        .footer-text {
-          font-size: 11px;
-          color: #94a3b8;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="icon">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
-          </svg>
+    // Log audit event
+    await supabase.from('visit_logs').insert([{
+      patient_id: patientId,
+      event_type: 'Excuse Slip Approved',
+      details: "Principal email acknowledged excuse slip (ID: " + excuseSlipId + ")",
+      performed_by: 'Principal'
+    }]);
+
+    // Render a beautiful acknowledgement success landing page
+    return res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Excuse Slip Verification - AeroHealth</title>
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+          }
+          .container {
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            text-align: center;
+            max-width: 440px;
+            width: 90%;
+            border: 1px solid #e2e8f0;
+          }
+          .icon {
+            width: 64px;
+            height: 64px;
+            background: #f0fdf4;
+            color: #16a34a;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px auto;
+            border: 2px solid #bbf7d0;
+          }
+          .icon svg {
+            width: 32px;
+            height: 32px;
+          }
+          h1 {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 0 0 12px 0;
+          }
+          p {
+            font-size: 14px;
+            color: #64748b;
+            line-height: 1.6;
+            margin: 0 0 24px 0;
+          }
+          .details {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: left;
+            font-size: 13px;
+            border: 1px solid #edf2f7;
+            margin-bottom: 24px;
+          }
+          .details-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+          }
+          .details-row:last-child {
+            margin-bottom: 0;
+          }
+          .details-label {
+            color: #94a3b8;
+            font-weight: 600;
+          }
+          .details-val {
+            color: #334155;
+            font-weight: 700;
+          }
+          .footer-text {
+            font-size: 11px;
+            color: #94a3b8;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+            </svg>
+          </div>
+          <h1>Excuse Slip Acknowledged</h1>
+          <p>You have successfully approved and stamped the medical excuse slip for departure permission clearance.</p>
+          
+          <div class="details">
+            <div class="details-row">
+              <span class="details-label">Student Name:</span>
+              <span class="details-val">${patientName}</span>
+            </div>
+            <div class="details-row">
+              <span class="details-label">Reason:</span>
+              <span class="details-val">${excuseReason}</span>
+            </div>
+            <div class="details-row">
+              <span class="details-label">Status:</span>
+              <span class="details-val" style="color:#16a34a">Officially Approved</span>
+            </div>
+          </div>
+
+          <p class="footer-text">AeroHealth School EMR System • Real-time active response gateway</p>
         </div>
-        <h1>Excuse Slip Acknowledged</h1>
-        <p>You have successfully approved and stamped the medical excuse slip for departure permission clearance.</p>
-        
-        <div class="details">
-          <div class="details-row">
-            <span class="details-label">Student Name:</span>
-            <span class="details-val">${patientName}</span>
-          </div>
-          <div class="details-row">
-            <span class="details-label">Reason:</span>
-            <span class="details-val">${excuseReason}</span>
-          </div>
-          <div class="details-row">
-            <span class="details-label">Status:</span>
-            <span class="details-val" style="color:#16a34a">Officially Approved</span>
-          </div>
-        </div>
-
-        <p class="footer-text">AeroHealth School EMR System • Real-time active response gateway</p>
-      </div>
-    </body>
-    </html>
-  `);
-});
+      </body>
+      </html>
+    `);
+  } catch (err) {
+    console.error('[DATABASE ERROR] GET /api/excuse-slips/:id/acknowledge:', err.message);
+    return res.status(500).send('<h1>Database Error</h1><p>' + err.message + '</p>');
+  }
+});;
 
 // Start Server
 app.listen(PORT, () => {
