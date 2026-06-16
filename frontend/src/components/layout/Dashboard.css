@@ -11,16 +11,21 @@
 /* ===== TOP BAR ===== */
 .topbar {
   position: sticky;
-  top: 0;
+  top: 16px;
+  margin: 16px 32px 0;
   z-index: 50;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: var(--topbar-h);
-  padding: 0 32px;
+  padding: 0 24px;
   background: var(--bg-card);
-  box-shadow: var(--shadow-sm);
-  width: 100%;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  width: calc(100% - 64px);
   min-width: 0;
 }
 
@@ -31,6 +36,11 @@
   gap: 10px;
   cursor: pointer;
   flex-shrink: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  text-align: left;
 }
 
 .brand-mark {
@@ -62,7 +72,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  background: var(--gray-100);
+  background: rgba(11, 19, 43, 0.05);
+  border: 1px solid rgba(11, 19, 43, 0.03);
   padding: 4px;
   border-radius: var(--radius-full);
 }
@@ -119,6 +130,10 @@
   border-radius: var(--radius-full);
   cursor: pointer;
   transition: background var(--fast);
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
 
 .user-block:hover {
@@ -284,9 +299,9 @@
   display: flex;
   align-items: center;
   position: relative;
-  background: var(--gray-100);
+  background: rgba(11, 19, 43, 0.04);
   border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   width: 200px;
   transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease, background-color 0.2s ease;
   padding: 4px 8px 4px 32px;
@@ -380,6 +395,11 @@
   cursor: pointer;
   transition: background 0.15s ease;
   border-bottom: 1px solid var(--gray-100);
+  border: none;
+  background: transparent;
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
 }
 
 .search-result-item:last-child {
@@ -561,6 +581,10 @@
   cursor: pointer;
   transition: background var(--fast);
   text-align: left;
+  border: none;
+  background: transparent;
+  width: 100%;
+  font-family: inherit;
 }
 
 .notif-item:hover {

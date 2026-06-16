@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Bed, Users, UserMinus, Plus, ShieldAlert, Activity, Heart, ArrowUpRight } from 'lucide-react';
+import { Bed, Users, UserMinus, Plus, ShieldAlert, Activity, Heart, ArrowUpRight, X } from 'lucide-react';
 import { api } from '../../api';
 import { useAuth } from '../../App';
 
@@ -13,6 +14,17 @@ const ClinicTracker = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({ bedsOccupied: 0 });
   const [currentTime, setCurrentTime] = useState(Date.now());
+
+  // Checkout Modal State
+  const [showCheckOutModal, setShowCheckOutModal] = useState(false);
+  const [checkoutPatientId, setCheckoutPatientId] = useState(null);
+  const [checkoutPatientName, setCheckoutPatientName] = useState('');
+  const [issueExcuseSlip, setIssueExcuseSlip] = useState(true);
+  const [excuseReason, setExcuseReason] = useState('');
+  const [excuseStartDate, setExcuseStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [excuseEndDate, setExcuseEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [notifyTeacher, setNotifyTeacher] = useState(true);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const canManageBeds = user?.role === 'physician' || user?.role === 'nurse';
 
@@ -52,28 +64,13 @@ const ClinicTracker = () => {
   }, []);
 
   const handleDischarge = async (patientId) => {
-    if (!window.confirm('Are you sure you want to discharge this student from the clinic bed?')) return;
+    if (!window.confirm('Are you sure you want to release this student from the clinic bed?')) return;
     
     try {
-      // Find patient details
-      const patientDetailRes = await api.getPatientById(patientId);
-      if (patientDetailRes && patientDetailRes.data) {
-        const patientData = patientDetailRes.data;
-        // Update status to Active and status_color to green
-        await api.updatePatient(patientId, {
-          ...patientData,
-          status: 'Active',
-          status_color: 'green'
-        });
-        
-        // Log discharge event in check-in/visit logs
-        await api.checkInPatient(patientId, 'Discharged from clinic bed observation.');
-        
-        // Refresh page data
-        fetchClinicData();
-      }
+      await api.dischargePatient(patientId);
+      fetchClinicData();
     } catch (err) {
-      alert('Failed to discharge patient: ' + err.message);
+      alert('Failed to release student: ' + err.message);
     }
   };
 
@@ -83,24 +80,65 @@ const ClinicTracker = () => {
 
     try {
       const patientId = parseInt(selectedPatientId);
-      const patientDetailRes = await api.getPatientById(patientId);
-      if (patientDetailRes && patientDetailRes.data) {
-        const patientData = patientDetailRes.data;
-        // Update status to Under Observation
-        await api.updatePatient(patientId, {
-          ...patientData,
-          status: 'Under Observation',
-          status_color: 'amber'
-        });
-
-        // Log check-in observation
-        await api.checkInPatient(patientId, 'Admitted to clinic bed for observation.');
-
-        setSelectedPatientId('');
-        fetchClinicData();
-      }
+      await api.admitPatient(patientId);
+      setSelectedPatientId('');
+      fetchClinicData();
     } catch (err) {
       alert('Failed to admit student: ' + err.message);
+    }
+  };
+
+  const handleOpenCheckOut = async (bedPatient) => {
+    setCheckoutPatientId(bedPatient.id);
+    setCheckoutPatientName(bedPatient.name);
+    // Find latest check-in complaint
+    try {
+      const res = await api.getPatientById(bedPatient.id);
+      if (res && res.data) {
+        const checkInLog = (res.data.logs || []).find(l => l.event_type === 'Check-in');
+        if (checkInLog) {
+          setExcuseReason(`Checked in due to: ${checkInLog.details}`);
+        } else {
+          setExcuseReason('');
+        }
+      }
+    } catch (err) {
+      setExcuseReason('');
+    }
+    setExcuseStartDate(new Date().toISOString().split('T')[0]);
+    setExcuseEndDate(new Date().toISOString().split('T')[0]);
+    setIssueExcuseSlip(true);
+    setNotifyTeacher(true);
+    setShowCheckOutModal(true);
+  };
+
+  const handleCheckOutSubmit = async (e) => {
+    e.preventDefault();
+    if (!checkoutPatientId) return;
+    try {
+      setIsCheckingOut(true);
+      let payload = undefined;
+      if (issueExcuseSlip && excuseReason.trim()) {
+        if (new Date(excuseStartDate) > new Date(excuseEndDate)) {
+          alert("Excuse start date cannot be after the end date.");
+          setIsCheckingOut(false);
+          return;
+        }
+        payload = {
+          excuse_reason: excuseReason.trim(),
+          start_date: excuseStartDate,
+          end_date: excuseEndDate,
+          teacher_notified: notifyTeacher
+        };
+      }
+      await api.checkOutPatient(checkoutPatientId, payload);
+      setShowCheckOutModal(false);
+      setCheckoutPatientId(null);
+      fetchClinicData();
+    } catch (err) {
+      alert("Failed to checkout student: " + err.message);
+    } finally {
+      setIsCheckingOut(false);
     }
   };
 
@@ -216,13 +254,22 @@ const ClinicTracker = () => {
                         Chart <ArrowUpRight size={12} style={{ color: 'var(--primary)' }} />
                       </button>
                       {canManageBeds && (
-                        <button 
-                          onClick={() => handleDischarge(bed.id)}
-                          className="btn btn-secondary btn-sm"
-                          style={{ borderColor: 'var(--danger)', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}
-                        >
-                          <UserMinus size={12} style={{ color: 'var(--danger)' }} /> Discharge
-                        </button>
+                        <>
+                          <button 
+                            onClick={() => handleDischarge(bed.id)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ borderColor: 'var(--gray-300)', color: 'var(--gray-600)', display: 'flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <UserMinus size={12} style={{ color: 'var(--gray-600)' }} /> Release Bed
+                          </button>
+                          <button 
+                            onClick={() => handleOpenCheckOut(bed)}
+                            className="btn btn-primary btn-sm"
+                            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                          >
+                            Check-Out
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -293,6 +340,89 @@ const ClinicTracker = () => {
           )}
         </div>
       </div>
+      {/* Check-Out Modal Portal */}
+      {showCheckOutModal && createPortal(
+        <div className="modal-overlay" onClick={() => setShowCheckOutModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Check-Out Student: {checkoutPatientName}</h3>
+              <button className="btn-close" onClick={() => setShowCheckOutModal(false)} type="button" aria-label="Close modal"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleCheckOutSubmit}>
+              <p className="text-muted" style={{ fontSize: 'var(--text-xs)', marginBottom: 14, textAlign: 'left' }}>
+                Clear the student's status and discharge them from the bed observation while sending email notifications.
+              </p>
+
+              <div className="consent-bar" style={{ marginBottom: 14 }}>
+                <label className="consent-label" style={{ color: 'var(--gray-700)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={issueExcuseSlip}
+                    onChange={(e) => setIssueExcuseSlip(e.target.checked)}
+                    style={{ accentColor: 'var(--primary)', marginTop: 0 }}
+                  />
+                  <span>Generate Medical Excuse Certificate (Recommended)</span>
+                </label>
+              </div>
+
+              {issueExcuseSlip && (
+                <>
+                  <div className="form-group" style={{ marginBottom: 14 }}>
+                    <label className="form-label">Excuse Reason / Clinical Advisory *</label>
+                    <textarea
+                      className="form-textarea"
+                      rows={3}
+                      required={issueExcuseSlip}
+                      placeholder="e.g. Student has fever and needs home rest..."
+                      value={excuseReason}
+                      onChange={(e) => setExcuseReason(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-row-2" style={{ marginBottom: 14 }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Start Date *</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        required={issueExcuseSlip}
+                        value={excuseStartDate}
+                        onChange={(e) => setExcuseStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">End Date *</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        required={issueExcuseSlip}
+                        value={excuseEndDate}
+                        onChange={(e) => setExcuseEndDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="consent-bar" style={{ marginBottom: 16 }}>
+                    <label className="consent-label" style={{ color: 'var(--gray-700)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={notifyTeacher}
+                        onChange={(e) => setNotifyTeacher(e.target.checked)}
+                        style={{ accentColor: 'var(--primary)', marginTop: 0 }}
+                      />
+                      <span>Notify homeroom teacher automatically</span>
+                    </label>
+                  </div>
+                </>
+              )}
+
+              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowCheckOutModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={isCheckingOut}>Complete Checkout</button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

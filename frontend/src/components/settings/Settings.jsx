@@ -486,6 +486,7 @@ const SettingsPage = () => {
                             onChange={(e) => handleMfaInput(i, e.target.value.replace(/\D/g, ''))}
                             onKeyDown={(e) => handleMfaKeyDown(i, e)}
                             autoComplete="off"
+                            aria-label={`Verification code digit ${i + 1}`}
                           />
                         ))}
                       </div>
@@ -522,6 +523,7 @@ const SettingsPage = () => {
                             onChange={(e) => handleMfaInput(i, e.target.value.replace(/\D/g, ''))}
                             onKeyDown={(e) => handleMfaKeyDown(i, e)}
                             autoComplete="off"
+                            aria-label={`Verification code digit ${i + 1}`}
                           />
                         ))}
                       </div>

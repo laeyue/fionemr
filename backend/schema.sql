@@ -193,6 +193,18 @@ INSERT INTO clinic_settings (key, value) VALUES
 ON CONFLICT (key) DO NOTHING;
 
 
+-- Create Indexes for Foreign Keys to Optimize Performance
+CREATE INDEX idx_vitals_patient_id ON vitals(patient_id);
+CREATE INDEX idx_soap_notes_patient_id ON soap_notes(patient_id);
+CREATE INDEX idx_medication_orders_patient_id ON medication_orders(patient_id);
+CREATE INDEX idx_visit_logs_patient_id ON visit_logs(patient_id);
+CREATE INDEX idx_immunizations_patient_id ON immunizations(patient_id);
+CREATE INDEX idx_parental_consents_patient_id ON parental_consents(patient_id);
+CREATE INDEX idx_excuse_slips_patient_id ON excuse_slips(patient_id);
+CREATE INDEX idx_incident_alerts_patient_id ON incident_alerts(patient_id);
+CREATE INDEX idx_email_alerts_patient_id ON email_alerts(patient_id);
+
+
 -- Disable Row Level Security (RLS) for all tables to allow development API access
 ALTER TABLE accounts DISABLE ROW LEVEL SECURITY;
 ALTER TABLE patients DISABLE ROW LEVEL SECURITY;

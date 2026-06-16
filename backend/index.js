@@ -1139,9 +1139,32 @@ app.get('/api/patients', async (req, res) => {
         query = query.ilike('name', `${req.query.letter}%`);
       }
       query = query.order('name', { ascending: true });
-      const { data, error } = await query;
+      const { data: patientsList, error } = await query;
       if (error) throw error;
-      return res.json({ data });
+
+      // If there are checked-in patients, fetch their latest check-in log details to include in the response
+      if (patientsList && patientsList.length > 0) {
+        const checkedInIds = patientsList.filter(p => p.status === 'Checked In').map(p => p.id);
+        if (checkedInIds.length > 0) {
+          const { data: logs, error: logsErr } = await supabase
+            .from('visit_logs')
+            .select('patient_id, details, created_at')
+            .eq('event_type', 'Check-in')
+            .in('patient_id', checkedInIds)
+            .order('created_at', { ascending: false });
+
+          if (!logsErr && logs) {
+            patientsList.forEach(p => {
+              if (p.status === 'Checked In') {
+                const latestLog = logs.find(l => l.patient_id === p.id);
+                p.chief_complaint = latestLog ? latestLog.details : 'No details';
+              }
+            });
+          }
+        }
+      }
+
+      return res.json({ data: patientsList });
   } catch (err) {
     console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
     return res.status(500).json({ error: err.message });
@@ -1182,32 +1205,29 @@ app.post('/api/patients', async (req, res) => {
       }]).select();
       if (error) throw error;
       const newPatient = data[0];
-
-      // Seed default immunizations in Supabase
+ 
+      // Seed default immunizations & insert audit log in parallel
       const defaultVaccines = [
         { vaccine: 'Measles (MMR)', req: 2 },
         { vaccine: 'Polio (IPV)', req: 4 },
         { vaccine: 'Hepatitis B', req: 3 },
         { vaccine: 'Varicella (Chickenpox)', req: 2 }
       ];
-      await supabase.from('immunizations').insert(defaultVaccines.map(v => ({
-        patient_id: newPatient.id,
-        vaccine_name: v.vaccine,
-        doses_received: 0,
-        doses_required: v.req
-      })));
-
-      // Audit Log for Register / Check-in
-      await supabase.from('visit_logs').insert([{
-        patient_id: newPatient.id,
-        event_type: 'Check-in',
-        details: 'Patient registered and checked in.',
-        performed_by: practitioner.email
-      }]);
-
-      // Trigger Simulated Parent Notification
-      triggerParentNotification(newPatient.id, 'registered and checked into the school clinic.');
-
+      await Promise.all([
+        supabase.from('immunizations').insert(defaultVaccines.map(v => ({
+          patient_id: newPatient.id,
+          vaccine_name: v.vaccine,
+          doses_received: 0,
+          doses_required: v.req
+        }))),
+        supabase.from('visit_logs').insert([{
+          patient_id: newPatient.id,
+          event_type: 'Registration',
+          details: 'Student roster record registered.',
+          performed_by: practitioner.email
+        }])
+      ]);
+ 
       return res.json({ data: newPatient });
   } catch (err) {
     console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
@@ -1249,19 +1269,21 @@ app.get('/api/patients/:id', async (req, res) => {
       const { data: excuseSlips } = await supabase.from('excuse_slips').select('*').eq('patient_id', id).order('created_at', { ascending: false });
 
       if (!isRestrictedRole) {
-        const { data: vData } = await supabase.from('vitals').select('*').eq('patient_id', id).order('recorded_at', { ascending: false });
-        const { data: sData } = await supabase.from('soap_notes').select('*').eq('patient_id', id).order('created_at', { ascending: false });
-        const { data: oData } = await supabase.from('medication_orders').select('*').eq('patient_id', id).order('created_at', { ascending: false });
-        const { data: iData } = await supabase.from('immunizations').select('*').eq('patient_id', id).order('vaccine_name', { ascending: true });
-        const { data: cData } = await supabase.from('parental_consents').select('*').eq('patient_id', id).order('created_at', { ascending: false });
-        const { data: lData } = await supabase.from('visit_logs').select('*').eq('patient_id', id).order('created_at', { ascending: false });
+        const [vRes, sRes, oRes, iRes, cRes, lRes] = await Promise.all([
+          supabase.from('vitals').select('*').eq('patient_id', id).order('recorded_at', { ascending: false }),
+          supabase.from('soap_notes').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
+          supabase.from('medication_orders').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
+          supabase.from('immunizations').select('*').eq('patient_id', id).order('vaccine_name', { ascending: true }),
+          supabase.from('parental_consents').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
+          supabase.from('visit_logs').select('*').eq('patient_id', id).order('created_at', { ascending: false })
+        ]);
 
-        vitals = vData || [];
-        soapNotes = sData || [];
-        orders = oData || [];
-        immunizations = iData || [];
-        consents = cData || [];
-        logs = lData || [];
+        vitals = vRes.data || [];
+        soapNotes = sRes.data || [];
+        orders = oRes.data || [];
+        immunizations = iRes.data || [];
+        consents = cRes.data || [];
+        logs = lRes.data || [];
       } else {
         // Teachers/counselors can only see their own view action and general excuse logs
         const { data: lData } = await supabase.from('visit_logs').select('*').eq('patient_id', id).eq('event_type', 'Check-in').order('created_at', { ascending: false });
@@ -1631,6 +1653,72 @@ app.post('/api/patients/:id/checkin', async (req, res) => {
     return res.status(500).json({ error: err.message });
   }});
 
+// Patients Route: Admit to Clinic Bed for Observation
+app.post('/api/patients/:id/admit', async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid patient ID' });
+
+  const practitioner = getPractitioner(req);
+  if (practitioner.role !== 'physician' && practitioner.role !== 'nurse') {
+    return res.status(403).json({ error: 'Access denied. Only physicians and nurses can admit patients to clinic beds.' });
+  }
+
+  try {
+    // 1. Update patient status to 'Under Observation'
+    await supabase.from('patients').update({
+      status: 'Under Observation',
+      status_color: 'amber'
+    }).eq('id', id);
+
+    // 2. Insert visit log
+    const { data, error } = await supabase.from('visit_logs').insert([{
+      patient_id: id,
+      event_type: 'Bed Observation',
+      details: 'Admitted to clinic bed for observation.',
+      performed_by: practitioner.email
+    }]).select();
+    if (error) throw error;
+
+    return res.json({ data: data[0] });
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Patients Route: Discharge from Bed back to Checked In
+app.post('/api/patients/:id/discharge', async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid patient ID' });
+
+  const practitioner = getPractitioner(req);
+  if (practitioner.role !== 'physician' && practitioner.role !== 'nurse') {
+    return res.status(403).json({ error: 'Access denied. Only physicians and nurses can discharge patients from clinic beds.' });
+  }
+
+  try {
+    // 1. Update patient status back to 'Checked In'
+    await supabase.from('patients').update({
+      status: 'Checked In',
+      status_color: 'amber'
+    }).eq('id', id);
+
+    // 2. Insert visit log
+    const { data, error } = await supabase.from('visit_logs').insert([{
+      patient_id: id,
+      event_type: 'Bed Observation',
+      details: 'Discharged from clinic bed observation.',
+      performed_by: practitioner.email
+    }]).select();
+    if (error) throw error;
+
+    return res.json({ data: data[0] });
+  } catch (err) {
+    console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Patients Route: Check-Out Patient
 app.post('/api/patients/:id/checkout', async (req, res) => {
   const id = parseInt(req.params.id);
@@ -1641,9 +1729,35 @@ app.post('/api/patients/:id/checkout', async (req, res) => {
     return res.status(403).json({ error: 'Access denied. Only physicians and nurses can check out patients.' });
   }
 
+  const { excuse_reason, start_date, end_date, teacher_notified } = req.body;
   const auditDetails = 'Student checked out of the clinic.';
 
   try {
+    // 1. If excuse slip details are provided, create the excuse slip first.
+    // This resolves the sequence dependency so triggerCheckoutEmails sees the current slip.
+    if (excuse_reason?.trim()) {
+      const verification_hash = crypto.createHash('md5').update(`${id}_${start_date}_${Date.now()}`).digest('hex').substring(0, 12).toUpperCase();
+      const excuseAudit = `Excused student from ${start_date} to ${end_date} due to: ${excuse_reason} (Verification Hash: ${verification_hash})`;
+
+      const { error: slipErr } = await supabase.from('excuse_slips').insert([{
+        patient_id: id,
+        excuse_reason: excuse_reason.trim(),
+        start_date,
+        end_date,
+        teacher_notified: teacher_notified ? 'Yes' : 'No',
+        verification_hash,
+        created_by: practitioner.email
+      }]);
+      if (slipErr) throw slipErr;
+
+      await supabase.from('visit_logs').insert([{
+        patient_id: id,
+        event_type: 'Excuse Slip Issued',
+        details: excuseAudit,
+        performed_by: practitioner.email
+      }]);
+    }
+
     // Get patient info first to send emails
       const { data: patient } = await supabase.from('patients').select('*').eq('id', id).maybeSingle();
 
@@ -1763,7 +1877,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
       supabase.from('visit_logs').select('*', { count: 'exact', head: true }).eq('event_type', 'Check-in').gte('created_at', startOfDay.toISOString()),
       supabase.from('medication_orders').select('*', { count: 'exact', head: true }).ilike('medication', '%paracetamol%'),
       supabase.from('soap_notes').select('*', { count: 'exact', head: true }).eq('disposition', 'Sent Home').gte('created_at', startOfDay.toISOString()),
-      supabase.from('patients').select('id, name, section, gender, age, created_at').eq('status', 'Checked In'),
+      supabase.from('patients').select('id, name, section, gender, age, created_at').eq('status', 'Under Observation'),
       supabase.from('vitals').select('*, patients(name, section, gender, age)').gte('recorded_at', startOfDay.toISOString()).order('recorded_at', { ascending: false }),
       supabase.from('visit_logs').select('*, patients(section)').eq('event_type', 'Check-in').gte('created_at', fortyEightHoursAgo.toISOString())
     ]);
@@ -1955,9 +2069,15 @@ app.get('/api/dashboard/trends', async (req, res) => {
   const trendData = {};
 
   try {
+    const startOfWeek = getWeekdayDate(1); // Monday
+    const endOfWeek = getWeekdayDate(5);   // Friday
+    endOfWeek.setHours(23, 59, 59, 999);
+
     const { data: checkins } = await supabase.from('visit_logs')
         .select('created_at')
-        .eq('event_type', 'Check-in');
+        .eq('event_type', 'Check-in')
+        .gte('created_at', startOfWeek.toISOString())
+        .lte('created_at', endOfWeek.toISOString());
 
       weekdays.forEach((day, index) => {
         const start = getWeekdayDate(index + 1); // 1 = Monday
@@ -2345,6 +2465,23 @@ app.get('/api/excuse-slips/:id/acknowledge', async (req, res) => {
     return res.status(500).send('<h1>Database Error</h1><p>' + err.message + '</p>');
   }
 });;
+
+// Centralized Express Error Handling Middleware
+app.use((err, req, res, next) => {
+  console.error(`[EXPRESS ERROR] ${req.method} ${req.path}:`, err.stack || err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error'
+  });
+});
+
+// Process-level unhandled rejection & uncaught exception safety handlers
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception thrown:', err.stack || err);
+});
 
 // Start Server
 app.listen(PORT, () => {

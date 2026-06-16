@@ -1,76 +1,90 @@
 /* ===== GOOGLE FONTS ===== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playball&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@300;400;500;600;700&family=Playball&display=swap');
 
-/* ===== DESIGN TOKENS — SOFT UI ===== */
+/* ===== DESIGN TOKENS — AERO FLIGHT DECK ===== */
 :root {
-  /* Background */
-  --bg-page: #f0f2f5;
-  --bg-card: #ffffff;
-  --bg-card-hover: #fafbfc;
-  --bg-input: #f5f7fa;
-  --bg-overlay: rgba(255, 255, 255, 0.65);
+  /* Background & Glass */
+  --bg-page: #f3f5f9;
+  --bg-card: rgba(255, 255, 255, 0.72);
+  --bg-card-hover: rgba(255, 255, 255, 0.88);
+  --bg-input: rgba(248, 250, 252, 0.9);
+  --bg-overlay: rgba(11, 19, 43, 0.35);
+  --border-color: rgba(var(--altitude-blue-rgb), 0.07);
 
-  /* Blue Accent */
-  --blue-50: #eff6ff;
-  --blue-100: #dbeafe;
-  --blue-200: #bfdbfe;
-  --blue-300: #93c5fd;
-  --blue-400: #60a5fa;
-  --blue-500: #3b82f6;
-  --blue-600: #2563eb;
-  --blue-700: #1d4ed8;
-  --blue-800: #1e40af;
-  --blue-900: #1e3a8a;
+  /* AERO THEMATIC PALETTE */
+  --aviator-navy: #0b132b;
+  --altitude-blue-rgb: 14, 165, 233; /* #0ea5e9 (Sky-500) - Lighter altitude blue */
+  --altitude-blue: rgb(var(--altitude-blue-rgb));
+  --altitude-blue-hover: #0284c7; /* Sky-600 */
+  --altitude-blue-light: #f0f9ff; /* Sky-50 */
+  --beacon-orange: #f97316;
+  --beacon-orange-bg: #fff7ed;
+  --runway-green: #10b981;
+  --runway-green-bg: #f0fdf4;
+  --radar-danger: #ef4444;
+  --radar-danger-bg: #fef2f2;
 
-  --primary: var(--blue-500);
-  --primary-hover: var(--blue-600);
-  --primary-light: var(--blue-50);
+  --primary: var(--altitude-blue);
+  --primary-hover: var(--altitude-blue-hover);
+  --primary-light: var(--altitude-blue-light);
+
+  /* Blue System Palette (for badges, pills, etc.) */
+  --blue-50: #f0f9ff;
+  --blue-100: #e0f2fe;
+  --blue-200: #bae6fd;
+  --blue-300: #7dd3fc;
+  --blue-400: #38bdf8;
+  --blue-500: #0ea5e9;
+  --blue-600: #0284c7;
+  --blue-700: #0369a1;
+  --blue-800: #075985;
+  --blue-900: #0c4a6e;
 
   /* Neutrals */
-  --gray-50: #f9fafb;
-  --gray-100: #f3f4f6;
-  --gray-200: #e5e7eb;
-  --gray-300: #d1d5db;
-  --gray-400: #9ca3af;
-  --gray-500: #6b7280;
-  --gray-600: #4b5563;
-  --gray-700: #374151;
-  --gray-800: #1f2937;
-  --gray-900: #111827;
+  --gray-50: #f8fafc;
+  --gray-100: #f1f5f9;
+  --gray-200: #e2e8f0;
+  --gray-300: #cbd5e1;
+  --gray-400: #94a3b8;
+  --gray-500: #64748b;
+  --gray-600: #475569;
+  --gray-700: #334155;
+  --gray-800: #1e293b;
+  --gray-900: #0f172a;
 
-  /* Semantic */
-  --success: #10b981;
-  --success-bg: #ecfdf5;
-  --warning: #f59e0b;
-  --warning-bg: #fffbeb;
-  --danger: #ef4444;
-  --danger-bg: #fef2f2;
-  --info: #06b6d4;
-  --info-bg: #ecfeff;
+  /* Semantic Map overrides */
+  --success: var(--runway-green);
+  --success-bg: var(--runway-green-bg);
+  --warning: var(--beacon-orange);
+  --warning-bg: var(--beacon-orange-bg);
+  --danger: var(--radar-danger);
+  --danger-bg: var(--radar-danger-bg);
+  --info: var(--altitude-blue);
+  --info-bg: var(--altitude-blue-light);
 
-  /* Shadows — Soft & Diffuse */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.1);
-  --shadow-blue: 0 4px 14px rgba(59, 130, 246, 0.25);
+  /* Shadows — Soft cockpit depths */
+  --shadow-xs: 0 1px 2px rgba(11, 19, 43, 0.02);
+  --shadow-sm: 0 2px 4px rgba(11, 19, 43, 0.03);
+  --shadow-md: 0 8px 24px rgba(11, 19, 43, 0.04);
+  --shadow-lg: 0 16px 40px rgba(11, 19, 43, 0.06);
+  --shadow-xl: 0 24px 60px rgba(11, 19, 43, 0.08);
+  --shadow-blue: 0 4px 14px rgba(var(--altitude-blue-rgb), 0.18);
 
   /* Glass */
-  --glass-bg: rgba(255, 255, 255, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.45);
-  --glass-blur: blur(20px);
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-blur: blur(25px);
 
   /* Radii */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-2xl: 24px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 22px;
   --radius-full: 9999px;
 
   /* Typography */
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font: 'Outfit', 'Inter', -apple-system, sans-serif;
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-base: 0.9375rem;
@@ -87,7 +101,7 @@
   --slow: 400ms;
 
   /* Layout */
-  --topbar-h: 72px;
+  --topbar-h: 76px;
 }
 
 /* ===== RESET ===== */
@@ -136,7 +150,7 @@ ul, ol { list-style: none; }
 img { max-width: 100%; display: block; }
 
 /* ===== TYPE SCALE ===== */
-h1 { font-size: var(--text-3xl); font-weight: 900; letter-spacing: -0.03em; line-height: 1.15; color: var(--gray-900); }
+h1 { font-size: var(--text-3xl); font-weight: 900; letter-spacing: -0.02em; line-height: 1.15; color: var(--gray-900); }
 h2 { font-size: var(--text-2xl); font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; color: var(--gray-900); }
 h3 { font-size: var(--text-xl); font-weight: 700; color: var(--gray-800); }
 h4 { font-size: var(--text-lg); font-weight: 700; color: var(--gray-800); }
@@ -145,11 +159,13 @@ h5 { font-size: var(--text-base); font-weight: 600; color: var(--gray-700); }
 /* ===== CARD ===== */
 .card {
   background: var(--bg-card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
   padding: 24px;
-  border: none;
-  transition: box-shadow var(--normal) var(--ease), transform var(--normal) var(--ease);
+  transition: all var(--normal) var(--ease);
   min-width: 0;
   overflow-wrap: break-word;
   word-break: break-word;
@@ -157,6 +173,8 @@ h5 { font-size: var(--text-base); font-weight: 600; color: var(--gray-700); }
 
 .card:hover {
   box-shadow: var(--shadow-lg);
+  border-color: rgba(var(--altitude-blue-rgb), 0.18);
+  transform: translateY(-2px);
 }
 
 .card-flat {
@@ -411,3 +429,38 @@ h5 { font-size: var(--text-base); font-weight: 600; color: var(--gray-700); }
     font-size: var(--text-xl);
   }
 }
+
+/* ===== GLOBAL BLUE ICONS OVERRIDE ===== */
+svg.lucide,
+.lucide,
+.brand-mark svg,
+.notif-icon-circle svg,
+.mfa-status-banner svg {
+  color: var(--altitude-blue) !important;
+  stroke: var(--altitude-blue) !important;
+}
+
+/* ===== ACCESSIBILITY OUTLINES ===== */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ===== MOTION SENSITIVITIES ===== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: initial !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
+

@@ -31,3 +31,9 @@ build/
 *.sln
 *.sw?
 .DS_Store
+
+# Agent / System files
+.agents/
+SKILL.md
+skills-lock.json
+

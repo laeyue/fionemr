@@ -226,9 +226,14 @@ const DashboardHome = () => {
                 </div>
                 <div className="pill-list">
                   {recentPatients.length > 0 ? (
-                    recentPatients.map(p => (
-                      <div key={p.id} className="pill-item" onClick={() => navigate(`/dashboard/patients/${p.id}`)}>
-                        <div className="avatar avatar-xs">{p.name.split(' ').map(w => w[0]).join('')}</div>
+                    recentPatients.map((p, idx) => (
+                      <div 
+                        key={p.id} 
+                        className="pill-item split-flap-item" 
+                        onClick={() => navigate(`/dashboard/patients/${p.id}`)}
+                        style={{ '--flap-delay': `${idx * 0.15}s` }}
+                      >
+                        <div className="avatar avatar-xs">{p.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}</div>
                         <div className="pill-info">
                           <span className="pill-name">{p.name}</span>
                           <span className="pill-subtext">{p.section}</span>
@@ -430,15 +435,23 @@ const DashboardHome = () => {
 
 /* ===== Square Card Component ===== */
 const SquareCard = ({ label, value, color, onClick, icon: Icon }) => (
-  <div className={`square-card card sq-${color}`} onClick={onClick}>
-    {Icon && (
-      <div className="sq-icon">
-        <Icon size={20} />
-      </div>
-    )}
-    <span className="sq-value">{value}</span>
-    <span className="sq-label">{label}</span>
-  </div>
+  <button 
+    className={`square-card card sq-${color}`} 
+    onClick={onClick}
+    aria-label={`${label}: ${value}`}
+  >
+    <div className="sq-icon-wrap">
+      {Icon && (
+        <div className="sq-icon">
+          <Icon size={18} />
+        </div>
+      )}
+    </div>
+    <div className="sq-info">
+      <span className="sq-value">{value}</span>
+      <span className="sq-label">{label}</span>
+    </div>
+  </button>
 );
 
 export default DashboardHome;

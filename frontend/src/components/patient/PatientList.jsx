@@ -18,8 +18,9 @@ const PatientList = () => {
   const [nameLetterFilter, setNameLetterFilter] = useState('');
   
   const [isLoading, setIsLoading] = useState(true);
+  const [activeSubTab, setActiveSubTab] = useState('active-patients');
 
-  // Modal State
+  // Registration Modal State
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -30,8 +31,6 @@ const PatientList = () => {
     date_of_birth: '',
     grade_level: '',
     graduation_year: '',
-    allergies: '',
-    chronic_conditions: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
     emergency_contact_relationship: '',
@@ -40,12 +39,16 @@ const PatientList = () => {
     adviser_email: ''
   });
 
+  // Check-In Modal State
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [checkInComplaint, setCheckInComplaint] = useState('');
+
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
   const fetchPatients = async () => {
     try {
       setIsLoading(true);
-      // Fetch all patients so client-side filtering is instantaneous
       const res = await api.getPatients();
       if (res && res.data) {
         setPatients(res.data);
@@ -100,15 +103,14 @@ const PatientList = () => {
     }
 
     try {
-      const statusColorMap = {
-        'Checked In': 'amber',
-        'Checked Out': 'gray',
-      };
-      const patientPayload = {
+      const studentPayload = {
         ...formData,
-        status_color: statusColorMap[formData.status] || 'gray'
+        status: 'Checked Out',
+        status_color: 'gray',
+        allergies: 'None',
+        chronic_conditions: 'None'
       };
-      const res = await api.registerPatient(patientPayload);
+      const res = await api.registerPatient(studentPayload);
       if (res && res.data) {
         setShowModal(false);
         setFormData({
@@ -120,8 +122,6 @@ const PatientList = () => {
           date_of_birth: '',
           grade_level: '',
           graduation_year: '',
-          allergies: '',
-          chronic_conditions: '',
           emergency_contact_name: '',
           emergency_contact_phone: '',
           emergency_contact_relationship: '',
@@ -129,10 +129,35 @@ const PatientList = () => {
           adviser_name: '',
           adviser_email: ''
         });
-        navigate(`/dashboard/patients/${res.data.id}`);
+        await fetchPatients();
+        setActiveSubTab('student-directory');
       }
     } catch (err) {
-      console.error("Error registering patient:", err);
+      console.error("Error registering student:", err);
+      alert("Failed to register student: " + err.message);
+    }
+  };
+
+  const handleCheckInSubmit = async (e) => {
+    e.preventDefault();
+    if (!checkInComplaint.trim() || !selectedStudent) {
+      alert("Please enter a chief complaint for the check-in.");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await api.checkInPatient(selectedStudent.id, checkInComplaint.trim());
+      setShowCheckInModal(false);
+      setCheckInComplaint('');
+      setSelectedStudent(null);
+      await fetchPatients();
+      navigate(`/dashboard/patients/${selectedStudent.id}`);
+    } catch (err) {
+      console.error("Error checking in student:", err);
+      alert("Failed to check in student: " + err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -147,6 +172,10 @@ const PatientList = () => {
   // Filter patients based on selection or search parameters
   const getFilteredPatients = () => {
     let list = [...patients];
+
+    if (activeSubTab === 'active-patients') {
+      list = list.filter(p => p.status === 'Checked In');
+    }
 
     if (selectedSection) {
       // Filter by section first
@@ -178,11 +207,41 @@ const PatientList = () => {
       {/* Header */}
       <div className="page-top">
         <div>
-          <h2>Patient Records</h2>
-          <p className="text-muted">{patients.length} total records</p>
+          <h2>Clinic Registry</h2>
+          <p className="text-muted">{patients.length} total registered students</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          <Plus size={16} /> Register Patient
+          <Plus size={16} /> Register Student
+        </button>
+      </div>
+
+      {/* Sub-tabs to switch between Active Patients and Student Directory */}
+      <div className="sub-tabs">
+        <button 
+          className={`sub-tab ${activeSubTab === 'active-patients' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveSubTab('active-patients');
+            setSelectedSection('');
+            setSectionQuery('');
+            setNameLetterFilter('');
+            setLetterFilter('');
+            setSearch('');
+          }}
+        >
+          Active Checked-In Patients ({patients.filter(p => p.status === 'Checked In').length})
+        </button>
+        <button 
+          className={`sub-tab ${activeSubTab === 'student-directory' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveSubTab('student-directory');
+            setSelectedSection('');
+            setSectionQuery('');
+            setNameLetterFilter('');
+            setLetterFilter('');
+            setSearch('');
+          }}
+        >
+          Student Directory ({patients.length})
         </button>
       </div>
 
@@ -200,7 +259,8 @@ const PatientList = () => {
               <input
                 type="text"
                 className="search-inner"
-                placeholder="Type letter of classroom / grade... (e.g. S, G)"
+                placeholder="Type letter of classroom / grade… (e.g. S, G)"
+                aria-label="Filter by classroom or grade"
                 value={sectionQuery}
                 onChange={(e) => {
                   setSectionQuery(e.target.value);
@@ -259,7 +319,8 @@ const PatientList = () => {
                 <input
                   type="text"
                   className="search-inner"
-                  placeholder="Search globally by name or ID..."
+                  placeholder="Search globally by name or ID…"
+                  aria-label="Search globally by name or ID"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -277,6 +338,7 @@ const PatientList = () => {
             <button 
               className={`alpha-btn ${selectedSection ? (nameLetterFilter === '' ? 'active' : '') : (letterFilter === '' ? 'active' : '')}`} 
               onClick={() => selectedSection ? setNameLetterFilter('') : setLetterFilter('')}
+              aria-label="All letters"
             >
               All
             </button>
@@ -291,6 +353,7 @@ const PatientList = () => {
                     setLetterFilter(letterFilter === letter ? '' : letter);
                   }
                 }}
+                aria-label={`Filter by letter ${letter}`}
               >
                 {letter}
               </button>
@@ -303,35 +366,100 @@ const PatientList = () => {
       {isLoading ? (
         <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '80px 40px' }}>
           <Loader2 className="spin text-primary" size={36} />
-          <p className="text-muted" style={{ marginTop: 12 }}>Loading patient list...</p>
+          <p className="text-muted" style={{ marginTop: 12 }}>Loading records...</p>
         </div>
       ) : filtered.length > 0 ? (
         <div className="card table-card anim-fade-up delay-2" style={{ padding: 0 }}>
           <table className="data-table">
             <thead>
-              <tr>
-                <th>Patient ID</th>
-                <th>Full Name</th>
-                <th>Section</th>
-                <th>Age</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
+              {activeSubTab === 'active-patients' ? (
+                <tr>
+                  <th>Patient ID</th>
+                  <th>Full Name</th>
+                  <th>Section</th>
+                  <th>Age</th>
+                  <th>Chief Complaint</th>
+                  <th>Actions</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th>Student ID</th>
+                  <th>Full Name</th>
+                  <th>Section</th>
+                  <th>Age</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              )}
             </thead>
             <tbody>
               {filtered.map(patient => (
-                <tr key={patient.id} onClick={() => navigate(`/dashboard/patients/${patient.id}`)}>
+                <tr 
+                  key={patient.id} 
+                  onClick={() => navigate(`/dashboard/patients/${patient.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/dashboard/patients/${patient.id}`);
+                    }
+                  }}
+                  tabIndex={0}
+                  aria-label={`View chart for ${patient.name}, status ${patient.status}`}
+                  role="link"
+                >
                   <td className="font-mono">{patient.id}</td>
                   <td>
                     <div className="name-cell">
-                      <div className="avatar avatar-xs">{patient.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}</div>
+                      <div className="avatar avatar-xs" aria-hidden="true">
+                        {patient.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+                      </div>
                       {patient.name}
                     </div>
                   </td>
                   <td>{patient.section || '—'}</td>
                   <td>{patient.age || '—'}</td>
-                  <td><span className={`badge badge-${patient.status_color || 'green'}`}>{patient.status}</span></td>
-                  <td><button className="btn btn-ghost btn-sm">View</button></td>
+                  
+                  {activeSubTab === 'active-patients' ? (
+                    <>
+                      <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {patient.chief_complaint || '—'}
+                      </td>
+                      <td>
+                        <span className="text-primary font-semibold" style={{ fontSize: 'var(--text-sm)' }}>View Chart</span>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td><span className={`badge badge-${patient.status_color || 'gray'}`}>{patient.status}</span></td>
+                      <td>
+                        {patient.status === 'Checked In' ? (
+                          <span className="text-primary font-semibold" style={{ fontSize: 'var(--text-sm)' }}>View Chart</span>
+                        ) : (
+                          <button
+                            className="btn btn-sm"
+                            type="button"
+                            style={{ 
+                              background: 'rgba(var(--altitude-blue-rgb), 0.1)', 
+                              color: 'var(--primary)', 
+                              border: 'none', 
+                              fontWeight: 700, 
+                              fontSize: 11,
+                              padding: '6px 12px',
+                              borderRadius: 'var(--radius-md)',
+                              cursor: 'pointer'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedStudent(patient);
+                              setShowCheckInModal(true);
+                            }}
+                          >
+                            Check-In
+                          </button>
+                        )}
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -342,11 +470,23 @@ const PatientList = () => {
           <div className="empty-icon-wrap">
             <Users size={36} />
           </div>
-          <h3>No patient records found</h3>
-          <p className="text-muted">Patient records will appear here once registered. Click "Register Patient" to add the first record.</p>
-          <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => setShowModal(true)}>
-            <Plus size={16} /> Register Patient
-          </button>
+          {activeSubTab === 'active-patients' ? (
+            <>
+              <h3>No active patients checked in</h3>
+              <p className="text-muted">All students are currently checked out. Search the Student Directory to check in a student.</p>
+              <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={() => setActiveSubTab('student-directory')}>
+                Go to Student Directory
+              </button>
+            </>
+          ) : (
+            <>
+              <h3>No student roster records found</h3>
+              <p className="text-muted">Student records will appear here once registered. Click "Register Student" to add the first record.</p>
+              <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => setShowModal(true)}>
+                <Plus size={16} /> Register Student
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -355,15 +495,16 @@ const PatientList = () => {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Register New Patient</h3>
-              <button className="modal-close" onClick={() => setShowModal(false)}>
+              <h3>Register New Student</h3>
+              <button className="modal-close" onClick={() => setShowModal(false)} aria-label="Close modal" type="button">
                 <X size={18} />
               </button>
             </div>
             <form onSubmit={handleRegister}>
               <div className="form-group">
-                <label className="form-label">Full Name *</label>
+                <label className="form-label" htmlFor="register-name">Full Name *</label>
                 <input
+                  id="register-name"
                   type="text"
                   name="name"
                   className="form-input"
@@ -376,8 +517,9 @@ const PatientList = () => {
 
               <div className="form-row-2">
                 <div className="form-group">
-                  <label className="form-label">Section / Classroom</label>
+                  <label className="form-label" htmlFor="register-section">Section / Classroom</label>
                   <input
+                    id="register-section"
                     type="text"
                     name="section"
                     className="form-input"
@@ -387,8 +529,9 @@ const PatientList = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Date of Birth</label>
+                  <label className="form-label" htmlFor="register-dob">Date of Birth</label>
                   <input
+                    id="register-dob"
                     type="date"
                     name="date_of_birth"
                     className="form-input"
@@ -401,8 +544,9 @@ const PatientList = () => {
 
               <div className="form-row-2">
                 <div className="form-group">
-                  <label className="form-label">Age</label>
+                  <label className="form-label" htmlFor="register-age">Age</label>
                   <input
+                    id="register-age"
                     type="number"
                     name="age"
                     className="form-input"
@@ -412,8 +556,9 @@ const PatientList = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Grade Level</label>
+                  <label className="form-label" htmlFor="register-grade">Grade Level</label>
                   <select
+                    id="register-grade"
                     name="grade_level"
                     className="form-select"
                     value={formData.grade_level}
@@ -439,8 +584,9 @@ const PatientList = () => {
 
               <div className="form-row-2">
                 <div className="form-group">
-                  <label className="form-label">Gender</label>
+                  <label className="form-label" htmlFor="register-gender">Gender</label>
                   <select
+                    id="register-gender"
                     name="gender"
                     className="form-select"
                     value={formData.gender}
@@ -452,8 +598,9 @@ const PatientList = () => {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Graduation Year</label>
+                  <label className="form-label" htmlFor="register-grad-year">Graduation Year</label>
                   <input
+                    id="register-grad-year"
                     type="number"
                     name="graduation_year"
                     className="form-input"
@@ -464,38 +611,12 @@ const PatientList = () => {
                 </div>
               </div>
 
-              <h4 style={{ margin: '16px 0 12px', fontSize: 'var(--text-sm)' }}>Medical Information</h4>
-
-              <div className="form-row-2">
-                <div className="form-group">
-                  <label className="form-label">Critical Allergies</label>
-                  <input
-                    type="text"
-                    name="allergies"
-                    className="form-input"
-                    value={formData.allergies}
-                    onChange={handleInputChange}
-                    placeholder="e.g. Peanut, Penicillin (or 'None')"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Chronic Conditions</label>
-                  <input
-                    type="text"
-                    name="chronic_conditions"
-                    className="form-input"
-                    value={formData.chronic_conditions}
-                    onChange={handleInputChange}
-                    placeholder="e.g. Asthma, Diabetes (or 'None')"
-                  />
-                </div>
-              </div>
-
               <h4 style={{ margin: '16px 0 12px', fontSize: 'var(--text-sm)' }}>Emergency Contact</h4>
 
               <div className="form-group">
-                <label className="form-label">Contact Name</label>
+                <label className="form-label" htmlFor="register-contact-name">Contact Name</label>
                 <input
+                  id="register-contact-name"
                   type="text"
                   name="emergency_contact_name"
                   className="form-input"
@@ -507,8 +628,9 @@ const PatientList = () => {
 
               <div className="form-row-2">
                 <div className="form-group">
-                  <label className="form-label">Phone Number</label>
+                  <label className="form-label" htmlFor="register-contact-phone">Phone Number</label>
                   <input
+                    id="register-contact-phone"
                     type="text"
                     name="emergency_contact_phone"
                     className="form-input"
@@ -518,8 +640,9 @@ const PatientList = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Relationship</label>
+                  <label className="form-label" htmlFor="register-contact-rel">Relationship</label>
                   <input
+                    id="register-contact-rel"
                     type="text"
                     name="emergency_contact_relationship"
                     className="form-input"
@@ -533,8 +656,9 @@ const PatientList = () => {
               <h4 style={{ margin: '16px 0 12px', fontSize: 'var(--text-sm)' }}>Parent & Adviser Contacts</h4>
 
               <div className="form-group">
-                <label className="form-label">Parent Email Address</label>
+                <label className="form-label" htmlFor="register-parent-email">Parent Email Address</label>
                 <input
+                  id="register-parent-email"
                   type="email"
                   name="parent_email"
                   className="form-input"
@@ -546,8 +670,9 @@ const PatientList = () => {
 
               <div className="form-row-2">
                 <div className="form-group">
-                  <label className="form-label">Homeroom Adviser Name</label>
+                  <label className="form-label" htmlFor="register-adviser-name">Homeroom Adviser Name</label>
                   <input
+                    id="register-adviser-name"
                     type="text"
                     name="adviser_name"
                     className="form-input"
@@ -557,8 +682,9 @@ const PatientList = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Homeroom Adviser Email</label>
+                  <label className="form-label" htmlFor="register-adviser-email">Homeroom Adviser Email</label>
                   <input
+                    id="register-adviser-email"
                     type="email"
                     name="adviser_email"
                     className="form-input"
@@ -574,7 +700,55 @@ const PatientList = () => {
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Register & Check-in
+                  Register Student
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Quick Check-In Modal */}
+      {showCheckInModal && selectedStudent && createPortal(
+        <div className="modal-overlay" onClick={() => { setShowCheckInModal(false); setCheckInComplaint(''); setSelectedStudent(null); }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Check-In Student</h3>
+              <button 
+                className="modal-close" 
+                onClick={() => { setShowCheckInModal(false); setCheckInComplaint(''); setSelectedStudent(null); }} 
+                aria-label="Close modal" 
+                type="button"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <strong>Student:</strong> {selectedStudent.name} ({selectedStudent.section || 'No Section'})
+            </div>
+            <form onSubmit={handleCheckInSubmit}>
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label className="form-label">Chief Complaint / Reason for Check-In *</label>
+                <textarea
+                  className="form-textarea"
+                  rows={4}
+                  required
+                  placeholder="Describe reason for clinic visit (e.g. stomach ache, fever)..."
+                  value={checkInComplaint}
+                  onChange={(e) => setCheckInComplaint(e.target.value)}
+                />
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => { setShowCheckInModal(false); setCheckInComplaint(''); setSelectedStudent(null); }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Check-In Student
                 </button>
               </div>
             </form>

@@ -23,6 +23,22 @@ const MinimalLanding = () => {
   const [step, setStep] = useState('login');
   const [logoUrl, setLogoUrl] = useState('');
 
+  const getStepNumber = () => {
+    switch (step) {
+      case 'login':
+      case 'register':
+        return 1;
+      case 'mfa_choose':
+      case 'mfa_setup_totp':
+      case 'mfa_setup_email':
+        return 2;
+      case 'mfa':
+        return 3;
+      default:
+        return 1;
+    }
+  };
+
   useEffect(() => {
     const fetchLogo = async () => {
       try {
@@ -230,6 +246,16 @@ const MinimalLanding = () => {
     <div className="login-page">
       {/* Left panel — branding */}
       <div className="login-brand-panel">
+        {/* Animated ECG Waveform Background */}
+        <div className="ecg-waveform-bg">
+          <svg viewBox="0 0 1000 300" className="ecg-svg" preserveAspectRatio="none">
+            <path 
+              d="M0,150 L200,150 L220,130 L240,170 L260,150 L350,150 L370,100 L390,200 L410,130 L430,160 L450,150 L600,150 L620,130 L640,170 L660,150 L750,150 L770,50 L790,250 L810,130 L830,160 L850,150 L1000,150" 
+              className="ecg-line"
+            />
+          </svg>
+        </div>
+
         <div className="brand-content">
           {logoUrl ? (
             <img 
@@ -245,7 +271,10 @@ const MinimalLanding = () => {
           )}
           <h1>OLPHA AeroHealth</h1>
           <p>Advanced School Clinic Management & Real-time Health Analytics</p>
+
+
         </div>
+
         <div className="brand-footer">
           <span>Protected under the Data Privacy Act</span>
         </div>
@@ -256,6 +285,23 @@ const MinimalLanding = () => {
       {/* Right panel — form */}
       <div className="login-form-panel">
         <div className="login-form-wrapper anim-fade-up">
+          {/* Clinical Portal Access Stepper */}
+          <div className="portal-stepper">
+            <div className={`step-node ${getStepNumber() >= 1 ? 'active' : ''}`}>
+              <span className="step-num">1</span>
+              <span className="step-label">Account</span>
+            </div>
+            <div className="step-line"></div>
+            <div className={`step-node ${getStepNumber() >= 2 ? 'active' : ''}`}>
+              <span className="step-num">2</span>
+              <span className="step-label">Security</span>
+            </div>
+            <div className="step-line"></div>
+            <div className={`step-node ${getStepNumber() >= 3 ? 'active' : ''}`}>
+              <span className="step-num">3</span>
+              <span className="step-label">EMR Access</span>
+            </div>
+          </div>
           {step === 'login' && (
             <>
               <div className="form-top">
@@ -482,6 +528,7 @@ const MinimalLanding = () => {
                       onChange={(e) => handleMfaInput(i, e.target.value.replace(/\D/g, ''))}
                       onKeyDown={(e) => handleMfaKeyDown(i, e)}
                       autoComplete="off"
+                      aria-label={`MFA Setup Digit ${i + 1}`}
                     />
                   ))}
                 </div>
@@ -522,6 +569,7 @@ const MinimalLanding = () => {
                       onChange={(e) => handleMfaInput(i, e.target.value.replace(/\D/g, ''))}
                       onKeyDown={(e) => handleMfaKeyDown(i, e)}
                       autoComplete="off"
+                      aria-label={`Email Setup Digit ${i + 1}`}
                     />
                   ))}
                 </div>
@@ -576,6 +624,7 @@ const MinimalLanding = () => {
                       onChange={(e) => handleMfaInput(i, e.target.value.replace(/\D/g, ''))}
                       onKeyDown={(e) => handleMfaKeyDown(i, e)}
                       autoComplete="off"
+                      aria-label={`MFA Verification Digit ${i + 1}`}
                     />
                   ))}
                 </div>

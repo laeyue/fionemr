@@ -35,6 +35,30 @@ const PatientChart = () => {
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [chiefComplaint, setChiefComplaint] = useState('');
 
+  // Checkout & Excuse Slip State
+  const [showCheckOutModal, setShowCheckOutModal] = useState(false);
+  const [issueExcuseSlip, setIssueExcuseSlip] = useState(true);
+  const [excuseReason, setExcuseReason] = useState('');
+  const [excuseStartDate, setExcuseStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [excuseEndDate, setExcuseEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [notifyTeacher, setNotifyTeacher] = useState(true);
+
+  useEffect(() => {
+    if (showCheckOutModal && patient) {
+      // Find latest check-in log
+      const checkInLog = (patient.logs || []).find(l => l.event_type === 'Check-in');
+      if (checkInLog) {
+        setExcuseReason(`Checked in due to: ${checkInLog.details}`);
+      } else {
+        setExcuseReason('');
+      }
+      setExcuseStartDate(new Date().toISOString().split('T')[0]);
+      setExcuseEndDate(new Date().toISOString().split('T')[0]);
+      setIssueExcuseSlip(true);
+      setNotifyTeacher(true);
+    }
+  }, [showCheckOutModal, patient]);
+
   useEffect(() => {
     if (!availableTabs.some(t => t.key === activeTab)) {
       setActiveTab('overview');
@@ -72,13 +96,36 @@ const PatientChart = () => {
     }
   };
 
-  const handleCheckOut = async () => {
-    if (!window.confirm("Are you sure you want to check out this student?")) return;
+  const handleCheckOut = () => {
+    setShowCheckOutModal(true);
+  };
+
+  const handleCheckOutConfirm = async (e) => {
+    e.preventDefault();
     try {
-      await api.checkOutPatient(id);
-      fetchPatient();
+      setIsLoading(true);
+      let payload = undefined;
+      if (issueExcuseSlip && excuseReason.trim()) {
+        if (new Date(excuseStartDate) > new Date(excuseEndDate)) {
+          alert("Excuse start date cannot be after the end date.");
+          setIsLoading(false);
+          return;
+        }
+        payload = {
+          excuse_reason: excuseReason.trim(),
+          start_date: excuseStartDate,
+          end_date: excuseEndDate,
+          teacher_notified: notifyTeacher
+        };
+      }
+      await api.checkOutPatient(id, payload);
+      setShowCheckOutModal(false);
+      await fetchPatient();
     } catch (err) {
       console.error("Error checking out patient:", err);
+      alert("Failed to checkout student: " + err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -295,7 +342,7 @@ const PatientChart = () => {
           <div className="modal-card">
             <div className="modal-header">
               <h3>New Clinic Check-In</h3>
-              <button className="btn-close" onClick={() => setShowCheckInModal(false)} type="button"><X size={18} /></button>
+              <button className="btn-close" onClick={() => setShowCheckInModal(false)} type="button" aria-label="Close modal"><X size={18} /></button>
             </div>
             <form onSubmit={handleCheckIn}>
               <div className="form-group" style={{ marginBottom: 16 }}>
@@ -312,6 +359,90 @@ const PatientChart = () => {
               <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCheckInModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Record Check-In</button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Check-Out & Excuse Slip Modal */}
+      {showCheckOutModal && createPortal(
+        <div className="modal-overlay" onClick={() => setShowCheckOutModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Check-Out & Discharge Student</h3>
+              <button className="btn-close" onClick={() => setShowCheckOutModal(false)} type="button" aria-label="Close modal"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleCheckOutConfirm}>
+              <p className="text-muted" style={{ fontSize: 'var(--text-xs)', marginBottom: 14, textAlign: 'left' }}>
+                Clear the student's status in the clinic and notify parents, teachers, and security.
+              </p>
+
+              <div className="consent-bar" style={{ marginBottom: 14 }}>
+                <label className="consent-label" style={{ color: 'var(--gray-700)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={issueExcuseSlip}
+                    onChange={(e) => setIssueExcuseSlip(e.target.checked)}
+                    style={{ accentColor: 'var(--primary)', marginTop: 0 }}
+                  />
+                  <span>Generate Medical Excuse Certificate (Recommended)</span>
+                </label>
+              </div>
+
+              {issueExcuseSlip && (
+                <>
+                  <div className="form-group" style={{ marginBottom: 14 }}>
+                    <label className="form-label">Excuse Reason / Clinical Advisory *</label>
+                    <textarea
+                      className="form-textarea"
+                      rows={3}
+                      required={issueExcuseSlip}
+                      placeholder="e.g. Student has fever and needs home rest..."
+                      value={excuseReason}
+                      onChange={(e) => setExcuseReason(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-row-2" style={{ marginBottom: 14 }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Start Date *</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        required={issueExcuseSlip}
+                        value={excuseStartDate}
+                        onChange={(e) => setExcuseStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">End Date *</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        required={issueExcuseSlip}
+                        value={excuseEndDate}
+                        onChange={(e) => setExcuseEndDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="consent-bar" style={{ marginBottom: 16 }}>
+                    <label className="consent-label" style={{ color: 'var(--gray-700)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={notifyTeacher}
+                        onChange={(e) => setNotifyTeacher(e.target.checked)}
+                        style={{ accentColor: 'var(--primary)', marginTop: 0 }}
+                      />
+                      <span>Notify homeroom teacher automatically</span>
+                    </label>
+                  </div>
+                </>
+              )}
+
+              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowCheckOutModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Complete Checkout</button>
               </div>
             </form>
           </div>
@@ -661,23 +792,23 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
         {isEditing ? (
           <form onSubmit={handleSaveDemographics} style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Full Name *</label>
-              <input type="text" name="name" className="form-input" required value={editData.name} onChange={handleEditChange} />
+              <label className="form-label" htmlFor="edit-name">Full Name *</label>
+              <input id="edit-name" type="text" name="name" className="form-input" required value={editData.name} onChange={handleEditChange} />
             </div>
             <div className="form-row-2">
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Date of Birth</label>
-                <input type="date" name="date_of_birth" className="form-input" max={new Date().toISOString().split('T')[0]} value={editData.date_of_birth} onChange={handleEditChange} />
+                <label className="form-label" htmlFor="edit-dob">Date of Birth</label>
+                <input id="edit-dob" type="date" name="date_of_birth" className="form-input" max={new Date().toISOString().split('T')[0]} value={editData.date_of_birth} onChange={handleEditChange} />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Age</label>
-                <input type="number" name="age" className="form-input" value={editData.age} onChange={handleEditChange} placeholder="Auto-calculated" />
+                <label className="form-label" htmlFor="edit-age">Age</label>
+                <input id="edit-age" type="number" name="age" className="form-input" value={editData.age} onChange={handleEditChange} placeholder="Auto-calculated" />
               </div>
             </div>
             <div className="form-row-2">
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Gender</label>
-                <select name="gender" className="form-select" value={editData.gender} onChange={handleEditChange}>
+                <label className="form-label" htmlFor="edit-gender">Gender</label>
+                <select id="edit-gender" name="gender" className="form-select" value={editData.gender} onChange={handleEditChange}>
                   <option value="">Select</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
@@ -685,8 +816,8 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
                 </select>
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Grade Level</label>
-                <select name="grade_level" className="form-select" value={editData.grade_level} onChange={handleEditChange}>
+                <label className="form-label" htmlFor="edit-grade">Grade Level</label>
+                <select id="edit-grade" name="grade_level" className="form-select" value={editData.grade_level} onChange={handleEditChange}>
                   <option value="">Select Grade</option>
                   <option value="Kindergarten">Kindergarten</option>
                   {Array.from({ length: 12 }, (_, i) => (
@@ -697,56 +828,56 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
             </div>
             <div className="form-row-2">
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Section / Room</label>
-                <input type="text" name="section" className="form-input" value={editData.section} onChange={handleEditChange} placeholder="e.g. Grade 5-A" />
+                <label className="form-label" htmlFor="edit-section">Section / Room</label>
+                <input id="edit-section" type="text" name="section" className="form-input" value={editData.section} onChange={handleEditChange} placeholder="e.g. Grade 5-A" />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Graduation Year</label>
-                <input type="number" name="graduation_year" className="form-input" value={editData.graduation_year} onChange={handleEditChange} placeholder="e.g. 2028" />
+                <label className="form-label" htmlFor="edit-grad-year">Graduation Year</label>
+                <input id="edit-grad-year" type="number" name="graduation_year" className="form-input" value={editData.graduation_year} onChange={handleEditChange} placeholder="e.g. 2028" />
               </div>
             </div>
 
             <h5 style={{ marginTop: 8, fontSize: 'var(--text-sm)', color: 'var(--gray-600)' }}>Medical Information</h5>
             <div className="form-row-2">
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Critical Allergies</label>
-                <input type="text" name="allergies" className="form-input" value={editData.allergies} onChange={handleEditChange} placeholder="e.g. Peanut, Penicillin" />
+                <label className="form-label" htmlFor="edit-allergies">Critical Allergies</label>
+                <input id="edit-allergies" type="text" name="allergies" className="form-input" value={editData.allergies} onChange={handleEditChange} placeholder="e.g. Peanut, Penicillin" />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Chronic Conditions</label>
-                <input type="text" name="chronic_conditions" className="form-input" value={editData.chronic_conditions} onChange={handleEditChange} placeholder="e.g. Asthma, Diabetes" />
+                <label className="form-label" htmlFor="edit-conditions">Chronic Conditions</label>
+                <input id="edit-conditions" type="text" name="chronic_conditions" className="form-input" value={editData.chronic_conditions} onChange={handleEditChange} placeholder="e.g. Asthma, Diabetes" />
               </div>
             </div>
 
             <h5 style={{ marginTop: 8, fontSize: 'var(--text-sm)', color: 'var(--gray-600)' }}>Emergency Contact</h5>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Contact Name</label>
-              <input type="text" name="emergency_contact_name" className="form-input" value={editData.emergency_contact_name} onChange={handleEditChange} placeholder="e.g. Jane Doe" />
+              <label className="form-label" htmlFor="edit-contact-name">Contact Name</label>
+              <input id="edit-contact-name" type="text" name="emergency_contact_name" className="form-input" value={editData.emergency_contact_name} onChange={handleEditChange} placeholder="e.g. Jane Doe" />
             </div>
             <div className="form-row-2">
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Phone Number</label>
-                <input type="text" name="emergency_contact_phone" className="form-input" value={editData.emergency_contact_phone} onChange={handleEditChange} placeholder="e.g. 555-0199" />
+                <label className="form-label" htmlFor="edit-contact-phone">Phone Number</label>
+                <input id="edit-contact-phone" type="text" name="emergency_contact_phone" className="form-input" value={editData.emergency_contact_phone} onChange={handleEditChange} placeholder="e.g. 555-0199" />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Relationship</label>
-                <input type="text" name="emergency_contact_relationship" className="form-input" value={editData.emergency_contact_relationship} onChange={handleEditChange} placeholder="e.g. Mother" />
+                <label className="form-label" htmlFor="edit-contact-rel">Relationship</label>
+                <input id="edit-contact-rel" type="text" name="emergency_contact_relationship" className="form-input" value={editData.emergency_contact_relationship} onChange={handleEditChange} placeholder="e.g. Mother" />
               </div>
             </div>
 
             <h5 style={{ marginTop: 8, fontSize: 'var(--text-sm)', color: 'var(--gray-600)' }}>Parent & Adviser Contacts</h5>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Parent Email Address</label>
-              <input type="email" name="parent_email" className="form-input" value={editData.parent_email} onChange={handleEditChange} placeholder="e.g. parent@example.com" />
+              <label className="form-label" htmlFor="edit-parent-email">Parent Email Address</label>
+              <input id="edit-parent-email" type="email" name="parent_email" className="form-input" value={editData.parent_email} onChange={handleEditChange} placeholder="e.g. parent@example.com" />
             </div>
             <div className="form-row-2">
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Homeroom Adviser Name</label>
-                <input type="text" name="adviser_name" className="form-input" value={editData.adviser_name} onChange={handleEditChange} placeholder="e.g. Teacher Sarah" />
+                <label className="form-label" htmlFor="edit-adviser-name">Homeroom Adviser Name</label>
+                <input id="edit-adviser-name" type="text" name="adviser_name" className="form-input" value={editData.adviser_name} onChange={handleEditChange} placeholder="e.g. Teacher Sarah" />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Homeroom Adviser Email</label>
-                <input type="email" name="adviser_email" className="form-input" value={editData.adviser_email} onChange={handleEditChange} placeholder="e.g. teacher@example.com" />
+                <label className="form-label" htmlFor="edit-adviser-email">Homeroom Adviser Email</label>
+                <input id="edit-adviser-email" type="email" name="adviser_email" className="form-input" value={editData.adviser_email} onChange={handleEditChange} placeholder="e.g. teacher@example.com" />
               </div>
             </div>
 

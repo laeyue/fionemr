@@ -59,7 +59,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchLogo();
-  }, [location.pathname]);
+  }, []);
   const [searchResults, setSearchResults] = useState([]);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -221,7 +221,12 @@ const Dashboard = () => {
       {/* ===== TOP NAVIGATION BAR ===== */}
       <header className="topbar">
                 {/* Left — Brand */}
-        <div className="topbar-brand" onClick={() => navigate('/dashboard')}>
+        <button 
+          type="button"
+          className="topbar-brand" 
+          onClick={() => navigate('/dashboard')}
+          aria-label="Go to Dashboard"
+        >
           <img 
             src={logoUrl || '/logo.png'} 
             alt="OLPHA AeroHealth Logo" 
@@ -229,7 +234,7 @@ const Dashboard = () => {
             style={{ width: '120px', height: '120px', objectFit: 'contain', borderRadius: '8px' }} 
           />
           <span className="brand-name">OLPHA AeroHealth</span>
-        </div>
+        </button>
 
         {/* Center — Pill Nav */}
         <nav className="topbar-nav">
@@ -259,6 +264,7 @@ const Dashboard = () => {
               className="btn btn-icon btn-ghost search-trigger-btn"
               onClick={() => setIsMobileSearchOpen(true)}
               type="button"
+              aria-label="Open search"
             >
               <Search size={18} />
             </button>
@@ -267,7 +273,8 @@ const Dashboard = () => {
               <Search className="search-icon-inside" size={16} />
               <input
                 type="text"
-                placeholder="Search students..."
+                placeholder="Search students…"
+                aria-label="Search students"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearchSubmit}
@@ -283,6 +290,7 @@ const Dashboard = () => {
                   className="search-clear-btn" 
                   onClick={() => setSearchQuery('')}
                   type="button"
+                  aria-label="Clear search"
                 >
                   <X size={14} />
                 </button>
@@ -291,6 +299,7 @@ const Dashboard = () => {
                 className="btn btn-icon btn-ghost search-close-btn"
                 onClick={() => setIsMobileSearchOpen(false)}
                 type="button"
+                aria-label="Close search"
               >
                 <X size={18} />
               </button>
@@ -301,15 +310,17 @@ const Dashboard = () => {
                 {isSearchLoading ? (
                   <div className="search-dropdown-status">
                     <Loader2 className="animate-spin" size={16} />
-                    <span>Searching...</span>
+                    <span>Searching…</span>
                   </div>
                 ) : searchResults.length > 0 ? (
                   <div className="search-results-list">
                     {searchResults.map(p => (
-                      <div 
+                      <button 
                         key={p.id} 
                         className="search-result-item" 
                         onClick={() => handlePatientSelect(p.id)}
+                        type="button"
+                        aria-label={`View chart for student ${p.name}`}
                       >
                         <div className="patient-avatar-mini">
                           {p.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
@@ -320,7 +331,7 @@ const Dashboard = () => {
                             ID: {p.id} • {p.grade_level || p.section} • {p.gender}
                           </div>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 ) : (
@@ -336,6 +347,7 @@ const Dashboard = () => {
               onClick={handleNotifClick}
               type="button"
               title="Notifications"
+              aria-label={`Notifications, ${unreadCount} unread`}
             >
               <Bell size={18} />
               {unreadCount > 0 && <span className="notif-badge"></span>}
@@ -354,7 +366,7 @@ const Dashboard = () => {
                 <div className="notif-list">
                   {notifications.length > 0 ? (
                     notifications.map(n => (
-                      <div 
+                      <button 
                         key={n.id} 
                         className="notif-item"
                         onClick={() => {
@@ -363,6 +375,8 @@ const Dashboard = () => {
                           }
                           setIsNotifOpen(false);
                         }}
+                        type="button"
+                        aria-label={`Notification: ${n.text}`}
                       >
                         <div className={`notif-icon-circle ${
                           n.type === 'response' ? 'notif-icon-green' :
@@ -376,7 +390,7 @@ const Dashboard = () => {
                           <span className="notif-text">{n.text}</span>
                           <span className="notif-time">{formatTimeAgo(n.time)}</span>
                         </div>
-                      </div>
+                      </button>
                     ))
                   ) : (
                     <div className="notif-empty">No new notifications</div>
@@ -386,13 +400,18 @@ const Dashboard = () => {
             )}
           </div>
           <div className="topbar-divider"></div>
-          <div className="user-block" onClick={() => navigate('/dashboard/settings')}>
+          <button 
+            type="button"
+            className="user-block" 
+            onClick={() => navigate('/dashboard/settings')}
+            aria-label="View profile settings"
+          >
             <div className="avatar avatar-sm">{initials}</div>
             <div className="user-meta">
               <span className="user-name">{user?.name}</span>
               <span className="user-role">{user?.role}</span>
             </div>
-          </div>
+          </button>
           <button className="btn btn-icon btn-ghost logout-btn" onClick={() => { logout(); navigate('/'); }} title="Sign out">
             <LogOut size={18} />
           </button>
