@@ -1015,17 +1015,19 @@ app.post('/api/auth/mfa/verify', async (req, res) => {
       return res.status(400).json({ error: 'MFA is not enabled for this account.' });
     }
 
-    if (user.mfa_type === 'totp') {
+    // Check if the user is attempting email verification fallback
+    const cached = emailCodes[userId];
+    const isEmailCodeValid = cached && cached.code === code && cached.expiresAt >= Date.now();
+
+    if (isEmailCodeValid) {
+      delete emailCodes[userId]; // Consume code
+    } else if (user.mfa_type === 'totp') {
       const isCodeValid = verifyTOTP(code, user.mfa_secret);
       if (!isCodeValid) {
         return res.status(400).json({ error: 'Invalid verification code.' });
       }
     } else if (user.mfa_type === 'email') {
-      const cached = emailCodes[userId];
-      if (!cached || cached.code !== code || cached.expiresAt < Date.now()) {
-        return res.status(400).json({ error: 'Invalid or expired email verification code.' });
-      }
-      delete emailCodes[userId]; // Consume code
+      return res.status(400).json({ error: 'Invalid or expired email verification code.' });
     } else {
       return res.status(400).json({ error: 'Unsupported MFA method.' });
     }
