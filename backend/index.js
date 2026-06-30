@@ -337,19 +337,19 @@ const getResponseLandingPage = (status, recipientEmail, recipientType, studentNa
         <div class="details-table">
           <div class="details-row">
             <span class="label">Student:</span>
-            <span class="value">	ext{studentName}</span>
+            <span class="value">${studentName}</span>
           </div>
           <div class="details-row">
             <span class="label">Recipient:</span>
-            <span class="value">	ext{recipientEmail} (	ext{recipientType} === 'parent' ? 'Parent/Guardian' : 'Homeroom Adviser')</span>
+            <span class="value">${recipientEmail} (${recipientType === 'parent' ? 'Parent/Guardian' : 'Homeroom Adviser'})</span>
           </div>
           <div class="details-row">
             <span class="label">Response:</span>
-            <span class="value"><span class="badge">	ext{status}</span></span>
+            <span class="value"><span class="badge">${status}</span></span>
           </div>
           <div class="details-row">
             <span class="label">Timestamp:</span>
-            <span class="value">	ext{new Date(timestamp).toLocaleString()}</span>
+            <span class="value">${new Date(timestamp).toLocaleString()}</span>
           </div>
         </div>
         <p class="footer-text">OLPHA AeroHealth School EMR System &bull; Real-time active response gateway</p>
