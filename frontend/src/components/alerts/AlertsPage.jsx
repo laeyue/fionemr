@@ -4,6 +4,16 @@ import { AlertTriangle, Bell, Smartphone, ShieldAlert, ArrowUpRight } from 'luci
 import { api } from '../../api';
 import { useAuth } from '../../App';
 
+const emailEventLabels = {
+  clinic_checkin_parent: 'Parent check-in notice',
+  clinic_checkin_adviser: 'Adviser attendance notice',
+  clinic_checkout_parent: 'Parent checkout notice',
+  clinic_contact_requested: 'Parent contact request',
+  clinic_document_update_adviser: 'Adviser document notice',
+  departure_approval_request: 'Departure approval request',
+  approved_departure_security: 'Security departure clearance'
+};
+
 const AlertsPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -67,7 +77,7 @@ const AlertsPage = () => {
         setEmailAlerts(resEmailLogs.data);
       }
       const delivery = result.notifications?.[0];
-      window.alert(delivery?.status === 'accepted' ? 'Email accepted by the provider. Inbox delivery is not yet confirmed.' : delivery?.status === 'simulated' ? 'Simulation recorded. No email was sent.' : delivery?.error || 'Email was not sent. Check the delivery log.');
+      window.alert(delivery?.status === 'accepted' ? 'Email accepted by the provider. Inbox delivery is not yet confirmed.' : delivery?.status === 'simulated' ? 'Simulation recorded. No email was sent.' : delivery?.status === 'pending' || delivery?.status === 'sending' ? 'Email queued. Check Email Delivery & Responses for the provider result.' : delivery?.error || 'Email was not sent. Check the delivery log.');
     } catch (err) {
       alert('Failed to send notification: ' + err.message);
     } finally {
@@ -411,14 +421,19 @@ const AlertsPage = () => {
                           </span>
                           <span className="font-mono text-muted" style={{ fontSize: '12px' }}>{alert.recipient_email}</span>
                         </td>
-                        <td style={{ padding: '12px 8px', color: 'var(--gray-600)' }}>{alert.subject}</td>
+                        <td style={{ padding: '12px 8px', color: 'var(--gray-600)' }}>
+                          <div>{alert.subject}</div>
+                          <div style={{ marginTop: 4, fontSize: 11, color: 'var(--gray-500)' }}>
+                            {emailEventLabels[alert.event_type] || 'Clinic email'}
+                          </div>
+                        </td>
                         <td style={{ padding: '12px 8px' }}>{new Date(alert.sent_at).toLocaleString()}</td>
                         <td style={{ padding: '12px 8px', minWidth: 170 }}>
                           <strong style={{ color: alert.delivery_status === 'failed' ? 'var(--danger)' : 'var(--gray-700)' }}>
                             {{ pending: 'Queued', sending: 'Sending', accepted: 'Provider accepted', simulated: 'Simulated', failed: 'Failed', unknown: 'Unconfirmed', cancelled: 'No longer applicable' }[alert.delivery_status] || 'Unconfirmed'}
                           </strong>
                           {alert.delivery_error && <div style={{ fontSize: 11, marginTop: 4 }}>{alert.delivery_error}</div>}
-                          {alert.can_retry && <button className="btn btn-secondary btn-sm" disabled={retryingId !== null} onClick={() => handleRetry(alert.id)} style={{ marginTop: 6 }}>{retryingId === alert.id ? 'Retrying…' : 'Retry email'}</button>}
+                          {alert.can_retry && <button className="btn btn-secondary btn-sm" disabled={retryingId !== null} onClick={() => handleRetry(alert.id)} style={{ marginTop: 6 }}>{retryingId === alert.id ? 'Sending…' : alert.delivery_status === 'pending' ? 'Send queued email' : 'Retry email'}</button>}
                         </td>
                         <td style={{ padding: '12px 8px' }}>
                           {isAcked ? (

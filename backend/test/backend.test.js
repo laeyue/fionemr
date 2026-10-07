@@ -180,7 +180,7 @@ test('local backend initializes PostgreSQL, signs in, and persists patient workf
     body: JSON.stringify({ alertId: parentAlert.id, response: 'On My Way' })
   });
   assert.equal(responsePage.status, 200);
-  assert.match(await responsePage.text(), /Receipt Verified/);
+  assert.match(await responsePage.text(), /Response Recorded/);
 
   const updatedAlert = await database.from('email_alerts')
     .select('*, patients(name)')

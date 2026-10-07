@@ -1,0 +1,4 @@
+ALTER TABLE email_alerts ADD COLUMN IF NOT EXISTS recipient_name TEXT;
+ALTER TABLE email_alerts ADD COLUMN IF NOT EXISTS event_type TEXT NOT NULL DEFAULT 'custom';
+ALTER TABLE email_alerts ADD COLUMN IF NOT EXISTS text_body TEXT;
+ALTER TABLE email_alerts ADD COLUMN IF NOT EXISTS payload_version INTEGER NOT NULL DEFAULT 1;

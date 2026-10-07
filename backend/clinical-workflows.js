@@ -97,8 +97,8 @@ function createClinicalWorkflowRouter(database, { checkinEmails, checkoutEmails,
         // Notification problems must not turn an already committed clinical action into an apparent failure.
         let notifications = [];
         try {
-          if (action === 'checkin') notifications = await checkinEmails(saved.patient, body.chief_complaint);
-          if (action === 'checkout') notifications = await checkoutEmails(saved.patient, saved.slip, saved.token, requested(body.teacher_notified));
+          if (action === 'checkin') notifications = await checkinEmails(saved.patient, body.chief_complaint, saved.log);
+          if (action === 'checkout') notifications = await checkoutEmails(saved.patient, saved.slip, saved.token, requested(body.teacher_notified), saved.log);
           if (action === 'excuse-slips') notifications = await slipEmails(saved.patient, saved.slip, saved.token);
         } catch { notifications = [{ status: 'unknown', error: 'Record saved, but notification processing could not be confirmed. Check the email log.' }]; }
         const response = { data: action === 'excuse-slips' ? saved.slip : saved.log, notifications };

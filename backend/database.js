@@ -17,7 +17,7 @@ const TABLE_COLUMNS = Object.freeze({
   parental_consents: ['id', 'patient_id', 'consent_type', 'document_name', 'parent_name', 'date_granted', 'notes', 'created_at'],
   excuse_slips: ['id', 'patient_id', 'excuse_reason', 'start_date', 'end_date', 'teacher_notified', 'teacher_notification_requested', 'checkout_at', 'verification_hash', 'acknowledgment_token_hash', 'created_by', 'principal_acknowledged', 'principal_acknowledged_at', 'departure_approved', 'departure_approved_at', 'created_at'],
   incident_alerts: ['id', 'patient_id', 'incident_details', 'adviser_name', 'adviser_status', 'adviser_confirmed_at', 'parent_name', 'parent_status', 'parent_confirmed_at', 'created_at'],
-  email_alerts: ['id', 'patient_id', 'recipient_type', 'recipient_email', 'subject', 'body', 'sent_at', 'acknowledged', 'acknowledged_at', 'response_status'],
+  email_alerts: ['id', 'patient_id', 'recipient_type', 'recipient_email', 'recipient_name', 'event_type', 'subject', 'body', 'text_body', 'payload_version', 'sent_at', 'acknowledged', 'acknowledged_at', 'response_status', 'delivery_status', 'provider_message_id', 'delivery_error', 'attempt_count', 'last_attempt_at', 'accepted_at', 'dedup_key'],
   clinic_settings: ['key', 'value']
 });
 

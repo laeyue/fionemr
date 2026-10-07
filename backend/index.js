@@ -5,6 +5,7 @@ const { createEmailService, emailConfiguration } = require('./email');
 const { validEmail } = require('./security');
 const { createClinicalWorkflowRouter, bedCapacity } = require('./clinical-workflows');
 const { createWorkflowNotifications } = require('./workflow-notifications');
+const { adviserCheckin, parentCheckin, parentContactRequest } = require('./notification-templates');
 require('dotenv').config();
 const { database } = require('./database');
 const { createApiAuthMiddleware, createAuthRouter, getPractitioner } = require('./auth');
@@ -142,66 +143,13 @@ const generateAlertId = () => {
   return crypto.randomBytes(16).toString('hex');
 };
 
-const getEmailTemplate = (_recipientName, _studentName, _incidentDetails, respondUrlBase, alertId) => {
-  const ackUrl = respondUrlBase + "/api/notifications/respond?alertId=" + alertId + "&response=Acknowledged";
-  const omwUrl = respondUrlBase + "/api/notifications/respond?alertId=" + alertId + "&response=On%20My%20Way";
-
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>Clinic Incident Notification</title>
-      <style>
-        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f6f9; color: #333333; margin: 0; padding: 0; }
-        .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e1e4e8; }
-        .header { background: linear-gradient(135deg, #2b6cb0, #3182ce); color: #ffffff; padding: 30px; text-align: center; }
-        .header h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
-        .content { padding: 40px 30px; line-height: 1.6; }
-        .content p { margin: 0 0 20px 0; font-size: 16px; color: #4a5568; }
-        .alert-box { background-color: #ebf8ff; border-left: 4px solid #3182ce; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 30px; }
-        .alert-box p { margin: 0; font-size: 15px; color: #2b6cb0; font-weight: 500; }
-        .actions { margin: 40px 0 20px 0; text-align: center; }
-        .btn { display: inline-block; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; text-align: center; margin: 0 10px; }
-        .btn-primary { background-color: #3182ce; color: #ffffff !important; box-shadow: 0 2px 4px rgba(49, 130, 206, 0.2); }
-        .btn-secondary { background-color: #edf2f7; color: #4a5568 !important; border: 1px solid #cbd5e0; }
-        .footer { background-color: #f7fafc; padding: 20px; text-align: center; border-top: 1px solid #edf2f7; font-size: 12px; color: #a0aec0; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>OLPHA AeroHealth EMR Clinic Alert</h1>
-        </div>
-        <div class="content">
-          <p>Hello,</p>
-          <p>A clinic update is available. This email does not include student or health details.</p>
-          <div class="alert-box">
-            <p>Please contact the school clinic if you need more information.</p>
-          </div>
-          <p>Please acknowledge receipt of this alert and let the clinic know your status by clicking one of the options below:</p>
-          <div class="actions">
-            <a href="${ackUrl}" class="btn btn-primary">Acknowledge Receipt</a>
-            <a href="${omwUrl}" class="btn btn-secondary">On My Way</a>
-          </div>
-          <p style="font-size: 13px; color: #718096; margin-top: 30px; font-style: italic;">Note: Clicking either button logs your confirmation timestamp directly in our clinic records as verified proof of receipt.</p>
-        </div>
-        <div class="footer">
-          &copy; 2026 OLPHA AeroHealth EMR System. All rights reserved.
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-};
-
 const getResponseLandingPage = (status) => {
   return `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Clinic Receipt Verified</title>
+      <title>Clinic Response Recorded</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <style>
         body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: radial-gradient(circle at top left, #f7fafc, #edf2f7); color: #2d3748; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
@@ -221,17 +169,17 @@ const getResponseLandingPage = (status) => {
     <body>
       <div class="card">
         <div class="icon-circle">✓</div>
-        <h1>Receipt Verified</h1>
-        <p class="subtitle">Your response has been transmitted to the clinic dashboard.</p>
+        <h1>Response Recorded</h1>
+        <p class="subtitle">Your response has been recorded in the clinic dashboard.</p>
         <p class="subtitle">Response: ${status}</p>
-        <p class="footer-text">OLPHA AeroHealth School EMR System &bull; Real-time active response gateway</p>
+        <p class="footer-text">OLPHA AeroHealth Clinic</p>
       </div>
     </body>
     </html>
   `;
 };
 
-const triggerCheckinEmails = async (patient, chiefComplaint) => {
+const triggerCheckinEmails = async (patient, _chiefComplaint, visitLog) => {
   if (!patient) return [];
   const contacts = [
     ['parent', patient.parent_email, patient.emergency_contact_name || 'Parent/Guardian'],
@@ -239,50 +187,19 @@ const triggerCheckinEmails = async (patient, chiefComplaint) => {
   ].filter(([, email]) => email?.trim());
   return Promise.all(contacts.map(([type, email, name]) => {
     const id = generateAlertId();
-    const html = getEmailTemplate(name, patient.name, chiefComplaint, getBackendUrl(), id);
-    return emails.send(patient.id, type, email, name, '[OLPHA AeroHealth Clinic] Clinic Update', html, id);
+    const message = type === 'parent'
+      ? parentCheckin({ patient, eventAt: visitLog?.created_at, backendUrl: getBackendUrl(), alertId: id })
+      : adviserCheckin({ patient, eventAt: visitLog?.created_at });
+    return emails.send({
+      patientId: patient.id,
+      recipientType: type,
+      email,
+      name,
+      message,
+      id,
+      dedupKey: visitLog?.id ? `clinic-checkin:${visitLog.id}:${type}` : null
+    });
   }));
-};
-
-const getCheckoutEmailTemplate = (_recipientName, _studentName) => {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>Clinic Checkout Notification</title>
-      <style>
-        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f6f9; color: #333333; margin: 0; padding: 0; }
-        .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e1e4e8; }
-        .header { background: linear-gradient(135deg, #10b981, #059669); color: #ffffff; padding: 30px; text-align: center; }
-        .header h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
-        .content { padding: 40px 30px; line-height: 1.6; }
-        .content p { margin: 0 0 20px 0; font-size: 16px; color: #4a5568; }
-        .alert-box { background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 30px; }
-        .alert-box p { margin: 0; font-size: 15px; color: #065f46; font-weight: 500; }
-        .footer { background-color: #f7fafc; padding: 20px; text-align: center; border-top: 1px solid #edf2f7; font-size: 12px; color: #a0aec0; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>OLPHA AeroHealth Clinic Checkout Alert</h1>
-        </div>
-        <div class="content">
-          <p>Hello,</p>
-          <p>A clinic status update is available. This email does not include student or health details.</p>
-          <div class="alert-box">
-            <p><strong>Status:</strong> Checked Out & Returned / Cleared</p>
-          </div>
-          <p>Please contact the school clinic if you need more information.</p>
-        </div>
-        <div class="footer">
-          &copy; 2026 OLPHA AeroHealth EMR System. All rights reserved.
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
 };
 
 const workflowNotifications = createWorkflowNotifications(database, emails, getBackendUrl);
@@ -320,7 +237,10 @@ app.all('/api/notifications/respond', async (req, res) => {
 // Email Tracking Endpoint
 app.get('/api/notifications/logs', async (req, res) => {
   try {
-    const { data, error } = await db
+      // A serverless instance may stop after the provider call but before the
+      // delivery result is written. Mark old claims as uncertain, never retry them automatically.
+      await db.query("UPDATE email_alerts SET delivery_status = 'unknown', delivery_error = 'Delivery attempt stopped before its outcome was saved. Check provider logs before resending.' WHERE delivery_status = 'sending' AND last_attempt_at < now() - interval '2 minutes'");
+      const { data, error } = await db
         .from('email_alerts')
         .select('*, patients(name)')
         .order('sent_at', { ascending: false });
@@ -332,6 +252,7 @@ app.get('/api/notifications/logs', async (req, res) => {
         student_name: a.patients ? (Array.isArray(a.patients) ? a.patients[0]?.name : a.patients.name) : 'Unknown',
         recipient_type: a.recipient_type,
         recipient_email: a.recipient_email,
+        event_type: a.event_type || 'custom',
         subject: a.subject,
         response_requested: Boolean(a.body?.includes('/api/notifications/respond?')),
         sent_at: a.sent_at,
@@ -343,7 +264,7 @@ app.get('/api/notifications/logs', async (req, res) => {
         attempt_count: a.attempt_count,
         last_attempt_at: a.last_attempt_at,
         accepted_at: a.accepted_at,
-        can_retry: a.delivery_status === 'failed' && a.attempt_count < 3 && Date.now() - new Date(a.sent_at).getTime() < 86400000
+        can_retry: ['pending', 'failed'].includes(a.delivery_status) && a.attempt_count < 3 && Date.now() - new Date(a.last_attempt_at || a.sent_at).getTime() < 86400000
       }));
       return res.json({ data: formatted });
   } catch (err) {
@@ -367,7 +288,14 @@ app.post('/api/patients/:id/notify-parent', allowRoles(...clinicalRoles), async 
     const recent = await db.query("SELECT id FROM email_alerts WHERE patient_id = $1 AND recipient_type = 'parent' AND last_attempt_at > now() - interval '60 seconds' LIMIT 1", [patientId]);
     if (recent.rows.length) return res.status(429).json({ error: 'A parent notification was attempted recently. Wait one minute before sending another.' });
     const id = generateAlertId();
-    const result = await emails.send(patientId, 'parent', patient.parent_email, 'Parent/Guardian', '[OLPHA AeroHealth Clinic] Please Contact the Clinic', getEmailTemplate('', '', '', getBackendUrl(), id), id);
+    const result = await emails.send({
+      patientId,
+      recipientType: 'parent',
+      email: patient.parent_email,
+      name: patient.emergency_contact_name || 'Parent/Guardian',
+      message: parentContactRequest({ patient }),
+      id
+    });
     return res.json({ notifications: [result] });
   } catch {
     return res.status(503).json({ error: 'Could not prepare the parent notification.' });
@@ -377,13 +305,13 @@ app.post('/api/patients/:id/notify-parent', allowRoles(...clinicalRoles), async 
 app.post('/api/notifications/logs/:id/retry', allowRoles(...clinicalRoles), async (req, res) => {
   if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(400).json({ error: 'Invalid email reference.' });
   try {
-    const existing = await db.query('SELECT delivery_status, attempt_count, sent_at FROM email_alerts WHERE id = $1', [req.params.id]);
+    const existing = await db.query('SELECT delivery_status, attempt_count, last_attempt_at, sent_at FROM email_alerts WHERE id = $1', [req.params.id]);
     const alert = existing.rows[0];
     if (!alert) return res.status(404).json({ error: 'Email record not found.' });
-    if (alert.delivery_status !== 'failed' || alert.attempt_count >= 3 || Date.now() - new Date(alert.sent_at).getTime() > 86400000) {
-      return res.status(409).json({ error: 'Only confirmed failures from the last 24 hours can be retried, up to three attempts. Check provider logs for uncertain sends.' });
+    if (!['pending', 'failed'].includes(alert.delivery_status) || alert.attempt_count >= 3 || Date.now() - new Date(alert.last_attempt_at || alert.sent_at).getTime() > 86400000) {
+      return res.status(409).json({ error: 'Only queued emails or confirmed failures from the last 24 hours can be sent again, up to three attempts. Check provider logs for uncertain sends.' });
     }
-    const result = await emails.dispatch(req.params.id, 'Recipient');
+    const result = await emails.dispatch(req.params.id);
     return res.json({ data: result });
   } catch {
     return res.status(503).json({ error: 'Email retry is temporarily unavailable.' });
@@ -1419,6 +1347,8 @@ app.post('/api/excuse-slips/:id/acknowledge', async (req, res) => {
     catch { notifications = [{ status: 'unknown' }]; }
     const message = notifications.some(item => ['failed', 'unknown'].includes(item.status))
       ? 'Approval recorded. The security notification could not be confirmed; contact the clinic.'
+      : notifications.some(item => ['pending', 'sending'].includes(item.status))
+        ? 'Approval recorded. The security email is queued; check the email delivery log for the provider result.'
       : notifications.some(item => item.status === 'simulated')
         ? 'Approval recorded. Security email was simulated; no external email was sent.'
         : notifications.some(item => item.status === 'accepted')

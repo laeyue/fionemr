@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const nodemailer = require('nodemailer');
+const { waitUntil } = require('@vercel/functions');
 const { validEmail } = require('./security');
 
 function emailConfiguration() {
@@ -28,13 +29,13 @@ function plainText(html) {
     .replace(/[ \t]+/g, ' ').replace(/\n\s*\n/g, '\n\n').trim();
 }
 
-async function deliverEmail(recipientEmail, recipientName, subject, html) {
+async function deliverEmail(recipientEmail, recipientName, subject, html, savedText) {
   const config = emailConfiguration();
   if (!validEmail(recipientEmail)) return { status: 'failed', error: 'Invalid recipient email address.' };
   if (!config.configured) return { status: 'failed', error: 'Email configuration is incomplete: ' + config.missing.join(', ') };
   if (config.mode === 'simulate') return { status: 'simulated', simulated: true };
   const senderName = process.env.SENDER_NAME || 'School Clinic';
-  const text = plainText(html);
+  const text = savedText || plainText(html);
   try {
     if (config.mode === 'brevo') {
       const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -70,7 +71,16 @@ async function deliverEmail(recipientEmail, recipientName, subject, html) {
 }
 
 function createEmailService(database) {
-  async function dispatch(id, recipientName) {
+  function queue(id) {
+    const delivery = dispatch(id).catch(() => {
+      console.error('[EMAIL] Background delivery could not be completed. Check the email log.');
+    });
+    if (process.env.VERCEL) waitUntil(delivery);
+    else void delivery;
+    return { status: 'pending', queued: true };
+  }
+
+  async function dispatch(id) {
     // Claim once: concurrent requests cannot send the same log entry twice.
     const claimed = await database.query("UPDATE email_alerts SET delivery_status = 'sending', attempt_count = attempt_count + 1, last_attempt_at = now(), delivery_error = NULL WHERE id = $1 AND delivery_status IN ('pending', 'failed') AND attempt_count < 3 RETURNING *", [id]);
     const alert = claimed.rows[0];
@@ -87,7 +97,7 @@ function createEmailService(database) {
       const pending = await database.query("SELECT id FROM excuse_slips WHERE id = $1 AND departure_approved = FALSE AND created_at > now() - interval '7 days'", [alert.dedup_key.slice(10)]);
       if (!pending.rows.length) result = { status: 'cancelled', error: 'The approval request is expired or has already been completed.' };
     }
-    if (!result) result = await deliverEmail(alert.recipient_email, recipientName, alert.subject, alert.body);
+    if (!result) result = await deliverEmail(alert.recipient_email, alert.recipient_name || recipientNameFor(alert.recipient_type), alert.subject, alert.body, alert.text_body);
     await database.query('UPDATE email_alerts SET delivery_status = $2, provider_message_id = $3, delivery_error = $4, accepted_at = CASE WHEN $2 = \'accepted\' THEN now() ELSE NULL END WHERE id = $1', [id, result.status, result.messageId || null, result.error || null]);
     if (alert.dedup_key?.startsWith('teacher:')) {
       const status = { accepted: 'Provider accepted', simulated: 'Simulated', failed: 'Failed', unknown: 'Unconfirmed' }[result.status] || 'Unconfirmed';
@@ -95,11 +105,26 @@ function createEmailService(database) {
     }
     return result;
   }
-  async function send(patientId, recipientType, email, name, subject, html, id = crypto.randomUUID(), dedupKey = null) {
+  async function send({ patientId, recipientType, email, name, message, id = crypto.randomUUID(), dedupKey = null }) {
     try {
-      const inserted = await database.query("INSERT INTO email_alerts (id, patient_id, recipient_type, recipient_email, subject, body, delivery_status, dedup_key) VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7) ON CONFLICT DO NOTHING RETURNING id", [id, patientId, recipientType, email.trim(), subject, html, dedupKey]);
-      if (!inserted.rows.length) return { status: 'skipped' };
-      return await dispatch(id, name);
+      if (!message || typeof message.subject !== 'string' || typeof message.html !== 'string' || typeof message.text !== 'string') {
+        return { status: 'failed', error: 'Email message is incomplete.' };
+      }
+      const eventType = typeof message.eventType === 'string' && /^[a-z0-9_]{1,64}$/i.test(message.eventType) ? message.eventType : 'custom';
+      const subject = message.subject.replace(/[\r\n]+/g, ' ').trim().slice(0, 255);
+      const inserted = await database.query("INSERT INTO email_alerts (id, patient_id, recipient_type, recipient_email, recipient_name, event_type, subject, body, text_body, payload_version, delivery_status, dedup_key) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 2, 'pending', $10) ON CONFLICT DO NOTHING RETURNING id", [
+        id, patientId, recipientType, String(email || '').trim(), name || null, eventType, subject, message.html, message.text, dedupKey
+      ]);
+      if (!inserted.rows.length) {
+        if (dedupKey) {
+          const existing = await database.query('SELECT id, delivery_status FROM email_alerts WHERE dedup_key = $1', [dedupKey]);
+          const previous = existing.rows[0];
+          if (previous?.delivery_status === 'pending') return queue(previous.id);
+          if (previous) return { status: previous.delivery_status, duplicate: true };
+        }
+        return { status: 'skipped', duplicate: true };
+      }
+      return queue(id);
     } catch {
       // Never send without a durable record, and never fail the clinical action for email.
       console.error('[EMAIL] Could not persist email delivery state.');
@@ -107,6 +132,15 @@ function createEmailService(database) {
     }
   }
   return { send, dispatch };
+}
+
+function recipientNameFor(recipientType) {
+  return ({
+    parent: 'Parent/Guardian',
+    adviser: 'Homeroom Adviser',
+    principal: 'School Principal',
+    security_guard: 'Gate Security'
+  })[recipientType] || 'Recipient';
 }
 
 module.exports = { createEmailService, emailConfiguration };
