@@ -44,6 +44,14 @@ const getBackendUrl = () => {
   return 'http://localhost:' + listeningPort;
 };
 
+const createResponseToken = (alertId, response, sentAt) => {
+  const secret = process.env.RESPONSE_TOKEN_SECRET || process.env.DATABASE_URL || process.env.DATABASE_URL_UNPOOLED;
+  if (!secret) throw new Error('Response token signing secret is unavailable.');
+  return crypto.createHmac('sha256', secret)
+    .update(`${alertId}:${response}:${new Date(sentAt).toISOString()}`)
+    .digest('hex');
+};
+
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
   '&': '&amp;',
   '<': '&lt;',
@@ -223,25 +231,6 @@ app.get('/api/health', async (req, res) => {
 // GET displays confirmation; only an explicit POST records a recipient response.
 app.all('/api/notifications/respond', async (req, res) => {
   if (!['GET', 'POST'].includes(req.method)) return res.status(405).set('Allow', 'GET, POST').send('Method not allowed.');
-  if (req.method === 'POST') {
-    const origin = req.get('origin');
-    const configuredOrigin = (() => {
-      try {
-        return new URL(getBackendUrl()).origin;
-      } catch {
-        return null;
-      }
-    })();
-    const requestOrigin = `${req.protocol}://${req.get('host')}`;
-    const allowedResponseOrigins = new Set([requestOrigin, configuredOrigin].filter(Boolean));
-    let normalizedOrigin = origin;
-    try {
-      if (origin) normalizedOrigin = new URL(origin).origin;
-    } catch {
-      return res.status(403).send('<h1>Please confirm this response from the email confirmation page.</h1>');
-    }
-    if (origin && !allowedResponseOrigins.has(normalizedOrigin)) return res.status(403).send('<h1>Please confirm this response from the email confirmation page.</h1>');
-  }
   const { alertId, response } = req.method === 'GET' ? req.query : req.body;
   if (!/^[0-9a-f-]{36}$/i.test(String(alertId || '')) || !['Acknowledged', 'On My Way'].includes(response)) return res.status(400).send('<h1>Invalid response link</h1>');
   res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
@@ -251,7 +240,12 @@ app.all('/api/notifications/respond', async (req, res) => {
     if (!alert || !alert.body?.includes('/api/notifications/respond?')) return res.status(404).send('<h1>Response link not found</h1>');
     if (Date.now() - new Date(alert.sent_at).getTime() > 7 * 86400000) return res.status(410).send('<h1>This response link has expired. Please contact the clinic.</h1>');
     if (alert.acknowledged) return res.status(409).send('<h1>A response has already been recorded. Contact the clinic to change it.</h1>');
-    if (req.method === 'GET') return res.type('html').send('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Confirm clinic response</title></head><body style="font:16px system-ui;max-width:480px;margin:64px auto;padding:24px"><h1>Confirm clinic response</h1><p>Opening this link has not recorded a response. Submit below to confirm: <strong>' + escapeHtml(response) + '</strong>.</p><form method="post" action="/api/notifications/respond"><input type="hidden" name="alertId" value="' + escapeHtml(alertId) + '"><input type="hidden" name="response" value="' + escapeHtml(response) + '"><button type="submit">Confirm response</button></form><p>For urgent assistance, contact the clinic directly.</p></body></html>');
+    const expectedResponseToken = createResponseToken(alertId, response, alert.sent_at);
+    if (req.method === 'GET') return res.type('html').send('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Confirm clinic response</title></head><body style="font:16px system-ui;max-width:480px;margin:64px auto;padding:24px"><h1>Confirm clinic response</h1><p>Opening this link has not recorded a response. Submit below to confirm: <strong>' + escapeHtml(response) + '</strong>.</p><form method="post" action="/api/notifications/respond"><input type="hidden" name="alertId" value="' + escapeHtml(alertId) + '"><input type="hidden" name="response" value="' + escapeHtml(response) + '"><input type="hidden" name="responseToken" value="' + expectedResponseToken + '"><button type="submit">Confirm response</button></form><p>For urgent assistance, contact the clinic directly.</p></body></html>');
+    const submittedToken = String(req.body.responseToken || '');
+    const validTokenFormat = /^[a-f0-9]{64}$/i.test(submittedToken);
+    const validToken = validTokenFormat && crypto.timingSafeEqual(Buffer.from(submittedToken, 'hex'), Buffer.from(expectedResponseToken, 'hex'));
+    if (!validToken) return res.status(403).send('<h1>Please confirm this response from the email confirmation page.</h1>');
     const updated = await db.query('UPDATE email_alerts SET acknowledged = TRUE, acknowledged_at = now(), response_status = $2 WHERE id = $1 AND acknowledged = FALSE RETURNING id', [alertId, response]);
     if (!updated.rows.length) return res.status(409).send('<h1>A response has already been recorded.</h1>');
     return res.type('html').send(getResponseLandingPage(response));

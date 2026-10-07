@@ -179,7 +179,10 @@ test('local backend initializes PostgreSQL, signs in, and persists patient workf
     headers: { origin: 'https://mail.google.com' }
   });
   assert.equal(webmailConfirmation.status, 200);
-  assert.match(await webmailConfirmation.text(), /Confirm clinic response/);
+  const confirmationHtml = await webmailConfirmation.text();
+  assert.match(confirmationHtml, /Confirm clinic response/);
+  const responseToken = confirmationHtml.match(/name="responseToken" value="([a-f0-9]{64})"/i)?.[1];
+  assert.ok(responseToken);
   assert.equal(webmailConfirmation.headers.get('access-control-allow-origin'), null);
 
   const crossOriginSubmission = await fetch(baseUrl + '/api/notifications/respond', {
@@ -192,7 +195,7 @@ test('local backend initializes PostgreSQL, signs in, and persists patient workf
   const responsePage = await fetch(baseUrl + '/api/notifications/respond', {
     method: 'POST',
     headers: { origin: baseUrl, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ alertId: parentAlert.id, response: 'Acknowledged' })
+    body: new URLSearchParams({ alertId: parentAlert.id, response: 'Acknowledged', responseToken })
   });
   assert.equal(responsePage.status, 200);
   assert.match(await responsePage.text(), /Response Recorded/);
