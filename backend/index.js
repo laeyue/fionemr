@@ -225,8 +225,22 @@ app.all('/api/notifications/respond', async (req, res) => {
   if (!['GET', 'POST'].includes(req.method)) return res.status(405).set('Allow', 'GET, POST').send('Method not allowed.');
   if (req.method === 'POST') {
     const origin = req.get('origin');
-    const pageOrigin = `${req.protocol}://${req.get('host')}`;
-    if (origin && origin !== pageOrigin) return res.status(403).send('<h1>Please confirm this response from the email confirmation page.</h1>');
+    const configuredOrigin = (() => {
+      try {
+        return new URL(getBackendUrl()).origin;
+      } catch {
+        return null;
+      }
+    })();
+    const requestOrigin = `${req.protocol}://${req.get('host')}`;
+    const allowedResponseOrigins = new Set([requestOrigin, configuredOrigin].filter(Boolean));
+    let normalizedOrigin = origin;
+    try {
+      if (origin) normalizedOrigin = new URL(origin).origin;
+    } catch {
+      return res.status(403).send('<h1>Please confirm this response from the email confirmation page.</h1>');
+    }
+    if (origin && !allowedResponseOrigins.has(normalizedOrigin)) return res.status(403).send('<h1>Please confirm this response from the email confirmation page.</h1>');
   }
   const { alertId, response } = req.method === 'GET' ? req.query : req.body;
   if (!/^[0-9a-f-]{36}$/i.test(String(alertId || '')) || !['Acknowledged', 'On My Way'].includes(response)) return res.status(400).send('<h1>Invalid response link</h1>');
