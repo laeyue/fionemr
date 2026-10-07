@@ -75,7 +75,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(cors({
+const corsMiddleware = cors({
   origin(origin, callback) {
     if (!origin || (!production && allowedOrigins.size === 0) || allowedOrigins.has(origin)) {
       return callback(null, true);
@@ -84,7 +84,14 @@ app.use(cors({
   },
   allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
-}));
+});
+app.use((req, res, next) => {
+  // Email response links open as top-level navigations from webmail. They are
+  // HTML form interactions, not cross-origin API calls, so API CORS must not
+  // reject the mail provider or webmail Origin header.
+  if (req.path === '/api/notifications/respond') return next();
+  return corsMiddleware(req, res, next);
+});
 app.use(express.json({ limit: '64kb' }));
 app.use(express.urlencoded({ extended: false, limit: '8kb' }));
 app.use(async (req, res, next) => {
@@ -216,6 +223,11 @@ app.get('/api/health', async (req, res) => {
 // GET displays confirmation; only an explicit POST records a recipient response.
 app.all('/api/notifications/respond', async (req, res) => {
   if (!['GET', 'POST'].includes(req.method)) return res.status(405).set('Allow', 'GET, POST').send('Method not allowed.');
+  if (req.method === 'POST') {
+    const origin = req.get('origin');
+    const pageOrigin = `${req.protocol}://${req.get('host')}`;
+    if (origin && origin !== pageOrigin) return res.status(403).send('<h1>Please confirm this response from the email confirmation page.</h1>');
+  }
   const { alertId, response } = req.method === 'GET' ? req.query : req.body;
   if (!/^[0-9a-f-]{36}$/i.test(String(alertId || '')) || !['Acknowledged', 'On My Way'].includes(response)) return res.status(400).send('<h1>Invalid response link</h1>');
   res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");

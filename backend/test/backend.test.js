@@ -174,10 +174,25 @@ test('local backend initializes PostgreSQL, signs in, and persists patient workf
   const parentAlert = alerts.find((alert) => alert.recipient_type === 'parent');
   assert.ok(parentAlert);
 
+  const confirmationUrl = baseUrl + '/api/notifications/respond?alertId=' + encodeURIComponent(parentAlert.id) + '&response=Acknowledged';
+  const webmailConfirmation = await fetch(confirmationUrl, {
+    headers: { origin: 'https://mail.google.com' }
+  });
+  assert.equal(webmailConfirmation.status, 200);
+  assert.match(await webmailConfirmation.text(), /Confirm clinic response/);
+  assert.equal(webmailConfirmation.headers.get('access-control-allow-origin'), null);
+
+  const crossOriginSubmission = await fetch(baseUrl + '/api/notifications/respond', {
+    method: 'POST',
+    headers: { origin: 'https://mail.google.com', 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ alertId: parentAlert.id, response: 'Acknowledged' })
+  });
+  assert.equal(crossOriginSubmission.status, 403);
+
   const responsePage = await fetch(baseUrl + '/api/notifications/respond', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ alertId: parentAlert.id, response: 'On My Way' })
+    headers: { origin: baseUrl, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ alertId: parentAlert.id, response: 'Acknowledged' })
   });
   assert.equal(responsePage.status, 200);
   assert.match(await responsePage.text(), /Response Recorded/);
