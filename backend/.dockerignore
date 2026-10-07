@@ -1,4 +1,9 @@
 node_modules
+data
+db-backups
+.env.neon-*
+.dev-accounts.json
+seed-dev-accounts.js
 .env
 .env.local
 .git

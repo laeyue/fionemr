@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../App';
 import { api } from '../../api';
+import { emailFeedback } from '../../emailFeedback';
+import { clinicCalendarDate, clinicHour, localDateString } from '../../date';
 import heroImg from '../../assets/hero-illustration.png';
 import './DashboardHome.css';
 
@@ -14,17 +16,19 @@ const DashboardHome = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const now = new Date();
-  const isRestrictedRole = user?.role !== 'physician' && user?.role !== 'nurse';
-  const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
+  const clinicNow = clinicCalendarDate(now);
+  const clinicHourNow = clinicHour(now);
+  const isRestrictedRole = !['physician', 'nurse', 'admin'].includes(user?.role);
+  const greeting = clinicHourNow < 12 ? 'Good morning' : clinicHourNow < 18 ? 'Good afternoon' : 'Good evening';
 
   /* Date selector state */
-  const [selectedDate, setSelectedDate] = useState(now);
+  const [selectedDate, setSelectedDate] = useState(clinicNow);
   const [stats, setStats] = useState({
     totalPatients: 0,
     checkinsToday: 0,
     activeAlerts: 0,
     bedsOccupied: 0,
-    paracetamolStock: 120,
+    paracetamolStock: null,
     sentHomeToday: 0,
     occupiedBedsList: [],
     highRiskPatients: []
@@ -33,6 +37,7 @@ const DashboardHome = () => {
   const [recentPatients, setRecentPatients] = useState([]);
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [timeTick, setTimeTick] = useState(0);
 
   useEffect(() => {
@@ -62,8 +67,8 @@ const DashboardHome = () => {
   const getDays = () => {
     const days = [];
     for (let i = -3; i <= 3; i++) {
-      const d = new Date(now);
-      d.setDate(now.getDate() + i);
+      const d = new Date(clinicNow);
+      d.setDate(clinicNow.getDate() + i);
       days.push(d);
     }
     return days;
@@ -72,6 +77,7 @@ const DashboardHome = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      setLoadError('');
       const [statsRes, trendsRes, patientsRes] = await Promise.all([
         api.getDashboardStats(),
         api.getDashboardTrends(),
@@ -87,7 +93,7 @@ const DashboardHome = () => {
         setRecentPatients(sorted);
       }
     } catch (err) {
-      console.error("Error fetching dashboard data:", err);
+      setLoadError(err.message || 'Dashboard data is unavailable.');
     } finally {
       setLoading(false);
     }
@@ -95,7 +101,7 @@ const DashboardHome = () => {
 
   const fetchActivityFeed = async (date) => {
     try {
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = localDateString(date);
       const res = await api.getDashboardActivity(dateStr);
       if (res && res.data) {
         setActivity(res.data);
@@ -109,11 +115,12 @@ const DashboardHome = () => {
     e.stopPropagation();
     if (!window.confirm("Are you sure you want to check out this student?")) return;
     try {
-      await api.checkOutPatient(id);
+      const result = await api.checkOutPatient(id);
+      window.alert(emailFeedback(result.notifications));
       fetchDashboardData();
       fetchActivityFeed(selectedDate);
     } catch (err) {
-      console.error("Error checking out patient:", err);
+      window.alert('Could not check out the patient: ' + err.message);
     }
   };
 
@@ -145,6 +152,9 @@ const DashboardHome = () => {
     }
   };
 
+  if (loading) return <div role="status" className="card" style={{ padding: 24 }}>Loading dashboard…</div>;
+  if (loadError) return <div role="alert" className="card" style={{ padding: 24 }}><h2>Dashboard unavailable</h2><p>{loadError}</p><button className="btn btn-secondary" onClick={fetchDashboardData}>Retry</button></div>;
+
   return (
     <div className="dash-home anim-fade-up">
       {/* ===== ASYMMETRIC THREE-COLUMN ===== */}
@@ -156,7 +166,7 @@ const DashboardHome = () => {
           <div className="welcome-block anim-fade-up">
             <h1>{greeting},<br /><span className="text-primary">{user?.name?.split(' ')[0] || 'Doctor'}</span></h1>
             <p className="text-muted" style={{ marginTop: 8, fontSize: 'var(--text-base)' }}>
-              {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              {clinicNow.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
 
@@ -171,12 +181,12 @@ const DashboardHome = () => {
           <div className="quick-squares anim-fade-up delay-2">
             <SquareCard label="Check-ins" value={stats.checkinsToday} color="blue" icon={UserCheck} onClick={() => navigate('/dashboard/patients')} />
             <SquareCard label="Alerts" value={stats.activeAlerts} color="red" icon={AlertTriangle} onClick={() => navigate('/dashboard/patients')} />
-            <SquareCard label="Beds" value={stats.bedsOccupied} color="cyan" icon={Bed} onClick={() => navigate('/dashboard/patients')} />
+            <SquareCard label="Beds" value={stats.bedsOccupied} color="cyan" icon={Bed} onClick={() => navigate('/dashboard/clinic')} />
             <SquareCard label="Patients" value={stats.totalPatients} color="green" icon={Users} onClick={() => navigate('/dashboard/patients')} />
             <SquareCard 
               label="Paracetamol" 
-              value={stats.paracetamolStock} 
-              color={stats.paracetamolStock < 20 ? "red" : "amber"} 
+              value="Not tracked"
+              color="amber"
               icon={Pill} 
               onClick={() => navigate('/dashboard/patients')} 
             />

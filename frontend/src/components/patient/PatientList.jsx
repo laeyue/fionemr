@@ -3,9 +3,14 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Users, X, Loader2 } from 'lucide-react';
 import { api } from '../../api';
+import { useAuth } from '../../App';
+import { emailFeedback } from '../../emailFeedback';
+import { clinicDateString } from '../../date';
 import './PatientList.css';
 
 const PatientList = () => {
+  const { user } = useAuth();
+  const canManagePatients = ['physician', 'nurse', 'admin'].includes(user?.role);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [patients, setPatients] = useState([]);
@@ -147,7 +152,8 @@ const PatientList = () => {
 
     try {
       setIsLoading(true);
-      await api.checkInPatient(selectedStudent.id, checkInComplaint.trim());
+      const result = await api.checkInPatient(selectedStudent.id, checkInComplaint.trim());
+      window.alert(emailFeedback(result.notifications));
       setShowCheckInModal(false);
       setCheckInComplaint('');
       setSelectedStudent(null);
@@ -174,7 +180,7 @@ const PatientList = () => {
     let list = [...patients];
 
     if (activeSubTab === 'active-patients') {
-      list = list.filter(p => p.status === 'Checked In');
+      list = list.filter(p => ['Checked In', 'Under Observation'].includes(p.status));
     }
 
     if (selectedSection) {
@@ -210,9 +216,9 @@ const PatientList = () => {
           <h2>Clinic Registry</h2>
           <p className="text-muted">{patients.length} total registered students</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        {canManagePatients && <button className="btn btn-primary" onClick={() => setShowModal(true)}>
           <Plus size={16} /> Register Student
-        </button>
+        </button>}
       </div>
 
       {/* Sub-tabs to switch between Active Patients and Student Directory */}
@@ -228,7 +234,7 @@ const PatientList = () => {
             setSearch('');
           }}
         >
-          Active Checked-In Patients ({patients.filter(p => p.status === 'Checked In').length})
+          Active Clinic Patients ({patients.filter(p => ['Checked In', 'Under Observation'].includes(p.status)).length})
         </button>
         <button 
           className={`sub-tab ${activeSubTab === 'student-directory' ? 'active' : ''}`}
@@ -432,7 +438,7 @@ const PatientList = () => {
                     <>
                       <td><span className={`badge badge-${patient.status_color || 'gray'}`}>{patient.status}</span></td>
                       <td>
-                        {patient.status === 'Checked In' ? (
+                        {patient.status !== 'Checked Out' || !canManagePatients ? (
                           <span className="text-primary font-semibold" style={{ fontSize: 'var(--text-sm)' }}>View Chart</span>
                         ) : (
                           <button
@@ -481,10 +487,10 @@ const PatientList = () => {
           ) : (
             <>
               <h3>No student roster records found</h3>
-              <p className="text-muted">Student records will appear here once registered. Click "Register Student" to add the first record.</p>
-              <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => setShowModal(true)}>
+              <p className="text-muted">{canManagePatients ? 'Register a student to add the first record.' : 'No student records are available.'}</p>
+              {canManagePatients && <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => setShowModal(true)}>
                 <Plus size={16} /> Register Student
-              </button>
+              </button>}
             </>
           )}
         </div>
@@ -535,7 +541,7 @@ const PatientList = () => {
                     type="date"
                     name="date_of_birth"
                     className="form-input"
-                    max={new Date().toISOString().split('T')[0]}
+                    max={clinicDateString()}
                     value={formData.date_of_birth}
                     onChange={handleInputChange}
                   />
@@ -761,4 +767,3 @@ const PatientList = () => {
 };
 
 export default PatientList;
-

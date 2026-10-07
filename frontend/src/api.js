@@ -4,6 +4,7 @@ let currentSession = null;
 
 // In-memory request cache for GET endpoints
 const requestCache = new Map();
+const pendingClinicalRequests = new Map();
 const CACHE_TTL = 30000; // 30 seconds
 
 function getCache(key) {
@@ -31,7 +32,7 @@ async function request(path, options = {}) {
   const method = options.method || 'GET';
 
   // Only use cache for GET requests
-  if (method === 'GET') {
+  if (method === 'GET' && options.cache !== 'no-store') {
     const cachedData = getCache(path);
     if (cachedData !== null) {
       // Return deep copy to prevent mutations affecting cache
@@ -45,10 +46,16 @@ async function request(path, options = {}) {
     ...options.headers,
   };
   
-  if (currentSession) {
-    headers['X-User-Email'] = currentSession.email;
-    headers['X-User-Role'] = currentSession.role;
-    headers['X-User-Name'] = currentSession.name;
+  if (currentSession?.accessToken) headers.Authorization = `Bearer ${currentSession.accessToken}`;
+
+  const clinicalMutation = method === 'POST' && /^\/patients\/\d+\/(checkin|checkout|admit|discharge|excuse-slips)$/.test(path);
+  const actionKey = clinicalMutation ? JSON.stringify([currentSession?.accessToken, path, options.body || {}]) : null;
+  if (actionKey) {
+    if (!pendingClinicalRequests.has(actionKey)) {
+      if (pendingClinicalRequests.size >= 100) pendingClinicalRequests.delete(pendingClinicalRequests.keys().next().value);
+      pendingClinicalRequests.set(actionKey, crypto.randomUUID());
+    }
+    headers['Idempotency-Key'] = pendingClinicalRequests.get(actionKey);
   }
 
   const config = {
@@ -60,14 +67,21 @@ async function request(path, options = {}) {
   }
   const response = await fetch(url, config);
   if (!response.ok) {
+    if (actionKey && response.status < 500) pendingClinicalRequests.delete(actionKey);
     const errData = await response.json().catch(() => ({}));
+    if (response.status === 401 && currentSession) {
+      currentSession = null;
+      clearCache();
+      window.dispatchEvent(new Event('auth:expired'));
+    }
     throw new Error(errData.error || `HTTP error! status: ${response.status}`);
   }
   
   const result = await response.json();
+  if (actionKey) pendingClinicalRequests.delete(actionKey);
 
   if (method === 'GET') {
-    setCache(path, result);
+    if (options.cache !== 'no-store') setCache(path, result);
   } else {
     // Invalidate cache on mutations (POST, PUT, DELETE)
     clearCache();
@@ -131,34 +145,18 @@ export const api = {
     body: accountData,
   }),
 
-  mfaSetup: (userId) => request('/auth/mfa/setup', {
-    method: 'POST',
-    body: { userId },
-  }),
+  logout: async () => {
+    try {
+      await request('/auth/logout', { method: 'POST' });
+    } finally {
+      currentSession = null;
+      clearCache();
+    }
+  },
 
-  mfaVerifySetup: (userId, code, mfaType) => request('/auth/mfa/verify-setup', {
+  changePassword: (currentPassword, newPassword) => request('/auth/change-password', {
     method: 'POST',
-    body: { userId, code, mfaType },
-  }),
-
-  mfaSendEmail: (userId) => request('/auth/mfa/send-email', {
-    method: 'POST',
-    body: { userId },
-  }),
-
-  mfaVerify: (userId, code) => request('/auth/mfa/verify', {
-    method: 'POST',
-    body: { userId, code },
-  }),
-
-  changePassword: (userId, currentPassword, newPassword) => request('/auth/change-password', {
-    method: 'POST',
-    body: { userId, currentPassword, newPassword },
-  }),
-
-  disableMfa: (userId) => request('/auth/mfa/disable', {
-    method: 'POST',
-    body: { userId },
+    body: { currentPassword, newPassword },
   }),
 
   updateImmunization: (id, vaccineData) => request(`/patients/${id}/immunizations`, {
@@ -205,7 +203,10 @@ export const api = {
 
   getSimulatedNotifications: () => request('/admin/notifications'),
 
-  getEmailAlertLogs: () => request('/notifications/logs'),
+  getEmailAlertLogs: () => request('/notifications/logs', { cache: 'no-store' }),
+  getEmailConfiguration: () => request('/notifications/email-config', { cache: 'no-store' }),
+  retryEmail: (id) => request(`/notifications/logs/${id}/retry`, { method: 'POST' }),
+  notifyPatientParent: (id) => request(`/patients/${id}/notify-parent`, { method: 'POST' }),
 
   getClinicSettings: () => request('/settings/clinic'),
 
@@ -224,7 +225,3 @@ export const api = {
     clearCache();
   },
 };
-
-
-
-

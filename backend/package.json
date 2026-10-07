@@ -5,20 +5,20 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test",
+    "db:migrate": "node migrate.js",
+    "admin:create": "node create-admin.js",
+    "seed:dev": "node seed-dev-accounts.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@supabase/supabase-js": "^2.107.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
     "nodemailer": "^8.0.10",
-    "pg": "^8.21.0",
-    "ws": "^8.21.0"
+    "pg": "^8.21.0"
   }
 }

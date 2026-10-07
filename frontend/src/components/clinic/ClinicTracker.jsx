@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Bed, Users, UserMinus, Plus, ShieldAlert, Activity, Heart, ArrowUpRight, X } from 'lucide-react';
 import { api } from '../../api';
+import { emailFeedback } from '../../emailFeedback';
 import { useAuth } from '../../App';
+import { clinicDateString } from '../../date';
 
 const ClinicTracker = () => {
   const navigate = useNavigate();
@@ -21,16 +23,18 @@ const ClinicTracker = () => {
   const [checkoutPatientName, setCheckoutPatientName] = useState('');
   const [issueExcuseSlip, setIssueExcuseSlip] = useState(true);
   const [excuseReason, setExcuseReason] = useState('');
-  const [excuseStartDate, setExcuseStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [excuseEndDate, setExcuseEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [excuseStartDate, setExcuseStartDate] = useState(clinicDateString());
+  const [excuseEndDate, setExcuseEndDate] = useState(clinicDateString());
   const [notifyTeacher, setNotifyTeacher] = useState(true);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
-  const canManageBeds = user?.role === 'physician' || user?.role === 'nurse';
+  const canManageBeds = ['physician', 'nurse', 'admin'].includes(user?.role);
 
   const fetchClinicData = async () => {
     try {
       setIsLoading(true);
+      setLoadError('');
       const [resStats, resPatients] = await Promise.all([
         api.getDashboardStats(),
         api.getPatients()
@@ -44,11 +48,11 @@ const ClinicTracker = () => {
       if (resPatients && resPatients.data) {
         // Only list patients who are NOT currently in a bed
         const bedIds = (resStats ? resStats.occupiedBedsList || [] : []).map(b => b.id);
-        const available = resPatients.data.filter(p => !bedIds.includes(p.id));
+        const available = resPatients.data.filter(p => p.status === 'Checked In' && !bedIds.includes(p.id));
         setPatients(available);
       }
     } catch (err) {
-      console.error('Error fetching clinic bed tracker data:', err);
+      setLoadError(err.message || 'Clinic occupancy is unavailable.');
     } finally {
       setIsLoading(false);
     }
@@ -105,8 +109,8 @@ const ClinicTracker = () => {
     } catch (err) {
       setExcuseReason('');
     }
-    setExcuseStartDate(new Date().toISOString().split('T')[0]);
-    setExcuseEndDate(new Date().toISOString().split('T')[0]);
+    setExcuseStartDate(clinicDateString());
+    setExcuseEndDate(clinicDateString());
     setIssueExcuseSlip(true);
     setNotifyTeacher(true);
     setShowCheckOutModal(true);
@@ -119,7 +123,7 @@ const ClinicTracker = () => {
       setIsCheckingOut(true);
       let payload = undefined;
       if (issueExcuseSlip && excuseReason.trim()) {
-        if (new Date(excuseStartDate) > new Date(excuseEndDate)) {
+        if (excuseStartDate > excuseEndDate) {
           alert("Excuse start date cannot be after the end date.");
           setIsCheckingOut(false);
           return;
@@ -131,7 +135,8 @@ const ClinicTracker = () => {
           teacher_notified: notifyTeacher
         };
       }
-      await api.checkOutPatient(checkoutPatientId, payload);
+      const result = await api.checkOutPatient(checkoutPatientId, payload);
+      window.alert(emailFeedback(result.notifications));
       setShowCheckOutModal(false);
       setCheckoutPatientId(null);
       fetchClinicData();
@@ -143,7 +148,7 @@ const ClinicTracker = () => {
   };
 
   const getDuration = (entryTime) => {
-    if (!entryTime) return '0m';
+    if (!entryTime) return 'Not recorded';
     const diffMs = currentTime - new Date(entryTime).getTime();
     const diffMins = Math.floor(diffMs / 60000);
     
@@ -155,10 +160,13 @@ const ClinicTracker = () => {
     return `${diffHours}h ${remainingMins}m`;
   };
 
-  const capacity = 5;
+  const capacity = stats.bedCapacity || 5;
   const occupiedCount = bedsList.length;
   const availableBeds = Math.max(0, capacity - occupiedCount);
   const occupancyRate = Math.round((occupiedCount / capacity) * 100);
+
+  if (isLoading) return <div role="status" className="card" style={{ padding: 24 }}>Loading clinic occupancy…</div>;
+  if (loadError) return <div role="alert" className="card" style={{ padding: 24 }}><p>Clinic occupancy could not be loaded: {loadError}</p><button className="btn btn-secondary" onClick={fetchClinicData}>Retry</button></div>;
 
   return (
     <div className="clinic-tracker-page anim-fade-up" style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -335,7 +343,7 @@ const ClinicTracker = () => {
             </>
           ) : (
             <div className="form-error" style={{ background: '#fef2f2', border: '1px solid #fee2e2', color: '#b91c1c', padding: 12, borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)' }}>
-              ⚠️ Access Restricted: Only physicians and nurses can assign or discharge clinic beds.
+              Access restricted: Clinical staff and administrators can assign or discharge clinic beds.
             </div>
           )}
         </div>

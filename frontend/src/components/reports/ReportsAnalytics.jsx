@@ -8,21 +8,22 @@ const ReportsAnalytics = () => {
   const [stats, setStats] = useState(null);
   const [trends, setTrends] = useState({ Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0 });
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const fetchReportsData = async () => {
     try {
       setIsLoading(true);
-      const resStats = await api.getDashboardStats();
+      setLoadError('');
+      const [resStats, resTrends] = await Promise.all([api.getDashboardStats(), api.getDashboardTrends()]);
       if (resStats) {
         setStats(resStats);
       }
       
-      const resTrends = await api.getDashboardTrends();
       if (resTrends && resTrends.data) {
         setTrends(resTrends.data);
       }
     } catch (err) {
-      console.error('Error fetching analytics reports data:', err);
+      setLoadError(err.message || 'Reports are unavailable.');
     } finally {
       setIsLoading(false);
     }
@@ -31,6 +32,9 @@ const ReportsAnalytics = () => {
   useEffect(() => {
     fetchReportsData();
   }, []);
+
+  if (isLoading) return <div role="status" className="card" style={{ padding: 24 }}>Loading reports…</div>;
+  if (loadError) return <div role="alert" className="card" style={{ padding: 24 }}><h2>Reports unavailable</h2><p>{loadError}</p><p>Current counts and outbreak status could not be confirmed.</p><button className="btn btn-secondary" onClick={fetchReportsData}>Retry</button></div>;
 
   const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
   const maxTrendVal = Math.max(...weekdays.map(d => trends[d] || 0), 5);
@@ -79,7 +83,7 @@ const ReportsAnalytics = () => {
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--gray-900)', margin: 0 }}>Reports & Daily Analytics</h1>
           <p className="text-muted" style={{ margin: '4px 0 0 0', fontSize: 'var(--text-sm)' }}>
-            Real-time charts, daily check-in indicators, paracetamol stocks, and classroom outbreak reports.
+            Daily check-in indicators, clinic occupancy, and classroom outbreak reports. Medication inventory is not tracked.
           </p>
         </div>
       </div>
@@ -110,7 +114,7 @@ const ReportsAnalytics = () => {
         <div className="card" style={{ padding: 16, textAlign: 'left' }}>
           <span style={{ fontSize: 10, color: 'var(--gray-400)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Beds Occupied</span>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-            <strong style={{ fontSize: 24, fontWeight: 800, color: 'var(--gray-800)' }}>{stats?.bedsOccupied || 0} <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>/ 5</span></strong>
+            <strong style={{ fontSize: 24, fontWeight: 800, color: 'var(--gray-800)' }}>{stats?.bedsOccupied || 0} <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>/ {stats?.bedCapacity || 5}</span></strong>
             <BarChart size={20} style={{ color: 'var(--primary)' }} />
           </div>
         </div>
@@ -119,8 +123,8 @@ const ReportsAnalytics = () => {
         <div className="card" style={{ padding: 16, textAlign: 'left' }}>
           <span style={{ fontSize: 10, color: 'var(--gray-400)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Paracetamol Inventory</span>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-            <strong style={{ fontSize: 24, fontWeight: 800, color: stats?.paracetamolStock < 20 ? 'var(--danger)' : 'var(--gray-800)' }}>
-              {stats?.paracetamolStock || 0} <span style={{ fontSize: 11, color: 'var(--gray-400)', fontWeight: 500 }}>tabs</span>
+            <strong style={{ fontSize: 20, fontWeight: 800, color: 'var(--gray-600)' }}>
+              Not tracked
             </strong>
             <Pill size={20} style={{ color: 'var(--primary)' }} />
           </div>

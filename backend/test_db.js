@@ -1,29 +1,13 @@
-const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
+const { database } = require('./database');
 
-let supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = (process.env.SUPABASE_KEY || '').replace(/^['"]|['"]$/g, '').trim();
-
-if (supabaseUrl) {
-  supabaseUrl = supabaseUrl.replace(/^['"]|['"]$/g, '').trim();
-  supabaseUrl = supabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-}
-
-console.log('SUPABASE_URL:', supabaseUrl);
-console.log('SUPABASE_KEY exists:', !!supabaseKey);
-
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-async function check() {
-  try {
-    const { data: accounts, error } = await supabase
-      .from('accounts')
-      .select('*');
-    if (error) throw error;
-    console.log('Accounts in DB:', accounts);
-  } catch (err) {
-    console.error('Error fetching accounts:', err.message);
-  }
-}
-
-check();
+database.initialize()
+  .then(async () => {
+    const status = await database.health();
+    console.log('Neon database connection check passed (' + status.mode + ').');
+  })
+  .catch((error) => {
+    console.error('Neon database connection check failed:', error.message);
+    process.exitCode = 1;
+  })
+  .finally(() => database.close());

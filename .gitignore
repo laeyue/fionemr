@@ -8,6 +8,9 @@ lerna-debug.log*
 
 # Dependency directories
 node_modules/
+.npm-cache/
+backend/data/
+backend/db-backups/
 
 # Build outputs
 dist/
@@ -16,6 +19,8 @@ build/
 
 # Environment variables
 .env
+.env.neon-*
+.dev-accounts.json
 .env.local
 .env.development.local
 .env.test.local
@@ -36,4 +41,5 @@ build/
 .agents/
 SKILL.md
 skills-lock.json
-
+.vercel/
+.neon

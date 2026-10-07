@@ -130,44 +130,6 @@
   color: var(--gray-800);
 }
 
-/* ===== SECURITY / MFA STATE CARD ===== */
-.mfa-status-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px 24px;
-  border-radius: var(--radius-lg);
-  margin-bottom: 24px;
-}
-
-.mfa-status-banner.enabled {
-  background: var(--success-bg);
-  border: 1px solid rgba(16, 185, 129, 0.2);
-}
-
-.mfa-status-banner.disabled {
-  background: var(--danger-bg);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-}
-
-.mfa-status-text {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.mfa-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-}
-
-.mfa-desc {
-  font-size: var(--text-sm);
-  color: var(--gray-600);
-}
-
 /* ===== DPA COMPLIANCE CHECKS ===== */
 .compliance-checklist {
   display: flex;
@@ -276,18 +238,6 @@
 
   .settings-card-header h2 {
     font-size: var(--text-lg);
-  }
-
-  .mfa-status-banner {
-    flex-direction: column;
-    gap: 12px;
-    align-items: flex-start;
-    padding: 16px;
-  }
-
-  .mfa-status-banner .btn {
-    width: 100%;
-    justify-content: center;
   }
 
   .compliance-item {

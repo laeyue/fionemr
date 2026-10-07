@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Bell, Smartphone, ShieldAlert, Activity, Heart, ArrowUpRight } from 'lucide-react';
+import { AlertTriangle, Bell, Smartphone, ShieldAlert, ArrowUpRight } from 'lucide-react';
 import { api } from '../../api';
+import { useAuth } from '../../App';
 
 const AlertsPage = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [activeSubTab, setActiveSubTab] = useState('clinical');
   const [highRiskList, setHighRiskList] = useState([]);
@@ -12,62 +14,79 @@ const AlertsPage = () => {
   const [emailAlerts, setEmailAlerts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSendingNotif, setIsSendingNotif] = useState(false);
+  const [emailConfig, setEmailConfig] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const [retryingId, setRetryingId] = useState(null);
 
-  const fetchAlertsData = async () => {
+  const fetchAlertsData = useCallback(async () => {
     try {
-      setIsLoading(true);
-      const resStats = await api.getDashboardStats();
+      const [resStats, resNotifs, resEmailLogs, config] = await Promise.all([
+        api.getDashboardStats(),
+        user?.role === 'admin' ? api.getSimulatedNotifications() : Promise.resolve({ data: [] }),
+        api.getEmailAlertLogs(),
+        api.getEmailConfiguration()
+      ]);
+      setLoadError('');
+      setEmailConfig(config.data);
       if (resStats) {
         setHighRiskList(resStats.highRiskPatients || []);
         setOutbreak(resStats.outbreakAlert || null);
       }
 
-      const resNotifs = await api.getSimulatedNotifications();
       if (resNotifs && resNotifs.data) {
         setNotifications(resNotifs.data);
       }
 
-      const resEmailLogs = await api.getEmailAlertLogs();
       if (resEmailLogs && resEmailLogs.data) {
         setEmailAlerts(resEmailLogs.data);
       }
     } catch (err) {
-      console.error('Error fetching alerts dashboard data:', err);
+      setLoadError(err.message || 'Could not load notification logs.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.role]);
 
   useEffect(() => {
-    fetchAlertsData();
+    const initial = setTimeout(fetchAlertsData, 0);
     // Auto refresh logs every 10 seconds
     const interval = setInterval(fetchAlertsData, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    return () => { clearTimeout(initial); clearInterval(interval); };
+  }, [fetchAlertsData]);
 
-  const handleAlertParent = async (patientId, patientName, parentName, alertType) => {
-    if (!window.confirm(`Send automated clinical alert SMS to ${parentName} regarding ${patientName}'s ${alertType}?`)) return;
+  const handleAlertParent = async (patientId, patientName) => {
+    if (!window.confirm(`Email the parent or guardian on ${patientName}'s record to contact the clinic?`)) return;
 
     try {
       setIsSendingNotif(true);
-      await api.checkInPatient(patientId, `Urgent Alert: Practitioner dispatched notification regarding critical vitals alarm (${alertType}).`);
+      const result = await api.notifyPatientParent(patientId);
       
       // Re-fetch simulated logs
-      const resNotifs = await api.getSimulatedNotifications();
-      if (resNotifs && resNotifs.data) {
-        setNotifications(resNotifs.data);
-      }
       const resEmailLogs = await api.getEmailAlertLogs();
       if (resEmailLogs && resEmailLogs.data) {
         setEmailAlerts(resEmailLogs.data);
       }
-      alert(`Simulated alert sent successfully to ${parentName}! Check the console below.`);
+      const delivery = result.notifications?.[0];
+      window.alert(delivery?.status === 'accepted' ? 'Email accepted by the provider. Inbox delivery is not yet confirmed.' : delivery?.status === 'simulated' ? 'Simulation recorded. No email was sent.' : delivery?.error || 'Email was not sent. Check the delivery log.');
     } catch (err) {
       alert('Failed to send notification: ' + err.message);
     } finally {
       setIsSendingNotif(false);
     }
   };
+
+  const handleRetry = async (id) => {
+    try {
+      setRetryingId(id);
+      const result = await api.retryEmail(id);
+      if (result.data?.error) window.alert(result.data.error);
+      await fetchAlertsData();
+    } catch (error) { window.alert(error.message); }
+    finally { setRetryingId(null); }
+  };
+
+  if (isLoading) return <div role="status" className="card" style={{ padding: 24 }}>Loading clinic alerts…</div>;
+  if (loadError) return <div role="alert" className="card" style={{ padding: 24 }}><h2>Alerts unavailable</h2><p>{loadError}</p><p>Current clinical alert status could not be confirmed.</p><button className="btn btn-secondary" onClick={fetchAlertsData}>Retry</button></div>;
 
   return (
     <div className="alerts-page anim-fade-up" style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -80,6 +99,7 @@ const AlertsPage = () => {
       </div>
 
       {/* Outbreak Alert Banner */}
+      {loadError && <div role="alert" className="card" style={{ padding: 16, color: 'var(--danger)' }}>{loadError}</div>}
       {outbreak && (
         <div 
           className="outbreak-banner"
@@ -128,7 +148,7 @@ const AlertsPage = () => {
           }}
         >
           <AlertTriangle size={16} style={{ color: activeSubTab === 'clinical' ? 'var(--primary)' : 'var(--gray-500)' }} />
-          Clinical Alerts & SMS
+          Clinical Alerts
         </button>
         <button 
           onClick={() => setActiveSubTab('email')}
@@ -148,7 +168,7 @@ const AlertsPage = () => {
           }}
         >
           <Smartphone size={16} style={{ color: activeSubTab === 'email' ? 'var(--primary)' : 'var(--gray-500)' }} />
-          Active Response Verification Console
+          Email Delivery & Responses
         </button>
       </div>
 
@@ -163,7 +183,7 @@ const AlertsPage = () => {
             </h3>
 
             <p className="text-muted" style={{ fontSize: 'var(--text-xs)', marginBottom: '16px', lineHeight: '1.4' }}>
-              List of students checked in today who have recorded vital signs outside normal physiological boundaries.
+              Current clinic patients whose latest recorded vital signs are outside the configured thresholds.
             </p>
 
             {isLoading ? (
@@ -250,7 +270,7 @@ const AlertsPage = () => {
                     {/* Actions area */}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
                       <button 
-                        onClick={() => handleAlertParent(item.id, item.name, 'Jane Doe (Mother)', item.alerts.join(', '))}
+                        onClick={() => handleAlertParent(item.id, item.name)}
                         className="btn btn-primary btn-sm"
                         style={{ background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}
                         disabled={isSendingNotif}
@@ -329,7 +349,7 @@ const AlertsPage = () => {
                 <Smartphone size={18} style={{ color: 'var(--primary)' }} /> Active Email Alerts Tracking & Verification
               </h3>
               <p className="text-muted" style={{ margin: '4px 0 0 0', fontSize: 'var(--text-xs)', lineHeight: '1.4' }}>
-                Real-time active verification logs showing receipt confirmation timestamps and acknowledgment statuses.
+                Track provider acceptance separately from recipient responses. Acceptance does not confirm inbox delivery.
               </p>
             </div>
             <button 
@@ -341,6 +361,10 @@ const AlertsPage = () => {
             </button>
           </div>
 
+          {emailConfig && <div role="status" style={{ padding: 12, marginBottom: 16, background: 'var(--gray-50)', borderRadius: 8 }}>
+            {emailConfig.mode === 'simulate' ? 'Simulation mode: no external emails are sent.' : emailConfig.configured ? `Email sending configured via ${emailConfig.mode}. Sender: ${emailConfig.sender}` : `Email setup incomplete: ${emailConfig.missing.join(', ')}. Configure these values on the backend.`}
+          </div>}
+
           {emailAlerts.length > 0 ? (
             <div style={{ overflowX: 'auto' }}>
               <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -349,7 +373,8 @@ const AlertsPage = () => {
                     <th style={{ padding: '12px 8px', fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)' }}>Student</th>
                     <th style={{ padding: '12px 8px', fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)' }}>Recipient</th>
                     <th style={{ padding: '12px 8px', fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)' }}>Subject</th>
-                    <th style={{ padding: '12px 8px', fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)' }}>Sent At</th>
+                    <th style={{ padding: '12px 8px', fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)' }}>Created At</th>
+                    <th style={{ padding: '12px 8px', fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)' }}>Delivery</th>
                     <th style={{ padding: '12px 8px', fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)' }}>Status</th>
                     <th style={{ padding: '12px 8px', fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)' }}>Verification Timestamp</th>
                   </tr>
@@ -382,12 +407,19 @@ const AlertsPage = () => {
                               color: isParent ? '#0369a1' : '#b45309'
                             }}
                           >
-                            {isParent ? 'Parent' : 'Adviser'}
+                            {{ parent: 'Parent', adviser: 'Adviser', principal: 'Principal', security_guard: 'Security' }[alert.recipient_type] || alert.recipient_type}
                           </span>
                           <span className="font-mono text-muted" style={{ fontSize: '12px' }}>{alert.recipient_email}</span>
                         </td>
                         <td style={{ padding: '12px 8px', color: 'var(--gray-600)' }}>{alert.subject}</td>
                         <td style={{ padding: '12px 8px' }}>{new Date(alert.sent_at).toLocaleString()}</td>
+                        <td style={{ padding: '12px 8px', minWidth: 170 }}>
+                          <strong style={{ color: alert.delivery_status === 'failed' ? 'var(--danger)' : 'var(--gray-700)' }}>
+                            {{ pending: 'Queued', sending: 'Sending', accepted: 'Provider accepted', simulated: 'Simulated', failed: 'Failed', unknown: 'Unconfirmed', cancelled: 'No longer applicable' }[alert.delivery_status] || 'Unconfirmed'}
+                          </strong>
+                          {alert.delivery_error && <div style={{ fontSize: 11, marginTop: 4 }}>{alert.delivery_error}</div>}
+                          {alert.can_retry && <button className="btn btn-secondary btn-sm" disabled={retryingId !== null} onClick={() => handleRetry(alert.id)} style={{ marginTop: 6 }}>{retryingId === alert.id ? 'Retrying…' : 'Retry email'}</button>}
+                        </td>
                         <td style={{ padding: '12px 8px' }}>
                           {isAcked ? (
                             <span 
@@ -413,7 +445,7 @@ const AlertsPage = () => {
                                 fontWeight: 700
                               }}
                             >
-                              Pending
+                              {alert.response_requested ? 'No response' : 'Not requested'}
                             </span>
                           )}
                         </td>
@@ -423,7 +455,7 @@ const AlertsPage = () => {
                               <span style={{ fontSize: '12px' }}>{new Date(alert.acknowledged_at).toLocaleString()}</span>
                             </div>
                           ) : (
-                            <span className="text-muted" style={{ fontSize: '12px' }}>Waiting for response...</span>
+                            <span className="text-muted" style={{ fontSize: '12px' }}>{['principal', 'security_guard'].includes(alert.recipient_type) ? 'See excuse slip record' : 'No response recorded'}</span>
                           )}
                         </td>
                       </tr>

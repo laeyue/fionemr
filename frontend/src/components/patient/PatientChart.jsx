@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../App';
 import { api } from '../../api';
+import { emailFeedback } from '../../emailFeedback';
+import { clinicDateString } from '../../date';
 import './PatientChart.css';
 
 const PatientChart = () => {
@@ -30,6 +32,7 @@ const PatientChart = () => {
   const [patient, setPatient] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notificationMessage, setNotificationMessage] = useState('');
 
   // Check-In State
   const [showCheckInModal, setShowCheckInModal] = useState(false);
@@ -39,8 +42,8 @@ const PatientChart = () => {
   const [showCheckOutModal, setShowCheckOutModal] = useState(false);
   const [issueExcuseSlip, setIssueExcuseSlip] = useState(true);
   const [excuseReason, setExcuseReason] = useState('');
-  const [excuseStartDate, setExcuseStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [excuseEndDate, setExcuseEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [excuseStartDate, setExcuseStartDate] = useState(clinicDateString());
+  const [excuseEndDate, setExcuseEndDate] = useState(clinicDateString());
   const [notifyTeacher, setNotifyTeacher] = useState(true);
 
   useEffect(() => {
@@ -52,8 +55,8 @@ const PatientChart = () => {
       } else {
         setExcuseReason('');
       }
-      setExcuseStartDate(new Date().toISOString().split('T')[0]);
-      setExcuseEndDate(new Date().toISOString().split('T')[0]);
+      setExcuseStartDate(clinicDateString());
+      setExcuseEndDate(clinicDateString());
       setIssueExcuseSlip(true);
       setNotifyTeacher(true);
     }
@@ -87,12 +90,17 @@ const PatientChart = () => {
     e.preventDefault();
     if (!chiefComplaint.trim()) return;
     try {
-      await api.checkInPatient(id, chiefComplaint);
+      setIsLoading(true);
+      const result = await api.checkInPatient(id, chiefComplaint);
+      setNotificationMessage(emailFeedback(result.notifications));
       setChiefComplaint('');
       setShowCheckInModal(false);
-      fetchPatient();
+      await fetchPatient();
     } catch (err) {
       console.error("Error checking in patient:", err);
+      window.alert('Could not check in the patient: ' + err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -106,7 +114,7 @@ const PatientChart = () => {
       setIsLoading(true);
       let payload = undefined;
       if (issueExcuseSlip && excuseReason.trim()) {
-        if (new Date(excuseStartDate) > new Date(excuseEndDate)) {
+        if (excuseStartDate > excuseEndDate) {
           alert("Excuse start date cannot be after the end date.");
           setIsLoading(false);
           return;
@@ -118,7 +126,8 @@ const PatientChart = () => {
           teacher_notified: notifyTeacher
         };
       }
-      await api.checkOutPatient(id, payload);
+      const result = await api.checkOutPatient(id, payload);
+      setNotificationMessage(emailFeedback(result.notifications));
       setShowCheckOutModal(false);
       await fetchPatient();
     } catch (err) {
@@ -160,18 +169,20 @@ const PatientChart = () => {
   const handleSaveNote = async (noteData) => {
     try {
       await api.saveSoapNote(id, noteData);
-      fetchPatient();
+      await fetchPatient();
     } catch (err) {
       console.error("Error saving SOAP note:", err);
+      throw err;
     }
   };
 
   const handleSaveOrder = async (orderData) => {
     try {
       await api.saveMedicationOrder(id, orderData);
-      fetchPatient();
+      await fetchPatient();
     } catch (err) {
       console.error("Error saving order:", err);
+      throw err;
     }
   };
 
@@ -195,10 +206,12 @@ const PatientChart = () => {
 
   const handleCreateExcuseSlip = async (excuseData) => {
     try {
-      await api.createExcuseSlip(id, excuseData);
-      fetchPatient();
+      const result = await api.createExcuseSlip(id, excuseData);
+      setNotificationMessage(emailFeedback(result.notifications).replace('Visit saved.', 'Excuse slip saved.'));
+      await fetchPatient();
     } catch (err) {
-      console.error("Error creating excuse slip:", err);
+      window.alert('Could not create the excuse slip: ' + err.message);
+      throw err;
     }
   };
 
@@ -229,6 +242,7 @@ const PatientChart = () => {
 
   return (
     <div className="page-chart anim-fade-up">
+      {notificationMessage && <div role="status" className="card" style={{ padding: 16, marginBottom: 16 }}>{notificationMessage}</div>}
       <button className="btn btn-ghost back-btn" onClick={() => navigate('/dashboard/patients')}>
         <ArrowLeft size={16} style={{ color: 'var(--primary)' }} /> Back to Patient List
       </button>
@@ -247,7 +261,7 @@ const PatientChart = () => {
         <div className="id-flags" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className={`badge badge-${patient.status_color || 'green'}`}>{patient.status}</span>
           {!isRestrictedRole && (
-            patient.status === 'Checked In' ? (
+            ['Checked In', 'Under Observation'].includes(patient.status) ? (
               <button className="btn btn-secondary btn-sm" onClick={handleCheckOut} type="button">
                 Check-Out Student
               </button>
@@ -635,7 +649,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
     consent_type: 'Medication',
     parent_name: patient.emergency_contact_name || '',
     document_name: '',
-    date_granted: new Date().toISOString().split('T')[0],
+    date_granted: clinicDateString(),
     notes: ''
   });
 
@@ -768,7 +782,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
       consent_type: 'Medication',
       parent_name: patient.emergency_contact_name || '',
       document_name: '',
-      date_granted: new Date().toISOString().split('T')[0],
+      date_granted: clinicDateString(),
       notes: ''
     });
     setShowConsentModal(false);
@@ -798,7 +812,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
             <div className="form-row-2">
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" htmlFor="edit-dob">Date of Birth</label>
-                <input id="edit-dob" type="date" name="date_of_birth" className="form-input" max={new Date().toISOString().split('T')[0]} value={editData.date_of_birth} onChange={handleEditChange} />
+                <input id="edit-dob" type="date" name="date_of_birth" className="form-input" max={clinicDateString()} value={editData.date_of_birth} onChange={handleEditChange} />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" htmlFor="edit-age">Age</label>
@@ -1084,7 +1098,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
                   type="date" 
                   className="form-input" 
                   required
-                  max={new Date().toISOString().split('T')[0]}
+                  max={clinicDateString()}
                   value={consentFormData.date_granted}
                   onChange={(e) => setConsentFormData({ ...consentFormData, date_granted: e.target.value })}
                 />
@@ -1115,19 +1129,36 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
 /* ===== SOAP ===== */
 const SOAPTab = ({ patient, onSaveNote }) => {
   const [fields, setFields] = useState({ s: '', o: '', a: '', p: '', disposition: 'Returned to Class' });
-  const update = (key, val) => setFields(prev => ({ ...prev, [key]: val }));
+  const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const update = (key, val) => {
+    setSaveError('');
+    setFields(prev => ({ ...prev, [key]: val }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!fields.s.trim() && !fields.o.trim() && !fields.a.trim() && !fields.p.trim()) return;
-    await onSaveNote({
-      subjective: fields.s,
-      objective: fields.o,
-      assessment: fields.a,
-      plan: fields.p,
-      disposition: fields.disposition
-    });
-    setFields({ s: '', o: '', a: '', p: '', disposition: 'Returned to Class' });
+    if (!fields.s.trim() || !fields.o.trim() || !fields.a.trim() || !fields.p.trim()) {
+      setSaveError('Complete the Subjective, Objective, Assessment, and Plan fields before saving.');
+      return;
+    }
+
+    setSaveError('');
+    setIsSaving(true);
+    try {
+      await onSaveNote({
+        subjective: fields.s,
+        objective: fields.o,
+        assessment: fields.a,
+        plan: fields.p,
+        disposition: fields.disposition
+      });
+      setFields({ s: '', o: '', a: '', p: '', disposition: 'Returned to Class' });
+    } catch (err) {
+      setSaveError(err.message || 'The clinical note could not be saved. Your draft is still here.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -1138,6 +1169,7 @@ const SOAPTab = ({ patient, onSaveNote }) => {
           <span className="badge badge-blue">SOAP</span>
         </div>
         <form onSubmit={handleSubmit} className="soap-form">
+          {saveError && <div className="alert-bar alert-danger" role="alert" style={{ marginBottom: 12 }}>{saveError}</div>}
           {[
             { key: 's', color: 'blue',   full: 'Subjective', hint: 'Patient-reported symptoms and complaints' },
             { key: 'o', color: 'purple', full: 'Objective',  hint: 'Clinician observations, vitals, measurements' },
@@ -1174,7 +1206,7 @@ const SOAPTab = ({ patient, onSaveNote }) => {
           </div>
 
           <div className="soap-actions" style={{ marginTop: 16 }}>
-            <button type="submit" className="btn btn-primary"><Save size={15} /> Save Note</button>
+            <button type="submit" className="btn btn-primary" disabled={isSaving}><Save size={15} /> {isSaving ? 'Saving…' : 'Save Note'}</button>
           </div>
         </form>
       </div>
@@ -1275,6 +1307,8 @@ const OrdersTab = ({ patient, onSaveOrder }) => {
   const [route, setRoute] = useState('oral');
   const [administeredBy, setAdministeredBy] = useState('');
   const [consent, setConsent] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Safety Overrides State
   const [allergyOverride, setAllergyOverride] = useState(false);
@@ -1300,24 +1334,32 @@ const OrdersTab = ({ patient, onSaveOrder }) => {
     if (allergyConflict && !allergyOverride) return;
     if (frequencyConflict && !frequencyOverride) return;
 
-    await onSaveOrder({
-      medication: finalMedication,
-      strength: finalStrength,
-      form: finalForm,
-      route,
-      administered_by: administeredBy,
-      consent
-    });
+    setSaveError('');
+    setIsSaving(true);
+    try {
+      await onSaveOrder({
+        medication: finalMedication,
+        strength: finalStrength,
+        form: finalForm,
+        route,
+        administered_by: administeredBy,
+        consent
+      });
 
-    setMedication('');
-    setCustomMedication('');
-    setStrength('');
-    setCustomStrength('');
-    setForm('');
-    setCustomForm('');
-    setRoute('oral');
-    setAdministeredBy('');
-    setConsent(false);
+      setMedication('');
+      setCustomMedication('');
+      setStrength('');
+      setCustomStrength('');
+      setForm('');
+      setCustomForm('');
+      setRoute('oral');
+      setAdministeredBy('');
+      setConsent(false);
+    } catch (err) {
+      setSaveError(err.message || 'The medication order could not be saved. Your entries are still here.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const isFormValid = consent && 
@@ -1333,6 +1375,7 @@ const OrdersTab = ({ patient, onSaveOrder }) => {
       <div className="card">
         <h4 className="sec-title"><Pill size={15} /> New Medication Order</h4>
         <form onSubmit={handleSubmit} className="order-form">
+          {saveError && <div className="alert-bar alert-danger" role="alert" style={{ marginBottom: 12 }}>{saveError}</div>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Row 1: Medication */}
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -1518,8 +1561,8 @@ const OrdersTab = ({ patient, onSaveOrder }) => {
             </label>
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ marginTop: 12 }} disabled={!isFormValid}>
-            <CheckCircle size={15} /> Execute Order
+          <button type="submit" className="btn btn-primary" style={{ marginTop: 12 }} disabled={!isFormValid || isSaving}>
+            <CheckCircle size={15} /> {isSaving ? 'Saving…' : 'Execute Order'}
           </button>
         </form>
       </div>
@@ -1587,8 +1630,8 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
   
   const [formData, setFormData] = useState({
     excuse_reason: '',
-    start_date: new Date().toISOString().split('T')[0],
-    end_date: new Date().toISOString().split('T')[0],
+    start_date: clinicDateString(),
+    end_date: clinicDateString(),
     teacher_notified: false
   });
 
@@ -1614,8 +1657,8 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
     });
     setFormData({
       excuse_reason: '',
-      start_date: new Date().toISOString().split('T')[0],
-      end_date: new Date().toISOString().split('T')[0],
+      start_date: clinicDateString(),
+      end_date: clinicDateString(),
       teacher_notified: false
     });
     setShowModal(false);
@@ -1649,10 +1692,10 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
                     Duration: {new Date(slip.start_date).toLocaleDateString()} to {new Date(slip.end_date).toLocaleDateString()}
                   </span>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
-                    Teacher Notified: <strong>{slip.teacher_notified || 'No'}</strong>
+                    Teacher email: <strong>{slip.teacher_notified || 'Not requested'}</strong>
                   </span>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
-                    Principal Acknowledged: <strong style={{ color: slip.principal_acknowledged ? 'var(--success)' : 'var(--warning)' }}>{slip.principal_acknowledged ? 'Yes' : 'No'}</strong>
+                    Departure approval: <strong style={{ color: slip.departure_approved ? 'var(--success)' : 'var(--warning)' }}>{slip.departure_approved ? 'Approved' : 'Pending'}</strong>
                   </span>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>
                     Issued by: {slip.created_by || 'Unknown'} on {new Date(slip.created_at).toLocaleDateString()}
@@ -1747,7 +1790,7 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
             <div className="print-certificate-container" style={{ border: '2.5px solid var(--primary)', padding: 32, borderRadius: 'var(--radius-lg)', background: '#fff', position: 'relative', overflow: 'hidden', textAlign: 'center', fontFamily: 'var(--font)' }}>
               
               {/* Principal Approved Stamp Seal */}
-              {selectedSlip.principal_acknowledged && (
+              {selectedSlip.departure_approved && (
                 <div style={{ 
                   position: 'absolute', 
                   top: '16px', 
@@ -1835,7 +1878,7 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
                   </div>
                   <div style={{ marginTop: '10px', fontSize: '10.5px', color: 'var(--gray-500)' }}>
                     Based on this evaluation, the student is excused from classroom attendance and physical activities for the duration specified. Homeroom teacher notification: <strong>{selectedSlip.teacher_notified || 'No'}</strong>.
-                    Principal Acknowledged: <strong>{selectedSlip.principal_acknowledged ? `Yes (${new Date(selectedSlip.principal_acknowledged_at).toLocaleDateString()})` : 'No'}</strong>.
+                    Departure approval: <strong>{selectedSlip.departure_approved ? `Approved (${new Date(selectedSlip.departure_approved_at).toLocaleDateString()})` : 'Pending'}</strong>.
                   </div>
                 </div>
 
@@ -1898,4 +1941,3 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
 };
 
 export default PatientChart;
-

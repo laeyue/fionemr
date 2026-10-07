@@ -450,14 +450,6 @@
     flex: unset !important;
   }
 
-  /* MFA banners */
-  .mfa-status-banner {
-    flex-direction: column;
-    gap: 12px;
-    align-items: flex-start;
-    padding: 16px;
-  }
-
   /* Consent bar */
   .consent-bar {
     padding: 12px;
@@ -749,4 +741,3 @@
     display: none !important;
   }
 }
-

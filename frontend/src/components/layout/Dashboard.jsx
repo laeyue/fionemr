@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import {
-  Activity, Search, Bell, LogOut, Settings,
+  Search, Bell, LogOut,
   LayoutDashboard, Users, Bed, FileText, AlertTriangle,
   X, Loader2, CheckCircle2
 } from 'lucide-react';
@@ -40,6 +40,10 @@ const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const isRestrictedRole = user?.role === 'teacher' || user?.role === 'guidance_counselor';
+  const visibleNavItems = isRestrictedRole
+    ? NAV_ITEMS.filter((item) => item.path === '/dashboard/patients')
+    : NAV_ITEMS;
 
   const [logoUrl, setLogoUrl] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,8 +62,8 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    fetchLogo();
-  }, []);
+    if (!isRestrictedRole) fetchLogo();
+  }, [isRestrictedRole]);
   const [searchResults, setSearchResults] = useState([]);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -70,6 +74,7 @@ const Dashboard = () => {
   const [unreadCount, setUnreadCount] = useState(0);
 
   const loadNotifications = async () => {
+    if (isRestrictedRole) return;
     try {
       const logsRes = await api.getEmailAlertLogs();
       const logs = (logsRes && logsRes.data) ? logsRes.data : [];
@@ -142,10 +147,11 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    if (isRestrictedRole) return undefined;
     loadNotifications();
     const interval = setInterval(loadNotifications, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isRestrictedRole]);
 
   useEffect(() => {
     if (!isNotifOpen) return;
@@ -224,8 +230,8 @@ const Dashboard = () => {
         <button 
           type="button"
           className="topbar-brand" 
-          onClick={() => navigate('/dashboard')}
-          aria-label="Go to Dashboard"
+          onClick={() => navigate(isRestrictedRole ? '/dashboard/patients' : '/dashboard')}
+          aria-label={isRestrictedRole ? 'Go to Patients' : 'Go to Dashboard'}
         >
           <img 
             src={logoUrl || '/logo.png'} 
@@ -239,7 +245,7 @@ const Dashboard = () => {
         {/* Center — Pill Nav */}
         <nav className="topbar-nav">
           <div className="nav-pills">
-            {NAV_ITEMS.map(item => {
+            {visibleNavItems.map(item => {
               const Icon = item.icon;
               const active = isActive(item.path, item.exact);
               return (
@@ -341,7 +347,7 @@ const Dashboard = () => {
             )}
           </div>
 
-          <div className="notif-container">
+          {!isRestrictedRole && <div className="notif-container">
             <button 
               className="btn btn-icon btn-ghost notif-btn" 
               onClick={handleNotifClick}
@@ -398,7 +404,7 @@ const Dashboard = () => {
                 </div>
               </div>
             )}
-          </div>
+          </div>}
           <div className="topbar-divider"></div>
           <button 
             type="button"
@@ -421,7 +427,7 @@ const Dashboard = () => {
       {/* ===== PAGE CONTENT ===== */}
       <main className="page-area">
         <Routes>
-          <Route index element={<DashboardHome />} />
+          <Route index element={isRestrictedRole ? <Navigate to="patients" replace /> : <DashboardHome />} />
           <Route path="patients" element={<PatientList />} />
           <Route path="patients/:id" element={<PatientChart />} />
           <Route path="clinic" element={<ClinicTracker />} />
@@ -434,7 +440,7 @@ const Dashboard = () => {
 
       {/* ===== MOBILE BOTTOM NAVIGATION BAR ===== */}
             <nav className="mobile-bottom-nav">
-        {NAV_ITEMS.map(item => {
+        {visibleNavItems.map(item => {
           const Icon = item.icon;
           const active = isActive(item.path, item.exact);
           return (
@@ -459,14 +465,5 @@ const Dashboard = () => {
     </div>
   );
 };
-
-const Placeholder = ({ title }) => (
-  <div className="placeholder-page anim-fade-up">
-    <div className="card" style={{ textAlign: 'center', padding: '80px 40px', maxWidth: 520, margin: '40px auto' }}>
-      <h2>{title}</h2>
-      <p className="text-muted" style={{ marginTop: 8 }}>This module is under development.</p>
-    </div>
-  </div>
-);
 
 export default Dashboard;

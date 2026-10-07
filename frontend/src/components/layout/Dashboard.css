@@ -212,30 +212,6 @@
   .topbar {
     justify-content: space-between;
   }
-}
-
-/* ===== Responsive — Mobile ===== */
-@media (max-width: 768px) {
-  .topbar-right button:not(.logout-btn) {
-    display: none;
-  }
-
-  .topbar-divider {
-    display: none;
-  }
-
-  .brand-name {
-    display: none;
-  }
-
-  .topbar {
-    padding: 0 16px;
-    height: 56px;
-  }
-
-  .page-area {
-    padding: 16px 12px 24px;
-  }
 
   .app-shell {
     padding-bottom: 64px;
@@ -278,6 +254,31 @@
   .mobile-nav-item.active {
     color: var(--primary);
   }
+}
+
+/* ===== Responsive — Mobile ===== */
+@media (max-width: 768px) {
+  .topbar-right button:not(.logout-btn) {
+    display: none;
+  }
+
+  .topbar-divider {
+    display: none;
+  }
+
+  .brand-name {
+    display: none;
+  }
+
+  .topbar {
+    padding: 0 16px;
+    height: 56px;
+  }
+
+  .page-area {
+    padding: 16px 12px 24px;
+  }
+
 }
 
 /* ===== GLOBAL HEADER SEARCH ===== */

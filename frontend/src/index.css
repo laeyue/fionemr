@@ -434,8 +434,7 @@ h5 { font-size: var(--text-base); font-weight: 600; color: var(--gray-700); }
 svg.lucide,
 .lucide,
 .brand-mark svg,
-.notif-icon-circle svg,
-.mfa-status-banner svg {
+.notif-icon-circle svg {
   color: var(--altitude-blue) !important;
   stroke: var(--altitude-blue) !important;
 }
@@ -463,4 +462,3 @@ textarea:focus-visible,
     transition-delay: 0s !important;
   }
 }
-

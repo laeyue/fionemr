@@ -1,4 +1,4 @@
-import React, { useState, createContext, useContext, useEffect } from 'react';
+import { useState, createContext, useContext, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import MinimalLanding from './components/layout/MinimalLanding';
 import Dashboard from './components/layout/Dashboard';
@@ -22,7 +22,7 @@ function InactivityWatcher() {
       timeoutId = setTimeout(() => {
         logout();
         alert('Your session has timed out due to inactivity. Please log in again.');
-      }, 180000); // 3 minutes
+      }, 900000); // 15 minutes
     };
 
     const events = ['mousemove', 'keypress', 'mousedown', 'scroll', 'touchstart'];
@@ -53,10 +53,20 @@ function App() {
     setUser(userData);
     api.setSession(userData);
   };
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await api.logout();
+    } catch {
+      api.clearSession();
+    }
     setUser(null);
-    api.clearSession();
   };
+
+  useEffect(() => {
+    const expireSession = () => setUser(null);
+    window.addEventListener('auth:expired', expireSession);
+    return () => window.removeEventListener('auth:expired', expireSession);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, login, logout }}>
