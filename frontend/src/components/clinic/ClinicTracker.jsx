@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Bed, UserMinus, Plus, ShieldAlert, Activity, Heart, ArrowUpRight } from 'lucide-react';
 import { api } from '../../api';
@@ -17,6 +18,9 @@ const ClinicTracker = () => {
   const [currentTime, setCurrentTime] = useState(Date.now);
 
   const [checkoutPatient, setCheckoutPatient] = useState(null);
+  const [releasePatient, setReleasePatient] = useState(null);
+  const [isReleasing, setIsReleasing] = useState(false);
+  const [releaseError, setReleaseError] = useState('');
   const [notifications, setNotifications] = useState(null);
   const [loadError, setLoadError] = useState('');
 
@@ -59,14 +63,16 @@ const ClinicTracker = () => {
   }, []);
 
   const handleDischarge = async (patientId) => {
-    if (!window.confirm('Are you sure you want to release this student from the clinic bed?')) return;
-    
+    if (isReleasing) return;
+    setIsReleasing(true);
+    setReleaseError('');
     try {
       await api.dischargePatient(patientId);
-      fetchClinicData();
+      setReleasePatient(null);
+      await fetchClinicData();
     } catch (err) {
-      alert('Failed to release student: ' + err.message);
-    }
+      setReleaseError('Failed to release student: ' + err.message);
+    } finally { setIsReleasing(false); }
   };
 
   const handleAdmit = async (e) => {
@@ -217,7 +223,7 @@ const ClinicTracker = () => {
                       {canManageBeds && (
                         <>
                           <button 
-                            onClick={() => handleDischarge(bed.id)}
+                            onClick={() => { setReleaseError(''); setReleasePatient(bed); }}
                             className="btn btn-secondary btn-sm"
                             style={{ borderColor: 'var(--gray-300)', color: 'var(--gray-600)', display: 'flex', alignItems: 'center', gap: 4 }}
                           >
@@ -302,6 +308,17 @@ const ClinicTracker = () => {
         </div>
       </div>
       {checkoutPatient && <CheckoutModal patient={checkoutPatient} onClose={() => setCheckoutPatient(null)} onSubmit={handleCheckOutSubmit} />}
+      {releasePatient && createPortal(<div className="modal-overlay">
+        <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="release-bed-title">
+          <h3 id="release-bed-title">Release Bed: {releasePatient.name}</h3>
+          <p>The bed will become available. This student will remain checked in at the clinic.</p>
+          {releaseError && <p role="alert" className="form-error">{releaseError}</p>}
+          <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+            <button type="button" className="btn btn-secondary" disabled={isReleasing} onClick={() => setReleasePatient(null)}>Cancel</button>
+            <button type="button" className="btn btn-primary" disabled={isReleasing} onClick={() => void handleDischarge(releasePatient.id)}>{isReleasing ? 'Releasing…' : 'Confirm Bed Release'}</button>
+          </div>
+        </div>
+      </div>, document.body)}
     </div>
   );
 };

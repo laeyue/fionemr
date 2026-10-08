@@ -365,8 +365,9 @@ const PatientChartContent = ({ id }) => {
             </div>
             <form onSubmit={handleCheckIn}>
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label className="form-label">Chief Complaint *</label>
+                <label className="form-label" htmlFor="chart-chief-complaint">Chief Complaint *</label>
                 <textarea
+                  id="chart-chief-complaint"
                   className="form-textarea"
                   disabled={isCheckingIn}
                   rows={4}
@@ -1149,6 +1150,7 @@ const SOAPTab = ({ patient, onSaveNote, onCompleteCheckout }) => {
           <span className="badge badge-blue">SOAP</span>
         </div>
         <form onSubmit={handleSubmit} className="soap-form">
+          <p className="form-hint">Your draft stays available across chart tabs and app navigation while signed in. Save before refreshing or signing out.</p>
           {saveError && <div className="alert-bar alert-danger" role="alert" style={{ marginBottom: 12 }}>{saveError}</div>}
           {[
             { key: 's', color: 'blue',   full: 'Subjective', hint: 'Patient-reported symptoms and complaints' },

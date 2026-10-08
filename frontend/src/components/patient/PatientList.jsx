@@ -432,9 +432,9 @@ const PatientList = () => {
                   <th>Patient ID</th>
                   <th>Full Name</th>
                   <th>Section</th>
-                  <th>Age</th>
+                  {canManagePatients && <th>Age</th>}
                   {canManagePatients && <><th>Checked In</th><th>Wait</th></>}
-                  <th>Chief Complaint</th>
+                  {canManagePatients && <th>Chief Complaint</th>}
                   <th>Actions</th>
                 </tr>
               ) : (
@@ -442,7 +442,7 @@ const PatientList = () => {
                   <th>Student ID</th>
                   <th>Full Name</th>
                   <th>Section</th>
-                  <th>Age</th>
+                  {canManagePatients && <th>Age</th>}
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -473,7 +473,7 @@ const PatientList = () => {
                     </div>
                   </td>
                   <td>{patient.section || '—'}</td>
-                  <td>{patient.age ?? '—'}</td>
+                  {canManagePatients && <td>{patient.age ?? '—'}</td>}
                   
                   {activeSubTab === 'active-patients' ? (
                     <>
@@ -481,9 +481,9 @@ const PatientList = () => {
                         <td>{formatCheckInTime(patient.checked_in_at)}</td>
                         <td>{formatWaitTime(patient.checked_in_at, queueNow)}</td>
                       </>}
-                      <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {canManagePatients && <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {patient.chief_complaint || '—'}
-                      </td>
+                      </td>}
                       <td>
                         <span className="text-primary font-semibold" style={{ fontSize: 'var(--text-sm)' }}>View Chart</span>
                       </td>

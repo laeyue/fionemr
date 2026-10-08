@@ -63,6 +63,7 @@ function ProtectedDashboard({ user }) {
 function App() {
   const [user, setUser] = useState(null);
   const [restoring, setRestoring] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
   const [restoreError, setRestoreError] = useState('');
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   // Drafts never enter persistent browser storage; each login starts a new scope.
@@ -76,6 +77,8 @@ function App() {
     api.setSession(userData);
   }, []);
   const logout = useCallback(async () => {
+    setSigningOut(true);
+    setRestoring(true);
     writeFlag('fione:signed-out', '1');
     clinicalDrafts.current.clear();
     setUser(null);
@@ -83,6 +86,9 @@ function App() {
       await api.logout();
     } catch {
       api.clearSession();
+    } finally {
+      setSigningOut(false);
+      setRestoring(false);
     }
   }, []);
 
@@ -116,7 +122,7 @@ function App() {
     return () => { window.removeEventListener('auth:expired', expireSession); window.removeEventListener('beforeunload', protectDrafts); };
   }, []);
 
-  if (restoring) return <div role="status" className="card" style={{ margin: 40, padding: 24 }}>Restoring your session…</div>;
+  if (restoring) return <div role="status" className="card" style={{ margin: 40, padding: 24 }}>{signingOut ? 'Signing out…' : 'Restoring your session…'}</div>;
   if (restoreError) return <div role="alert" className="card" style={{ margin: 40, padding: 24 }}><p>{restoreError}</p><button className="btn btn-primary" onClick={() => { setRestoring(true); setRestoreError(''); setRestoreAttempt((attempt) => attempt + 1); }}>Retry</button></div>;
   return (
     <AuthContext.Provider value={{ user, login, logout, clinicalDrafts }}>
