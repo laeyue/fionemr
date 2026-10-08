@@ -9,8 +9,8 @@ types.setTypeParser(1700, (value) => Number(value));
 const TABLE_COLUMNS = Object.freeze({
   accounts: ['id', 'name', 'email', 'password', 'role', 'is_active', 'created_at'],
   patients: ['id', 'name', 'section', 'age', 'gender', 'status', 'status_color', 'observation_started_at', 'date_of_birth', 'grade_level', 'allergies', 'chronic_conditions', 'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship', 'parent_email', 'adviser_name', 'adviser_email', 'graduation_year', 'created_at'],
-  vitals: ['id', 'patient_id', 'temperature', 'heart_rate', 'blood_pressure', 'o2_sat', 'respiratory_rate', 'recorded_at'],
-  soap_notes: ['id', 'patient_id', 'subjective', 'objective', 'assessment', 'plan', 'disposition', 'created_at'],
+  vitals: ['id', 'patient_id', 'temperature', 'heart_rate', 'blood_pressure', 'o2_sat', 'respiratory_rate', 'recorded_at', 'recorded_by'],
+  soap_notes: ['id', 'patient_id', 'subjective', 'objective', 'assessment', 'plan', 'disposition', 'created_at', 'author_name', 'author_email', 'author_role'],
   medication_orders: ['id', 'patient_id', 'medication', 'dosage', 'dose_amount', 'dose_unit', 'strength', 'form', 'route', 'administered_by', 'consent', 'created_at'],
   visit_logs: ['id', 'patient_id', 'event_type', 'details', 'performed_by', 'created_at'],
   immunizations: ['id', 'patient_id', 'vaccine_name', 'doses_received', 'doses_required', 'verification_status', 'updated_at'],

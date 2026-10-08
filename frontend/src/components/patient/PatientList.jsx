@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Users, X, Loader2 } from 'lucide-react';
 import { api } from '../../api';
-import { useAuth } from '../../App';
+import { useAuth } from '../../auth-context';
 import { emailFeedback } from '../../emailFeedback';
 import { clinicDateString, clinicAgeAtDateOfBirth, CLINIC_TIME_ZONE } from '../../date';
 import './PatientList.css';
@@ -307,7 +307,7 @@ const PatientList = () => {
           {/* Column 1: Section-First Navigation */}
           <div className="filter-section-nav" style={{ flex: 1, minWidth: 280 }}>
             <span className="filter-sec-label" style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--gray-500)', marginBottom: 8 }}>
-              Section-First Navigation (Dynamic Filter)
+              Filter by class or grade
             </span>
             <div className="search-box">
               <Search size={16} className="text-muted" />
@@ -367,7 +367,7 @@ const PatientList = () => {
           {!selectedSection && (
             <div className="filter-global-search" style={{ flex: 1, minWidth: 280 }}>
               <span className="filter-sec-label" style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--gray-500)', marginBottom: 8 }}>
-                Or Search Globally
+                Search by name or ID
               </span>
               <div className="search-box">
                 <Search size={16} className="text-muted" />

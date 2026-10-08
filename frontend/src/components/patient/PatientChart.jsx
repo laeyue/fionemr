@@ -1,20 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, User, FileText, Pill, ShieldAlert, Syringe,
   Save, AlertCircle, CheckCircle, Clock, Thermometer, Loader2, Pencil, X, ShieldCheck, Activity
 } from 'lucide-react';
-import { useAuth } from '../../App';
+import { useAuth } from '../../auth-context';
 import { api } from '../../api';
-import { emailFeedback } from '../../emailFeedback';
 import { clinicDateString, clinicAgeAtDateOfBirth, formatClinicDate, formatClinicDateTime } from '../../date';
+import CheckoutModal from './CheckoutModal';
+import NotificationResult from './NotificationResult';
+import { roleLabel } from '../../roles';
 import './PatientChart.css';
 
 const noKnownAllergyValues = new Set(['no known allergies', 'no known drug allergies', 'nka', 'nkda']);
 const noKnownConditionValues = new Set(['no known chronic conditions', 'no chronic conditions', 'none after review']);
 const unreviewedClinicalValues = new Set(['', 'none', 'unknown', 'unknown - not reviewed', 'not reviewed', 'not recorded', 'not on file', 'n/a']);
-const isValidEmail = (value) => typeof value === 'string' && value.trim().length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 const clinicalEntryStatus = (value, clearValues) => {
   const normalized = String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
   if (unreviewedClinicalValues.has(normalized)) return 'unknown';
@@ -30,9 +31,13 @@ const displayAdministeredDose = (entry) => {
 };
 
 const PatientChart = () => {
+  const { id } = useParams();
+  return <PatientChartContent key={id} id={id} />;
+};
+
+const PatientChartContent = ({ id }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { id } = useParams();
   const role = (user?.role || 'guest').toLowerCase();
   const isRestrictedRole = role === 'teacher' || role === 'guidance_counselor' || role === 'guidance counselor';
 
@@ -49,7 +54,13 @@ const PatientChart = () => {
   const [patient, setPatient] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [notificationMessage, setNotificationMessage] = useState('');
+  const [notifications, setNotifications] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastLoaded, setLastLoaded] = useState(null);
+  const [refreshError, setRefreshError] = useState('');
+  const hasPatient = useRef(false);
+  const requestNumber = useRef(0);
+  const refreshInFlight = useRef(null);
   const displayedTab = availableTabs.some((tab) => tab.key === activeTab) ? activeTab : 'overview';
 
   // Check-In State
@@ -58,100 +69,84 @@ const PatientChart = () => {
 
   // Checkout & Excuse Slip State
   const [showCheckOutModal, setShowCheckOutModal] = useState(false);
-  const [issueExcuseSlip, setIssueExcuseSlip] = useState(false);
-  const [excuseReason, setExcuseReason] = useState('');
-  const [excuseStartDate, setExcuseStartDate] = useState(clinicDateString());
-  const [excuseEndDate, setExcuseEndDate] = useState(clinicDateString());
-  const [notifyTeacher, setNotifyTeacher] = useState(false);
-
-  const fetchPatient = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      const res = await api.getPatientById(id);
-      if (res && res.data) {
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const fetchPatient = useCallback((force = false) => {
+    if (refreshInFlight.current && force !== true) return refreshInFlight.current;
+    const sequence = ++requestNumber.current;
+    setIsRefreshing(true);
+    const work = (async () => {
+      try {
+        const res = await api.getPatientById(id, { refresh: hasPatient.current });
+        if (sequence !== requestNumber.current) return;
+        if (!res?.data) throw new Error('Patient not found.');
+        hasPatient.current = true;
         setPatient(res.data);
-      } else {
-        setError('Patient not found');
+        setLastLoaded(new Date());
+        setError('');
+        setRefreshError('');
+      } catch (failure) {
+        if (sequence !== requestNumber.current) return;
+        if (hasPatient.current) setRefreshError('Chart refresh failed. Displayed data may be out of date.');
+        else setError(failure.message || 'Failed to load patient chart data.');
+      } finally {
+        if (sequence === requestNumber.current) { setIsLoading(false); setIsRefreshing(false); }
+        if (sequence === requestNumber.current) refreshInFlight.current = null;
       }
-    } catch (err) {
-      console.error("Error fetching patient chart:", err);
-      setError('Failed to load patient chart data.');
-    } finally {
-      setIsLoading(false);
-    }
+    })();
+    refreshInFlight.current = work;
+    return work;
   }, [id]);
 
   const handleCheckIn = async (e) => {
     e.preventDefault();
-    if (!chiefComplaint.trim()) return;
+    if (!chiefComplaint.trim() || isCheckingIn) return;
+    setIsCheckingIn(true);
     try {
-      setIsLoading(true);
       const result = await api.checkInPatient(id, chiefComplaint);
-      setNotificationMessage(emailFeedback(result.notifications));
+      setNotifications(result.notifications || []);
       setChiefComplaint('');
       setShowCheckInModal(false);
-      await fetchPatient();
+      await fetchPatient(true);
     } catch (err) {
       console.error("Error checking in patient:", err);
       window.alert('Could not check in the patient: ' + err.message);
     } finally {
-      setIsLoading(false);
+      setIsCheckingIn(false);
     }
   };
 
-  const handleCheckOut = () => {
-    const checkInLog = (patient?.logs || []).find((log) => log.event_type === 'Check-in');
-    setExcuseReason(checkInLog ? `Checked in due to: ${checkInLog.details}` : '');
-    setExcuseStartDate(clinicDateString());
-    setExcuseEndDate(clinicDateString());
-    setIssueExcuseSlip(false);
-    setNotifyTeacher(false);
-    setShowCheckOutModal(true);
-  };
-
-  const handleCheckOutConfirm = async (e) => {
-    e.preventDefault();
-    try {
-      setIsLoading(true);
-      let payload = undefined;
-      if (issueExcuseSlip && excuseReason.trim()) {
-        if (excuseStartDate > excuseEndDate) {
-          alert("Excuse start date cannot be after the end date.");
-          setIsLoading(false);
-          return;
-        }
-        payload = {
-          excuse_reason: excuseReason.trim(),
-          start_date: excuseStartDate,
-          end_date: excuseEndDate,
-          teacher_notified: notifyTeacher
-        };
-      }
-      const result = await api.checkOutPatient(id, payload);
-      setNotificationMessage(emailFeedback(result.notifications));
-      setShowCheckOutModal(false);
-      await fetchPatient();
-    } catch (err) {
-      console.error("Error checking out patient:", err);
-      alert("Failed to checkout student: " + err.message);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleCheckOut = () => setShowCheckOutModal(true);
+  const handleCheckOutConfirm = async (payload) => {
+    const result = await api.checkOutPatient(id, payload);
+    setNotifications(result.notifications || []);
+    setShowCheckOutModal(false);
+    await fetchPatient(true);
   };
 
   useEffect(() => {
     if (!id) return undefined;
+    const refreshVisible = () => { if (document.visibilityState === 'visible') void fetchPatient(); };
     const initial = setTimeout(fetchPatient, 0);
-    return () => clearTimeout(initial);
+    const interval = setInterval(refreshVisible, 30000);
+    window.addEventListener('focus', refreshVisible);
+    document.addEventListener('visibilitychange', refreshVisible);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(interval);
+      window.removeEventListener('focus', refreshVisible);
+      document.removeEventListener('visibilitychange', refreshVisible);
+      requestNumber.current += 1;
+      refreshInFlight.current = null;
+    };
   }, [fetchPatient, id]);
 
   const handleRecordVitals = async (vitalsData) => {
     try {
       await api.saveVitals(id, vitalsData);
-      fetchPatient();
+      await fetchPatient(true);
     } catch (err) {
       console.error("Error saving vitals:", err);
+      throw err;
     }
   };
 
@@ -163,7 +158,7 @@ const PatientChart = () => {
         doses_required: dosesRequired,
         verified: true
       });
-      await fetchPatient();
+      await fetchPatient(true);
       return true;
     } catch (err) {
       console.error("Error updating immunization:", err);
@@ -175,7 +170,7 @@ const PatientChart = () => {
   const handleSaveNote = async (noteData) => {
     try {
       await api.saveSoapNote(id, noteData);
-      await fetchPatient();
+      await fetchPatient(true);
     } catch (err) {
       console.error("Error saving SOAP note:", err);
       throw err;
@@ -185,7 +180,7 @@ const PatientChart = () => {
   const handleSaveOrder = async (orderData) => {
     try {
       await api.saveMedicationOrder(id, orderData);
-      await fetchPatient();
+      await fetchPatient(true);
     } catch (err) {
       console.error("Error saving order:", err);
       throw err;
@@ -195,26 +190,28 @@ const PatientChart = () => {
   const handleUpdatePatient = async (updatedData) => {
     try {
       await api.updatePatient(id, updatedData);
-      fetchPatient();
+      await fetchPatient(true);
     } catch (err) {
       console.error("Error updating patient:", err);
+      throw err;
     }
   };
 
   const handleAddConsent = async (consentData) => {
     try {
       await api.createConsent(id, consentData);
-      fetchPatient();
+      await fetchPatient(true);
     } catch (err) {
       console.error("Error saving consent:", err);
+      throw err;
     }
   };
 
   const handleCreateExcuseSlip = async (excuseData) => {
     try {
       const result = await api.createExcuseSlip(id, excuseData);
-      setNotificationMessage(emailFeedback(result.notifications).replace('Visit saved.', 'Excuse slip saved.'));
-      await fetchPatient();
+      setNotifications(result.notifications || []);
+      await fetchPatient(true);
     } catch (err) {
       window.alert('Could not create the excuse slip: ' + err.message);
       throw err;
@@ -248,7 +245,12 @@ const PatientChart = () => {
 
   return (
     <div className="page-chart anim-fade-up">
-      {notificationMessage && <div role="status" className="card" style={{ padding: 16, marginBottom: 16 }}>{notificationMessage}</div>}
+      {notifications !== null && <NotificationResult key={JSON.stringify(notifications)} notifications={notifications} />}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <button className="btn btn-secondary btn-sm" disabled={isRefreshing} onClick={() => void fetchPatient()}>{isRefreshing ? 'Refreshing…' : 'Refresh Chart'}</button>
+        <span className="text-muted">Last refreshed: {formatClinicDateTime(lastLoaded)}</span>
+      </div>
+      {refreshError && <p role="alert" className="form-error">{refreshError}</p>}
       <button className="btn btn-ghost back-btn" onClick={() => navigate('/dashboard/patients')}>
         <ArrowLeft size={16} style={{ color: 'var(--primary)' }} /> Back to Patient List
       </button>
@@ -260,7 +262,7 @@ const PatientChart = () => {
           <div>
             <h2 style={{ marginBottom: 2 }}>{patient.name}</h2>
             <p className="text-muted" style={{ fontSize: 'var(--text-sm)' }}>
-              Patient ID: <span className="font-mono">{patient.id}</span> &bull; {patient.age !== null && patient.age !== undefined ? `${patient.age} yrs old` : ''} &bull; {patient.gender || 'Gender not recorded'} &bull; {patient.grade_level ? `${patient.grade_level} — ` : ''}{patient.section || 'Unassigned'}
+              Patient ID: <span className="font-mono">{patient.id}</span>{!isRestrictedRole && <> &bull; {patient.age !== null && patient.age !== undefined ? `${patient.age} yrs old` : 'Age not recorded'} &bull; {patient.gender || 'Gender not recorded'}</>} &bull; {patient.grade_level ? `${patient.grade_level} — ` : ''}{patient.section || 'Unassigned'}
             </p>
           </div>
         </div>
@@ -359,13 +361,14 @@ const PatientChart = () => {
           <div className="modal-card">
             <div className="modal-header">
               <h3>New Clinic Check-In</h3>
-              <button className="btn-close" onClick={() => setShowCheckInModal(false)} type="button" aria-label="Close modal"><X size={18} /></button>
+              <button className="btn-close" disabled={isCheckingIn} onClick={() => setShowCheckInModal(false)} type="button" aria-label="Close modal"><X size={18} /></button>
             </div>
             <form onSubmit={handleCheckIn}>
               <div className="form-group" style={{ marginBottom: 16 }}>
                 <label className="form-label">Chief Complaint *</label>
                 <textarea
                   className="form-textarea"
+                  disabled={isCheckingIn}
                   rows={4}
                   placeholder="Enter the reason for visiting the clinic today..."
                   required
@@ -374,8 +377,8 @@ const PatientChart = () => {
                 />
               </div>
               <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowCheckInModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Record Check-In</button>
+                <button type="button" className="btn btn-secondary" disabled={isCheckingIn} onClick={() => setShowCheckInModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={isCheckingIn}>{isCheckingIn ? 'Saving…' : 'Record Check-In'}</button>
               </div>
             </form>
           </div>
@@ -383,95 +386,7 @@ const PatientChart = () => {
         document.body
       )}
 
-      {/* Check-Out & Excuse Slip Modal */}
-      {showCheckOutModal && createPortal(
-        <div className="modal-overlay" onClick={() => setShowCheckOutModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Check-Out & Discharge Student</h3>
-              <button className="btn-close" onClick={() => setShowCheckOutModal(false)} type="button" aria-label="Close modal"><X size={18} /></button>
-            </div>
-            <form onSubmit={handleCheckOutConfirm}>
-              <p className="text-muted" style={{ fontSize: 'var(--text-xs)', marginBottom: 14, textAlign: 'left' }}>
-                Check-Out changes the clinic status to Checked Out. If a valid parent email is on file, the configured parent notification is attempted and the outcome is shown after saving. An excuse slip and adviser notice are optional; security clearance follows the separate departure approval workflow.
-              </p>
-              {!isValidEmail(patient?.parent_email) && <div className="alert-bar alert-warning" role="status" style={{ marginBottom: 14 }}>
-                <AlertCircle size={16} />
-                <span>No valid parent email is on file. Check-Out can still be recorded, but a parent email cannot be sent.</span>
-              </div>}
-
-              <div className="consent-bar" style={{ marginBottom: 14 }}>
-                <label className="consent-label" style={{ color: 'var(--gray-700)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={issueExcuseSlip}
-                    onChange={(e) => setIssueExcuseSlip(e.target.checked)}
-                    style={{ accentColor: 'var(--primary)', marginTop: 0 }}
-                  />
-                  <span>Generate an excuse slip and start its approval workflow</span>
-                </label>
-              </div>
-
-              {issueExcuseSlip && (
-                <>
-                  <div className="form-group" style={{ marginBottom: 14 }}>
-                    <label className="form-label">Excuse Reason / Clinical Advisory *</label>
-                    <textarea
-                      className="form-textarea"
-                      rows={3}
-                      required={issueExcuseSlip}
-                      placeholder="e.g. Student has fever and needs home rest..."
-                      value={excuseReason}
-                      onChange={(e) => setExcuseReason(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-row-2" style={{ marginBottom: 14 }}>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Start Date *</label>
-                      <input
-                        type="date"
-                        className="form-input"
-                        required={issueExcuseSlip}
-                        value={excuseStartDate}
-                        onChange={(e) => setExcuseStartDate(e.target.value)}
-                      />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">End Date *</label>
-                      <input
-                        type="date"
-                        className="form-input"
-                        required={issueExcuseSlip}
-                        value={excuseEndDate}
-                        onChange={(e) => setExcuseEndDate(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="consent-bar" style={{ marginBottom: 16 }}>
-                    <label className="consent-label" style={{ color: 'var(--gray-700)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input
-                        type="checkbox"
-                        checked={notifyTeacher}
-                        disabled={!isValidEmail(patient?.adviser_email)}
-                        onChange={(e) => setNotifyTeacher(e.target.checked)}
-                        style={{ accentColor: 'var(--primary)', marginTop: 0 }}
-                      />
-                      <span>Notify the homeroom adviser by email</span>
-                    </label>
-                    {!isValidEmail(patient?.adviser_email) && <p className="form-hint" style={{ margin: '6px 0 0 26px' }}>No valid adviser email is configured for this student.</p>}
-                  </div>
-                </>
-              )}
-
-              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowCheckOutModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Complete Checkout</button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
+      {showCheckOutModal && <CheckoutModal patient={patient} onClose={() => setShowCheckOutModal(false)} onSubmit={handleCheckOutConfirm} />}
     </div>
   );
 };
@@ -666,8 +581,15 @@ const checkVitalAlarm = (label, val) => {
 
 /* ===== OVERVIEW ===== */
 const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePatient, onAddConsent, isRestrictedRole }) => {
-  const latestVitals = patient.vitals?.[0] || {};
+  const historicalVitals = patient.vitals?.[0];
+  const checkIn = (patient.logs || []).find((entry) => entry.event_type === 'Check-in');
+  const activeVisit = ['Checked In', 'Under Observation'].includes(patient.status);
+  const currentVitals = activeVisit && checkIn?.created_at
+    ? (patient.vitals || []).find((entry) => new Date(entry.recorded_at).getTime() >= new Date(checkIn.created_at).getTime())
+    : null;
+  const latestVitals = currentVitals || {};
   const [showForm, setShowForm] = useState(false);
+  const [isSavingVitals, setIsSavingVitals] = useState(false);
   const [vitalsData, setVitalsData] = useState({ temperature: '', heart_rate: '', blood_pressure: '', o2_sat: '', respiratory_rate: '' });
 
   // Demographics edit mode
@@ -748,14 +670,18 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
     }
 
     setIsSaving(true);
-    await onUpdatePatient(editData);
-    setIsEditing(false);
-    setIsSaving(false);
+    try {
+      await onUpdatePatient(editData);
+      setIsEditing(false);
+    } catch (failure) {
+      window.alert('Could not save the patient details: ' + failure.message);
+    } finally { setIsSaving(false); }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (isSavingVitals) return;
     const temp = parseFloat(vitalsData.temperature);
     const hr = parseInt(vitalsData.heart_rate);
     const o2 = parseInt(vitalsData.o2_sat);
@@ -783,9 +709,14 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
       return;
     }
 
-    await onRecordVitals(vitalsData);
-    setShowForm(false);
-    setVitalsData({ temperature: '', heart_rate: '', blood_pressure: '', o2_sat: '', respiratory_rate: '' });
+    setIsSavingVitals(true);
+    try {
+      await onRecordVitals(vitalsData);
+      setShowForm(false);
+      setVitalsData({ temperature: '', heart_rate: '', blood_pressure: '', o2_sat: '', respiratory_rate: '' });
+    } catch (failure) {
+      window.alert('Could not save the vital signs: ' + failure.message);
+    } finally { setIsSavingVitals(false); }
   };
 
   const handleConsentSubmit = async (e) => {
@@ -802,7 +733,8 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
       }
     }
 
-    await onAddConsent(consentFormData);
+    try { await onAddConsent(consentFormData); }
+    catch (failure) { window.alert('Could not save the consent: ' + failure.message); return; }
     setConsentFormData({
       consent_type: 'Medication',
       parent_name: patient.emergency_contact_name || '',
@@ -935,21 +867,22 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
         ) : (
           <div className="demo-details" style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--text-sm)' }}>
             <div><strong>Full Name:</strong> {patient.name}</div>
-            <div><strong>Date of Birth:</strong> {patient.date_of_birth ? formatClinicDate(patient.date_of_birth, { dateStyle: 'long' }) : '—'}</div>
-            <div><strong>Age:</strong> {patient.age !== null && patient.age !== undefined ? `${patient.age} years old` : '—'}</div>
-            <div><strong>Gender:</strong> {patient.gender || '—'}</div>
+            {!isRestrictedRole && (<div><strong>Date of Birth:</strong> {patient.date_of_birth ? formatClinicDate(patient.date_of_birth, { dateStyle: 'long' }) : '—'}</div>)}
+            {!isRestrictedRole && (<div><strong>Age:</strong> {patient.age !== null && patient.age !== undefined ? `${patient.age} years old` : '—'}</div>)}
+            {!isRestrictedRole && (<div><strong>Gender:</strong> {patient.gender || '—'}</div>)}
             <div><strong>Grade Level:</strong> {patient.grade_level || '—'}</div>
             <div><strong>Section / Room:</strong> {patient.section || '—'}</div>
-            <div><strong>Graduation Year:</strong> {patient.graduation_year || '—'}</div>
-            <div><strong>Parent Email:</strong> {patient.parent_email || '—'}</div>
-            <div><strong>Homeroom Adviser:</strong> {patient.adviser_name || '—'} {patient.adviser_email ? `(${patient.adviser_email})` : ''}</div>
+            {!isRestrictedRole && (<div><strong>Graduation Year:</strong> {patient.graduation_year || '—'}</div>)}
+            {!isRestrictedRole && (<div><strong>Parent Email:</strong> {patient.parent_email || '—'}</div>)}
+            {!isRestrictedRole && (<div><strong>Homeroom Adviser:</strong> {patient.adviser_name || '—'} {patient.adviser_email ? `(${patient.adviser_email})` : ''}</div>)}
             <div><strong>Registered:</strong> {formatClinicDate(patient.created_at)}</div>
           </div>
         )}
       </div>
 
+      {isRestrictedRole && <div className="card"><p>Contact details, consent documents and clinical information are not available to your role.</p></div>}
       {/* Emergency Contacts Card */}
-      <div className="card">
+      {!isRestrictedRole && <div className="card">
         <h4 className="sec-title"><ShieldAlert size={15} style={{ color: 'var(--primary)' }} /> Emergency Contacts</h4>
         {patient.emergency_contact_name ? (
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--text-sm)' }}>
@@ -962,8 +895,9 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
         )}
       </div>
 
+      }
       {/* Parental Consents Card */}
-      <div className="card">
+      {!isRestrictedRole && <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <h4 className="sec-title" style={{ margin: 0, borderBottom: 'none', paddingBottom: 0 }}><ShieldCheck size={15} style={{ color: 'var(--primary)' }} /> Parental Consents</h4>
           {!isRestrictedRole && (
@@ -1002,18 +936,21 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
         </div>
       </div>
 
+      }
       {/* Vital Signs Card (clinical only) */}
       {!isRestrictedRole && (
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h4 className="sec-title" style={{ margin: 0 }}><Thermometer size={15} style={{ color: 'var(--primary)' }} /> Vital Signs</h4>
-            <button className={`btn ${showForm ? 'btn-ghost' : 'btn-primary'} btn-sm`} onClick={() => setShowForm(!showForm)}>
+            <button className={`btn ${showForm ? 'btn-ghost' : 'btn-primary'} btn-sm`} disabled={isSavingVitals} onClick={() => setShowForm(!showForm)}>
               {showForm ? 'Cancel' : 'Record Vitals'}
             </button>
           </div>
           
+          <p className="form-hint">{currentVitals ? <>Recorded {formatClinicDateTime(currentVitals.recorded_at)} • {currentVitals.recorded_by || 'Clinician not recorded'}</> : activeVisit ? 'No vitals recorded for this visit.' : 'No active clinic visit.'}</p>
+          {!currentVitals && historicalVitals && <details style={{ marginBottom: 12 }}><summary>Previous measurements — {formatClinicDateTime(historicalVitals.recorded_at)}</summary><p>Historical measurements; not recorded for the current visit. By {historicalVitals.recorded_by || 'clinician not recorded'}.</p><p>Temperature {historicalVitals.temperature} °C • HR {historicalVitals.heart_rate} bpm • BP {historicalVitals.blood_pressure} mmHg • O₂ {historicalVitals.o2_sat}% • RR {historicalVitals.respiratory_rate} breaths/min</p></details>}
           {showForm ? (
-            <form onSubmit={handleSubmit} style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <form onSubmit={handleSubmit} aria-busy={isSavingVitals} style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div className="form-row-2">
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label" htmlFor="vital-temperature" style={{ fontSize: 11 }}>Temp (°C)</label>
@@ -1041,7 +978,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
                 </div>
                 <div className="form-group" style={{ marginBottom: 0, visibility: 'hidden' }}></div>
               </div>
-              <button type="submit" className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-end', marginTop: 4 }}>Save Vitals</button>
+              <button type="submit" className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-end', marginTop: 4 }} disabled={isSavingVitals}>{isSavingVitals ? 'Saving…' : 'Save Vitals'}</button>
             </form>
           ) : (
             <div className="vitals-grid">
@@ -1156,7 +1093,9 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
 
 /* ===== SOAP ===== */
 const SOAPTab = ({ patient, onSaveNote, onCompleteCheckout }) => {
-  const [fields, setFields] = useState({ s: '', o: '', a: '', p: '', disposition: '' });
+  const { clinicalDrafts } = useAuth();
+  const draftKey = 'soap:' + patient.id;
+  const [fields, setFields] = useState(() => clinicalDrafts.current.get(draftKey) || { s: '', o: '', a: '', p: '', disposition: '' });
   const [saveError, setSaveError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const latestNote = patient.soapNotes?.[0];
@@ -1169,13 +1108,17 @@ const SOAPTab = ({ patient, onSaveNote, onCompleteCheckout }) => {
     ['Checked In', 'Under Observation'].includes(patient.status);
   const update = (key, val) => {
     setSaveError('');
-    setFields(prev => ({ ...prev, [key]: val }));
+    const next = { ...fields, [key]: val };
+    setFields(next);
+    if (Object.values(next).some((value) => value.trim())) clinicalDrafts.current.set(draftKey, next);
+    else clinicalDrafts.current.delete(draftKey);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!fields.s.trim() || !fields.o.trim() || !fields.a.trim() || !fields.p.trim()) {
-      setSaveError('Complete the Subjective, Objective, Assessment, and Plan fields before saving.');
+    if (isSaving) return;
+    if (!fields.s.trim() || !fields.o.trim() || !fields.a.trim() || !fields.p.trim() || !fields.disposition.trim()) {
+      setSaveError('Complete the Subjective, Objective, Assessment, Plan, and Disposition fields before saving.');
       return;
     }
 
@@ -1189,7 +1132,8 @@ const SOAPTab = ({ patient, onSaveNote, onCompleteCheckout }) => {
         plan: fields.p,
         disposition: fields.disposition
       });
-      setFields({ s: '', o: '', a: '', p: '', disposition: '' });
+      if (clinicalDrafts.current.get(draftKey) === fields) clinicalDrafts.current.delete(draftKey);
+      setFields((current) => current === fields ? { s: '', o: '', a: '', p: '', disposition: '' } : current);
     } catch (err) {
       setSaveError(err.message || 'The clinical note could not be saved. Your draft is still here.');
     } finally {
@@ -1216,7 +1160,7 @@ const SOAPTab = ({ patient, onSaveNote, onCompleteCheckout }) => {
               <div className={`soap-letter sl-${s.color}`}>{s.key.toUpperCase()}</div>
               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                 <label className="form-label" htmlFor={`soap-${s.key}`}>{s.full}</label>
-                <textarea id={`soap-${s.key}`} className="form-textarea" rows={s.key === 's' || s.key === 'o' ? 3 : 2} value={fields[s.key]} onChange={(e) => update(s.key, e.target.value)} aria-describedby={`soap-${s.key}-hint`} />
+                <textarea id={`soap-${s.key}`} disabled={isSaving} className="form-textarea" rows={s.key === 's' || s.key === 'o' ? 3 : 2} value={fields[s.key]} onChange={(e) => update(s.key, e.target.value)} aria-describedby={`soap-${s.key}-hint`} />
                 <span id={`soap-${s.key}-hint`} className="form-hint">{s.hint}</span>
               </div>
             </div>
@@ -1227,6 +1171,7 @@ const SOAPTab = ({ patient, onSaveNote, onCompleteCheckout }) => {
               <label className="form-label" htmlFor="soap-disposition" style={{ fontWeight: 600 }}>Disposition Status *</label>
               <select 
                 id="soap-disposition"
+                disabled={isSaving}
                 className="form-select" 
                 required
                 style={{ maxWidth: 300 }}
@@ -1264,7 +1209,7 @@ const SOAPTab = ({ patient, onSaveNote, onCompleteCheckout }) => {
             {patient.soapNotes.map(n => (
               <div key={n.id} style={{ padding: 14, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--gray-400)', marginBottom: 8 }}>
-                  <span>Clinical SOAP Note</span>
+                  <span>Clinical SOAP Note • {n.author_name ? `${n.author_name} (${roleLabel(n.author_role || 'guest')})` : 'Author not recorded (legacy note)'}</span>
                   <span>{formatClinicDateTime(n.created_at)}</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--text-sm)' }}>
@@ -1700,7 +1645,8 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
               <h3>Generate Digital Excuse Slip</h3>
               <button className="btn-close" onClick={() => setShowModal(false)} type="button"><X size={18} style={{ color: 'var(--primary)' }} /></button>
             </div>
-            <form onSubmit={handleSubmit}>
+            <p className="form-hint">Your draft stays available when you switch chart tabs or navigate within this session. Save before refreshing or signing out.</p>
+        <form onSubmit={handleSubmit}>
               <div className="form-group" style={{ marginBottom: 14 }}>
                 <label className="form-label">Excuse Reason *</label>
                 <textarea

@@ -117,7 +117,7 @@ const corsMiddleware = cors({
     }
     return callback(new Error('Origin is not allowed by CORS.'));
   },
-  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Account-ID'],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 });
 app.use((req, res, next) => {
@@ -486,8 +486,9 @@ app.get('/api/patients/:id', async (req, res) => {
       if (pError) throw pError;
       if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-      // Log the view action
-      await db.from('visit_logs').insert([{
+      // Background refreshes already receive a security audit event in auth.
+      // Only opening the chart adds a clinical timeline event.
+      if (req.query.refresh !== 'true') await db.from('visit_logs').insert([{
         patient_id: id,
         event_type: 'Record Viewed',
         details: auditDetails,
@@ -535,6 +536,7 @@ app.get('/api/patients/:id', async (req, res) => {
             name: patient.name,
             section: patient.section,
             grade_level: patient.grade_level,
+            created_at: patient.created_at,
             status: patient.status,
             status_color: patient.status_color
           }
@@ -741,19 +743,15 @@ app.post('/api/patients/:id/soap', async (req, res) => {
   const auditDetails = `SOAP Note saved by ${practitioner.name} (Disposition: ${disposition})`;
 
   try {
-    const { data, error } = await db.from('soap_notes').insert([{
-        patient_id: id, subjective, objective, assessment, plan, disposition
-      }]).select();
-      if (error) throw error;
-
-      await db.from('visit_logs').insert([{
-        patient_id: id,
-        event_type: 'Clinical Note Added',
-        details: auditDetails,
-        performed_by: practitioner.email
-      }]);
-
-      return res.json({ data: data[0] });
+    const note = await db.transaction(async (client) => {
+      const { rows } = await client.query(
+        'INSERT INTO soap_notes (patient_id, subjective, objective, assessment, plan, disposition, author_name, author_email, author_role) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
+        [id, subjective, objective, assessment, plan, disposition, practitioner.name, practitioner.email, practitioner.role]
+      );
+      await client.query('INSERT INTO visit_logs (patient_id, event_type, details, performed_by) VALUES ($1,$2,$3,$4)', [id, 'Clinical Note Added', auditDetails, practitioner.email]);
+      return rows[0];
+    });
+    return res.json({ data: note });
   } catch (err) {
     console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
     return res.status(500).json({ error: err.message });
@@ -858,27 +856,18 @@ app.post('/api/patients/:id/vitals', async (req, res) => {
     return res.status(400).json({ error: 'Blood pressure must be in Sys/Dia format (e.g. 120/80).' });
   }
 
-  const auditDetails = `Temp: ${temperature}°C, HR: ${heart_rate} bpm, BP: ${blood_pressure}, O₂: ${o2_sat}%, RR: ${respiratory_rate} bpm`;
+  const auditDetails = `Temp: ${temperature}°C, HR: ${heart_rate} bpm, BP: ${blood_pressure}, O₂: ${o2_sat}%, RR: ${respiratory_rate} breaths/min`;
 
   try {
-    const { data, error } = await db.from('vitals').insert([{
-        patient_id: id,
-        temperature: parseFloat(temperature),
-        heart_rate: parseInt(heart_rate),
-        blood_pressure,
-        o2_sat: parseInt(o2_sat),
-        respiratory_rate: parseInt(respiratory_rate)
-      }]).select();
-      if (error) throw error;
-
-      await db.from('visit_logs').insert([{
-        patient_id: id,
-        event_type: 'Vitals Recorded',
-        details: auditDetails,
-        performed_by: practitioner.email
-      }]);
-
-      return res.json({ data: data[0] });
+    const vital = await db.transaction(async (client) => {
+      const { rows } = await client.query(
+        'INSERT INTO vitals (patient_id, temperature, heart_rate, blood_pressure, o2_sat, respiratory_rate, recorded_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+        [id, parseFloat(temperature), parseInt(heart_rate), blood_pressure, parseInt(o2_sat), parseInt(respiratory_rate), practitioner.name + ' (' + practitioner.email + ')']
+      );
+      await client.query('INSERT INTO visit_logs (patient_id, event_type, details, performed_by) VALUES ($1,$2,$3,$4)', [id, 'Vitals Recorded', auditDetails, practitioner.email]);
+      return rows[0];
+    });
+    return res.json({ data: vital });
   } catch (err) {
     console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
     return res.status(500).json({ error: err.message });

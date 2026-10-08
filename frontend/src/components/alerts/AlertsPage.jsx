@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AlertTriangle, Bell, Smartphone, ShieldAlert, ArrowUpRight } from 'lucide-react';
 import { api } from '../../api';
-import { useAuth } from '../../App';
+import { useAuth } from '../../auth-context';
 
 const emailEventLabels = {
   clinic_checkin_parent: 'Parent check-in notice',
@@ -18,7 +18,8 @@ const AlertsPage = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const navigate = useNavigate();
-  const [activeSubTab, setActiveSubTab] = useState('clinical');
+  const location = useLocation();
+  const [activeSubTab, setActiveSubTab] = useState(() => new URLSearchParams(location.search).get('tab') === 'email' ? 'email' : 'clinical');
   const [highRiskList, setHighRiskList] = useState([]);
   const [outbreak, setOutbreak] = useState(null);
   const [notifications, setNotifications] = useState([]);

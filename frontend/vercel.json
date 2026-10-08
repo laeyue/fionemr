@@ -3,6 +3,10 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "/api/proxy?route=:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

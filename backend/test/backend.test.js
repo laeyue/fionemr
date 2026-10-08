@@ -76,6 +76,33 @@ test('local backend initializes PostgreSQL, signs in, and persists patient workf
     authorization: 'Bearer ' + login.accessToken
   };
 
+  // The browser restores an HttpOnly session, without receiving a token in JSON.
+  const cookieLoginResponse = await fetch(baseUrl + '/api/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: testEmail, password: testPassword, cookieSession: true })
+  });
+  assert.equal(cookieLoginResponse.status, 200);
+  assert.equal((await cookieLoginResponse.json()).accessToken, undefined);
+  const cookieHeader = cookieLoginResponse.headers.get('set-cookie');
+  assert.match(cookieHeader, /HttpOnly/i);
+  assert.match(cookieHeader, /SameSite=Lax/i);
+  const cookie = cookieHeader.split(';')[0];
+  const restoredResponse = await fetch(baseUrl + '/api/auth/session', { headers: { cookie } });
+  assert.equal(restoredResponse.status, 200);
+  assert.equal((await restoredResponse.json()).data.id, login.data.id);
+  const mismatchResponse = await fetch(baseUrl + '/api/auth/session', {
+    headers: { cookie, 'x-account-id': crypto.randomUUID() }
+  });
+  assert.equal(mismatchResponse.status, 401);
+  assert.equal(mismatchResponse.headers.get('set-cookie'), null);
+  const missingOriginResponse = await fetch(baseUrl + '/api/auth/logout', { method: 'POST', headers: { cookie } });
+  assert.equal(missingOriginResponse.status, 403);
+  const signedOutResponse = await fetch(baseUrl + '/api/auth/logout', { method: 'POST', headers: { cookie, origin: baseUrl } });
+  assert.equal(signedOutResponse.status, 200);
+  assert.match(signedOutResponse.headers.get('set-cookie'), /Expires=Thu, 01 Jan 1970/i);
+  assert.equal((await fetch(baseUrl + '/api/auth/session', { headers: { cookie } })).status, 401);
+
   const patientResponse = await fetch(baseUrl + '/api/patients', {
     method: 'POST',
     headers: authHeaders,
@@ -117,6 +144,7 @@ test('local backend initializes PostgreSQL, signs in, and persists patient workf
   const teacherPatient = (await teacherDetailResponse.json()).data;
   assert.equal(teacherPatient.emergency_contact_phone, undefined);
   assert.equal(teacherPatient.allergies, undefined);
+  assert.ok(teacherPatient.created_at);
   const teacherDashboardResponse = await fetch(baseUrl + '/api/dashboard/stats', { headers: teacherHeaders });
   assert.equal(teacherDashboardResponse.status, 403);
 
@@ -163,6 +191,26 @@ test('local backend initializes PostgreSQL, signs in, and persists patient workf
   });
   assert.equal(checkinResponse.status, 200);
 
+  const vitalResponse = await fetch(baseUrl + '/api/patients/' + patient.id + '/vitals', {
+    method: 'POST', headers: authHeaders,
+    body: JSON.stringify({ temperature: 36.5, heart_rate: 72, blood_pressure: '110/70', o2_sat: 98, respiratory_rate: 18 })
+  });
+  assert.equal(vitalResponse.status, 200);
+  assert.equal((await vitalResponse.json()).data.recorded_by, 'Backend Test Doctor (' + testEmail + ')');
+  const noteResponse = await fetch(baseUrl + '/api/patients/' + patient.id + '/soap', {
+    method: 'POST', headers: authHeaders,
+    body: JSON.stringify({ subjective: 'Synthetic test', objective: 'Synthetic test', assessment: 'Synthetic test', plan: 'Synthetic test', disposition: 'Returned to Class' })
+  });
+  assert.equal(noteResponse.status, 200);
+  const authoredNote = (await noteResponse.json()).data;
+  assert.equal(authoredNote.author_name, 'Backend Test Doctor');
+  assert.equal(authoredNote.author_email, testEmail);
+  assert.equal(authoredNote.author_role, 'physician');
+  const viewsBefore = await database.query("SELECT count(*) AS total FROM visit_logs WHERE patient_id=$1 AND event_type='Record Viewed'", [patient.id]);
+  assert.equal((await fetch(baseUrl + '/api/patients/' + patient.id + '?refresh=true', { headers: authHeaders })).status, 200);
+  const viewsAfter = await database.query("SELECT count(*) AS total FROM visit_logs WHERE patient_id=$1 AND event_type='Record Viewed'", [patient.id]);
+  assert.equal(viewsBefore.rows[0].total, viewsAfter.rows[0].total);
+
   let alerts = [];
   for (let attempt = 0; attempt < 40; attempt += 1) {
     const alertResult = await database.from('email_alerts').select('*').eq('patient_id', patient.id);
@@ -206,7 +254,7 @@ test('local backend initializes PostgreSQL, signs in, and persists patient workf
     .maybeSingle();
   assert.equal(updatedAlert.error, null);
   assert.equal(updatedAlert.data.acknowledged, true);
-  assert.equal(updatedAlert.data.response_status, 'On My Way');
+  assert.equal(updatedAlert.data.response_status, 'Acknowledged');
   assert.equal(updatedAlert.data.patients.name, patient.name);
 
   const acknowledgmentToken = crypto.randomBytes(32).toString('hex');

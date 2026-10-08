@@ -1,11 +1,14 @@
 import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Activity, ArrowRight, Eye, EyeOff, Loader2, LockKeyhole } from 'lucide-react';
-import { useAuth } from '../../App';
+import { useAuth } from '../../auth-context';
 import { api } from '../../api';
 import './MinimalLanding.css';
 
 const MinimalLanding = () => {
   const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -18,7 +21,9 @@ const MinimalLanding = () => {
     setIsLoading(true);
     try {
       const response = await api.login({ email: email.trim(), password });
-      login({ ...response.data, accessToken: response.accessToken });
+      login(response.data);
+      const destination = location.state?.from;
+      navigate(typeof destination === 'string' && destination.startsWith('/dashboard') ? destination : '/dashboard', { replace: true });
     } catch (loginError) {
       setError(loginError.message || 'Unable to sign in. Check your email and password.');
     } finally {

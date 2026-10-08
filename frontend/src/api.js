@@ -1,4 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Same-origin proxy keeps the HttpOnly session cookie first-party on Vercel.
+const API_BASE = '/api';
 
 let currentSession = null;
 
@@ -47,9 +48,10 @@ async function request(path, options = {}) {
   };
   
   if (currentSession?.accessToken) headers.Authorization = `Bearer ${currentSession.accessToken}`;
+  if (currentSession?.id) headers['X-Account-ID'] = currentSession.id;
 
   const clinicalMutation = method === 'POST' && /^\/patients\/\d+\/(checkin|checkout|admit|discharge|excuse-slips)$/.test(path);
-  const actionKey = clinicalMutation ? JSON.stringify([currentSession?.accessToken, path, options.body || {}]) : null;
+  const actionKey = clinicalMutation ? JSON.stringify([currentSession?.id, path, options.body || {}]) : null;
   if (actionKey) {
     if (!pendingClinicalRequests.has(actionKey)) {
       if (pendingClinicalRequests.size >= 100) pendingClinicalRequests.delete(pendingClinicalRequests.keys().next().value);
@@ -60,6 +62,7 @@ async function request(path, options = {}) {
 
   const config = {
     ...options,
+    credentials: 'same-origin',
     headers,
   };
   if (config.body && typeof config.body === 'object') {
@@ -69,12 +72,12 @@ async function request(path, options = {}) {
   if (!response.ok) {
     if (actionKey && response.status < 500) pendingClinicalRequests.delete(actionKey);
     const errData = await response.json().catch(() => ({}));
-    if (response.status === 401 && currentSession) {
+    if (response.status === 401 && path !== '/auth/login') {
       currentSession = null;
       clearCache();
       window.dispatchEvent(new Event('auth:expired'));
     }
-    throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+    throw Object.assign(new Error(errData.error || `HTTP error! status: ${response.status}`), { status: response.status });
   }
   
   const result = await response.json();
@@ -99,7 +102,8 @@ export const api = {
     return request(`/patients${query ? `?${query}` : ''}`);
   },
 
-  getPatientById: (id) => request(`/patients/${id}`),
+  getPatientById: (id, { refresh = false } = {}) => request(`/patients/${id}${refresh ? '?refresh=true' : ''}`, { cache: 'no-store' }),
+  restoreSession: () => request('/auth/session', { cache: 'no-store' }),
 
   registerPatient: (patientData) => request('/patients', {
     method: 'POST',
@@ -137,7 +141,7 @@ export const api = {
 
   login: (credentials) => request('/auth/login', {
     method: 'POST',
-    body: credentials,
+    body: { ...credentials, cookieSession: true },
   }),
 
   register: (accountData) => request('/auth/register', {
@@ -151,6 +155,7 @@ export const api = {
     } finally {
       currentSession = null;
       clearCache();
+      pendingClinicalRequests.clear();
     }
   },
 
@@ -217,11 +222,13 @@ export const api = {
 
   setSession: (session) => {
     currentSession = session;
+    pendingClinicalRequests.clear();
     clearCache();
   },
 
   clearSession: () => {
     currentSession = null;
+    pendingClinicalRequests.clear();
     clearCache();
   },
 };

@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { 
   User, Shield, ClipboardList, Loader2, AlertTriangle, Smartphone, Sliders
 } from 'lucide-react';
-import { useAuth } from '../../App';
+import { useAuth } from '../../auth-context';
 import { api } from '../../api';
+import { roleLabel } from '../../roles';
 import './Settings.css';
 
 const SettingsPage = () => {
@@ -225,7 +226,7 @@ const SettingsPage = () => {
                   <div className="profile-field">
                     <span className="field-label">System Role</span>
                     <span className="field-value" style={{ textTransform: 'capitalize' }}>
-                      {user?.role || 'guest'}
+                      {roleLabel(user?.role)}
                     </span>
                   </div>
                   <div className="profile-field">

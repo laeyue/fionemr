@@ -5,7 +5,7 @@ import {
   ArrowUpRight, ChevronLeft, ChevronRight,
   Activity, Users, TrendingUp, Clock, Pill, Home, LogOut
 } from 'lucide-react';
-import { useAuth } from '../../App';
+import { useAuth } from '../../auth-context';
 import { api } from '../../api';
 import { emailFeedback } from '../../emailFeedback';
 import { clinicCalendarDate, clinicHour, localDateString } from '../../date';

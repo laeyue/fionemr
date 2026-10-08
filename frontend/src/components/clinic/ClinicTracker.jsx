@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bed, Users, UserMinus, Plus, ShieldAlert, Activity, Heart, ArrowUpRight, X } from 'lucide-react';
+import { Bed, UserMinus, Plus, ShieldAlert, Activity, Heart, ArrowUpRight } from 'lucide-react';
 import { api } from '../../api';
-import { emailFeedback } from '../../emailFeedback';
-import { useAuth } from '../../App';
-import { clinicDateString } from '../../date';
+import CheckoutModal from '../patient/CheckoutModal';
+import NotificationResult from '../patient/NotificationResult';
+import { useAuth } from '../../auth-context';
 
 const ClinicTracker = () => {
   const navigate = useNavigate();
@@ -15,18 +14,10 @@ const ClinicTracker = () => {
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({ bedsOccupied: 0 });
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(Date.now);
 
-  // Checkout Modal State
-  const [showCheckOutModal, setShowCheckOutModal] = useState(false);
-  const [checkoutPatientId, setCheckoutPatientId] = useState(null);
-  const [checkoutPatientName, setCheckoutPatientName] = useState('');
-  const [issueExcuseSlip, setIssueExcuseSlip] = useState(true);
-  const [excuseReason, setExcuseReason] = useState('');
-  const [excuseStartDate, setExcuseStartDate] = useState(clinicDateString());
-  const [excuseEndDate, setExcuseEndDate] = useState(clinicDateString());
-  const [notifyTeacher, setNotifyTeacher] = useState(true);
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [checkoutPatient, setCheckoutPatient] = useState(null);
+  const [notifications, setNotifications] = useState(null);
   const [loadError, setLoadError] = useState('');
 
   const canManageBeds = ['physician', 'nurse', 'admin'].includes(user?.role);
@@ -59,12 +50,12 @@ const ClinicTracker = () => {
   };
 
   useEffect(() => {
-    fetchClinicData();
+    const initial = setTimeout(fetchClinicData, 0);
     // Update durations every 30 seconds
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
     }, 30000);
-    return () => clearInterval(interval);
+    return () => { clearTimeout(initial); clearInterval(interval); };
   }, []);
 
   const handleDischarge = async (patientId) => {
@@ -93,58 +84,19 @@ const ClinicTracker = () => {
   };
 
   const handleOpenCheckOut = async (bedPatient) => {
-    setCheckoutPatientId(bedPatient.id);
-    setCheckoutPatientName(bedPatient.name);
-    // Find latest check-in complaint
     try {
-      const res = await api.getPatientById(bedPatient.id);
-      if (res && res.data) {
-        const checkInLog = (res.data.logs || []).find(l => l.event_type === 'Check-in');
-        if (checkInLog) {
-          setExcuseReason(`Checked in due to: ${checkInLog.details}`);
-        } else {
-          setExcuseReason('');
-        }
-      }
-    } catch (err) {
-      setExcuseReason('');
+      const { data } = await api.getPatientById(bedPatient.id);
+      if (!data) throw new Error('Patient not found.');
+      setCheckoutPatient(data);
+    } catch (failure) {
+      window.alert('Could not load checkout details: ' + failure.message);
     }
-    setExcuseStartDate(clinicDateString());
-    setExcuseEndDate(clinicDateString());
-    setIssueExcuseSlip(true);
-    setNotifyTeacher(true);
-    setShowCheckOutModal(true);
   };
-
-  const handleCheckOutSubmit = async (e) => {
-    e.preventDefault();
-    if (!checkoutPatientId) return;
-    try {
-      setIsCheckingOut(true);
-      let payload = undefined;
-      if (issueExcuseSlip && excuseReason.trim()) {
-        if (excuseStartDate > excuseEndDate) {
-          alert("Excuse start date cannot be after the end date.");
-          setIsCheckingOut(false);
-          return;
-        }
-        payload = {
-          excuse_reason: excuseReason.trim(),
-          start_date: excuseStartDate,
-          end_date: excuseEndDate,
-          teacher_notified: notifyTeacher
-        };
-      }
-      const result = await api.checkOutPatient(checkoutPatientId, payload);
-      window.alert(emailFeedback(result.notifications));
-      setShowCheckOutModal(false);
-      setCheckoutPatientId(null);
-      fetchClinicData();
-    } catch (err) {
-      alert("Failed to checkout student: " + err.message);
-    } finally {
-      setIsCheckingOut(false);
-    }
+  const handleCheckOutSubmit = async (payload) => {
+    const result = await api.checkOutPatient(checkoutPatient.id, payload);
+    setNotifications(result.notifications || []);
+    setCheckoutPatient(null);
+    await fetchClinicData();
   };
 
   const getDuration = (entryTime) => {
@@ -170,6 +122,7 @@ const ClinicTracker = () => {
 
   return (
     <div className="clinic-tracker-page anim-fade-up" style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {notifications !== null && <NotificationResult key={JSON.stringify(notifications)} notifications={notifications} />}
       {/* Page Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--gray-200)', paddingBottom: '16px' }}>
         <div>
@@ -348,89 +301,7 @@ const ClinicTracker = () => {
           )}
         </div>
       </div>
-      {/* Check-Out Modal Portal */}
-      {showCheckOutModal && createPortal(
-        <div className="modal-overlay" onClick={() => setShowCheckOutModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Check-Out Student: {checkoutPatientName}</h3>
-              <button className="btn-close" onClick={() => setShowCheckOutModal(false)} type="button" aria-label="Close modal"><X size={18} /></button>
-            </div>
-            <form onSubmit={handleCheckOutSubmit}>
-              <p className="text-muted" style={{ fontSize: 'var(--text-xs)', marginBottom: 14, textAlign: 'left' }}>
-                Clear the student's status and discharge them from the bed observation while sending email notifications.
-              </p>
-
-              <div className="consent-bar" style={{ marginBottom: 14 }}>
-                <label className="consent-label" style={{ color: 'var(--gray-700)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={issueExcuseSlip}
-                    onChange={(e) => setIssueExcuseSlip(e.target.checked)}
-                    style={{ accentColor: 'var(--primary)', marginTop: 0 }}
-                  />
-                  <span>Generate Medical Excuse Certificate (Recommended)</span>
-                </label>
-              </div>
-
-              {issueExcuseSlip && (
-                <>
-                  <div className="form-group" style={{ marginBottom: 14 }}>
-                    <label className="form-label">Excuse Reason / Clinical Advisory *</label>
-                    <textarea
-                      className="form-textarea"
-                      rows={3}
-                      required={issueExcuseSlip}
-                      placeholder="e.g. Student has fever and needs home rest..."
-                      value={excuseReason}
-                      onChange={(e) => setExcuseReason(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-row-2" style={{ marginBottom: 14 }}>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Start Date *</label>
-                      <input
-                        type="date"
-                        className="form-input"
-                        required={issueExcuseSlip}
-                        value={excuseStartDate}
-                        onChange={(e) => setExcuseStartDate(e.target.value)}
-                      />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">End Date *</label>
-                      <input
-                        type="date"
-                        className="form-input"
-                        required={issueExcuseSlip}
-                        value={excuseEndDate}
-                        onChange={(e) => setExcuseEndDate(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="consent-bar" style={{ marginBottom: 16 }}>
-                    <label className="consent-label" style={{ color: 'var(--gray-700)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input
-                        type="checkbox"
-                        checked={notifyTeacher}
-                        onChange={(e) => setNotifyTeacher(e.target.checked)}
-                        style={{ accentColor: 'var(--primary)', marginTop: 0 }}
-                      />
-                      <span>Notify homeroom teacher automatically</span>
-                    </label>
-                  </div>
-                </>
-              )}
-
-              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowCheckOutModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={isCheckingOut}>Complete Checkout</button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
+      {checkoutPatient && <CheckoutModal patient={checkoutPatient} onClose={() => setCheckoutPatient(null)} onSubmit={handleCheckOutSubmit} />}
     </div>
   );
 };

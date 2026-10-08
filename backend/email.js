@@ -77,7 +77,7 @@ function createEmailService(database) {
     });
     if (process.env.VERCEL) waitUntil(delivery);
     else void delivery;
-    return { status: 'pending', queued: true };
+    return { id, status: 'pending', queued: true };
   }
 
   async function dispatch(id) {
@@ -120,7 +120,7 @@ function createEmailService(database) {
           const existing = await database.query('SELECT id, delivery_status FROM email_alerts WHERE dedup_key = $1', [dedupKey]);
           const previous = existing.rows[0];
           if (previous?.delivery_status === 'pending') return queue(previous.id);
-          if (previous) return { status: previous.delivery_status, duplicate: true };
+          if (previous) return { id: previous.id, status: previous.delivery_status, duplicate: true };
         }
         return { status: 'skipped', duplicate: true };
       }

@@ -15,6 +15,14 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_LOCK_MINUTES = 15;
 const VALID_ROLES = new Set(['physician', 'nurse', 'teacher', 'guidance_counselor', 'admin']);
 
+const cookieName = () => isProduction() ? '__Host-fione_session' : 'fione_session';
+const cookieOptions = () => ({ httpOnly: true, secure: isProduction(), sameSite: 'lax', path: '/' });
+function cookieToken(req) {
+  const entry = (req.get('cookie') || '').split(';').map((part) => part.trim()).find((part) => part.startsWith(cookieName() + '='));
+  const value = entry?.slice(cookieName().length + 1) || '';
+  return /^[A-Za-z0-9_-]{40,}$/.test(value) ? value : null;
+}
+
 function isProduction() {
   return process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
 }
@@ -49,23 +57,42 @@ function createApiAuthMiddleware(database) {
 
     const authorization = req.get('authorization') || '';
     const tokenMatch = authorization.match(/^Bearer ([A-Za-z0-9_-]{40,})$/);
-    if (!tokenMatch) return res.status(401).json({ error: 'Authentication required.' });
+    const token = tokenMatch?.[1] || cookieToken(req);
+    if (!token) return res.status(401).json({ error: 'Authentication required.' });
 
-    const tokenHash = hashSessionToken(tokenMatch[1]);
+    // Cookie authentication needs an explicit trusted Origin on mutations.
+    // Bearer clients remain supported during deployment of the new frontend.
+    if (!tokenMatch && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+      const origin = req.get('origin');
+      const trusted = new Set((process.env.CORS_ORIGIN || '').split(',').map((value) => value.trim()).filter(Boolean));
+      let local = false;
+      try { local = !isProduction() && ['localhost', '127.0.0.1', '[::1]'].includes(new URL(origin).hostname); } catch { /* Reject malformed origins. */ }
+      if (!origin || (!trusted.has(origin) && !local)) return res.status(403).json({ error: 'Untrusted request origin.' });
+    }
+
+    const tokenHash = hashSessionToken(token);
     try {
       const sessionResult = await database.query(
-        `SELECT s.account_id, a.name, a.email, a.role
+        `SELECT s.account_id, a.name, a.email, a.role, a.created_at
          FROM auth_sessions AS s
          JOIN accounts AS a ON a.id = s.account_id
          WHERE s.token_hash = $1
            AND s.expires_at > NOW()
+           AND s.last_seen_at > NOW() - INTERVAL '15 minutes'
            AND a.is_active = TRUE`,
         [tokenHash]
       );
       const account = sessionResult.rows[0];
-      if (!account) return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+      if (!account) {
+        res.clearCookie(cookieName(), cookieOptions());
+        return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+      }
+      const expectedAccount = req.get('x-account-id');
+      if (expectedAccount && expectedAccount !== account.account_id) {
+        return res.status(401).json({ error: 'The signed-in account changed in another tab. Sign in again.' });
+      }
 
-      req.user = { id: account.account_id, name: account.name, email: account.email, role: account.role };
+      req.user = { id: account.account_id, name: account.name, email: account.email, role: account.role, created_at: account.created_at };
       req.authSession = { tokenHash, accountId: account.account_id };
 
       await database.query('UPDATE auth_sessions SET last_seen_at = NOW() WHERE token_hash = $1', [tokenHash]);
@@ -169,14 +196,18 @@ function createAuthRouter(database) {
       await clearFailedLogins(database, email);
       const accessToken = await createSession(database, account.id);
       await writeAudit(database, { accountId: account.id, method: 'POST', resource: '/api/auth/login', ip });
-      return res.json({ data: safeAccount(account), accessToken });
+      res.cookie(cookieName(), accessToken, { ...cookieOptions(), maxAge: SESSION_HOURS * 3600000 });
+      return res.json({ data: safeAccount(account), ...(req.body.cookieSession === true ? {} : { accessToken }) });
     } catch (error) {
       console.error('[AUTH] Login failed:', error.message);
       return res.status(503).json({ error: 'Sign-in is temporarily unavailable.' });
     }
   });
 
+  router.get('/session', (req, res) => res.json({ data: req.user }));
+
   router.post('/logout', async (req, res) => {
+    res.clearCookie(cookieName(), cookieOptions());
     try {
       await database.query('DELETE FROM auth_sessions WHERE token_hash = $1', [req.authSession.tokenHash]);
       return res.json({ success: true });

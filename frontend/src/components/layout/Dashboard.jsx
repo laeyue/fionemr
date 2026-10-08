@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import {
   Search, Bell, LogOut,
   LayoutDashboard, Users, Bed, FileText, AlertTriangle,
   X, Loader2, CheckCircle2
 } from 'lucide-react';
-import { useAuth } from '../../App';
+import { useAuth } from '../../auth-context';
 import { api } from '../../api';
+import { roleLabel } from '../../roles';
 import DashboardHome from '../dashboard/DashboardHome';
 import PatientList from '../patient/PatientList';
 import PatientChart from '../patient/PatientChart';
@@ -37,7 +38,7 @@ const formatTimeAgo = (date) => {
 };
 
 const Dashboard = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, clinicalDrafts } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isRestrictedRole = user?.role === 'teacher' || user?.role === 'guidance_counselor';
@@ -62,7 +63,9 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    if (!isRestrictedRole) fetchLogo();
+    if (isRestrictedRole) return undefined;
+    const initial = setTimeout(fetchLogo, 0);
+    return () => clearTimeout(initial);
   }, [isRestrictedRole]);
   const [searchResults, setSearchResults] = useState([]);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
@@ -73,7 +76,7 @@ const Dashboard = () => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     if (isRestrictedRole) return;
     try {
       const logsRes = await api.getEmailAlertLogs();
@@ -144,14 +147,14 @@ const Dashboard = () => {
     } catch (err) {
       console.error("Failed to load notifications:", err);
     }
-  };
+  }, [isRestrictedRole]);
 
   useEffect(() => {
     if (isRestrictedRole) return undefined;
-    loadNotifications();
+    const initial = setTimeout(loadNotifications, 0);
     const interval = setInterval(loadNotifications, 15000);
-    return () => clearInterval(interval);
-  }, [isRestrictedRole]);
+    return () => { clearTimeout(initial); clearInterval(interval); };
+  }, [isRestrictedRole, loadNotifications]);
 
   useEffect(() => {
     if (!isNotifOpen) return;
@@ -180,8 +183,8 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
+      const clear = setTimeout(() => setSearchResults([]), 0);
+      return () => clearTimeout(clear);
     }
 
     const delayDebounce = setTimeout(async () => {
@@ -415,10 +418,10 @@ const Dashboard = () => {
             <div className="avatar avatar-sm">{initials}</div>
             <div className="user-meta">
               <span className="user-name">{user?.name}</span>
-              <span className="user-role">{user?.role}</span>
+              <span className="user-role">{roleLabel(user?.role)}</span>
             </div>
           </button>
-          <button className="btn btn-icon btn-ghost logout-btn" onClick={() => { logout(); navigate('/'); }} title="Sign out">
+          <button className="btn btn-icon btn-ghost logout-btn" onClick={() => { if (clinicalDrafts.current.size && !window.confirm('You have an unsaved clinical note. Sign out and discard the draft?')) return; void logout(); navigate('/'); }} title="Sign out">
             <LogOut size={18} />
           </button>
         </div>
