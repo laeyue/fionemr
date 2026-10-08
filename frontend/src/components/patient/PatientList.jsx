@@ -1,12 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Users, X, Loader2 } from 'lucide-react';
 import { api } from '../../api';
 import { useAuth } from '../../App';
 import { emailFeedback } from '../../emailFeedback';
-import { clinicDateString } from '../../date';
+import { clinicDateString, clinicAgeAtDateOfBirth, CLINIC_TIME_ZONE } from '../../date';
 import './PatientList.css';
+
+const clinicDateTimeFormatter = new Intl.DateTimeFormat('en-SG', {
+  timeZone: CLINIC_TIME_ZONE,
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+});
+
+const formatCheckInTime = (value) => {
+  const date = value ? new Date(value) : null;
+  return date && Number.isFinite(date.getTime()) ? clinicDateTimeFormatter.format(date) : 'Time unavailable';
+};
+
+const formatWaitTime = (value, now) => {
+  const start = value ? new Date(value).getTime() : NaN;
+  if (!Number.isFinite(start)) return 'Time unavailable';
+  if (!Number.isFinite(now)) return 'Updating…';
+  const totalMinutes = Math.max(0, Math.floor((now - start) / 60000));
+  if (totalMinutes < 1) return '<1 min';
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+};
 
 const PatientList = () => {
   const { user } = useAuth();
@@ -24,6 +50,16 @@ const PatientList = () => {
   
   const [isLoading, setIsLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState('active-patients');
+  const [queueNow, setQueueNow] = useState(null);
+
+  useEffect(() => {
+    const initial = setTimeout(() => setQueueNow(Date.now()), 0);
+    const timer = setInterval(() => setQueueNow(Date.now()), 60000);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(timer);
+    };
+  }, []);
 
   // Registration Modal State
   const [showModal, setShowModal] = useState(false);
@@ -31,7 +67,7 @@ const PatientList = () => {
     name: '',
     section: '',
     age: '',
-    gender: 'Male',
+    gender: '',
     status: 'Checked Out',
     date_of_birth: '',
     grade_level: '',
@@ -41,7 +77,9 @@ const PatientList = () => {
     emergency_contact_relationship: '',
     parent_email: '',
     adviser_name: '',
-    adviser_email: ''
+    adviser_email: '',
+    allergies: 'Unknown - not reviewed',
+    chronic_conditions: 'Unknown - not reviewed'
   });
 
   // Check-In Modal State
@@ -51,7 +89,7 @@ const PatientList = () => {
 
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
-  const fetchPatients = async () => {
+  const fetchPatients = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await api.getPatients();
@@ -63,26 +101,22 @@ const PatientList = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchPatients();
-  }, []);
+    const initial = setTimeout(fetchPatients, 0);
+    return () => clearTimeout(initial);
+  }, [fetchPatients]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => {
       const updated = { ...prev, [name]: value };
       if (name === 'date_of_birth' && value) {
-        const birthDate = new Date(value);
-        const today = new Date();
-        let calculatedAge = today.getFullYear() - birthDate.getFullYear();
-        const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-          calculatedAge--;
-        }
-        updated.age = calculatedAge >= 0 ? calculatedAge.toString() : '';
+        const calculatedAge = clinicAgeAtDateOfBirth(value);
+        updated.age = calculatedAge !== null && calculatedAge >= 0 ? calculatedAge.toString() : '';
       }
+      if (name === 'age') updated.date_of_birth = '';
       return updated;
     });
   };
@@ -90,13 +124,18 @@ const PatientList = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
 
-    if (formData.date_of_birth) {
-      const birthDate = new Date(formData.date_of_birth);
-      const today = new Date();
-      if (birthDate > today) {
-        alert("Date of birth cannot be in the future.");
-        return;
-      }
+    if (formData.date_of_birth && formData.date_of_birth > clinicDateString()) {
+      alert("Date of birth cannot be in the future.");
+      return;
+    }
+
+    if (!formData.date_of_birth && formData.age === '') {
+      alert('Enter a date of birth or an age.');
+      return;
+    }
+    if (formData.age !== '' && (!Number.isInteger(Number(formData.age)) || Number(formData.age) < 0 || Number(formData.age) > 150)) {
+      alert('Age must be a whole number from 0 to 150.');
+      return;
     }
 
     if (formData.graduation_year) {
@@ -111,9 +150,7 @@ const PatientList = () => {
       const studentPayload = {
         ...formData,
         status: 'Checked Out',
-        status_color: 'gray',
-        allergies: 'None',
-        chronic_conditions: 'None'
+        status_color: 'gray'
       };
       const res = await api.registerPatient(studentPayload);
       if (res && res.data) {
@@ -122,7 +159,7 @@ const PatientList = () => {
           name: '',
           section: '',
           age: '',
-          gender: 'Male',
+          gender: '',
           status: 'Checked Out',
           date_of_birth: '',
           grade_level: '',
@@ -132,7 +169,9 @@ const PatientList = () => {
           emergency_contact_relationship: '',
           parent_email: '',
           adviser_name: '',
-          adviser_email: ''
+          adviser_email: '',
+          allergies: 'Unknown - not reviewed',
+          chronic_conditions: 'Unknown - not reviewed'
         });
         await fetchPatients();
         setActiveSubTab('student-directory');
@@ -203,6 +242,16 @@ const PatientList = () => {
     }
 
     // Sort alphabetically by name
+    if (activeSubTab === 'active-patients') {
+      return list.sort((a, b) => {
+        const parsedATime = a.checked_in_at ? new Date(a.checked_in_at).getTime() : NaN;
+        const parsedBTime = b.checked_in_at ? new Date(b.checked_in_at).getTime() : NaN;
+        const aTime = Number.isFinite(parsedATime) ? parsedATime : Number.POSITIVE_INFINITY;
+        const bTime = Number.isFinite(parsedBTime) ? parsedBTime : Number.POSITIVE_INFINITY;
+        if (aTime !== bTime) return aTime - bTime;
+        return a.name.localeCompare(b.name);
+      });
+    }
     return list.sort((a, b) => a.name.localeCompare(b.name));
   };
 
@@ -384,6 +433,7 @@ const PatientList = () => {
                   <th>Full Name</th>
                   <th>Section</th>
                   <th>Age</th>
+                  {canManagePatients && <><th>Checked In</th><th>Wait</th></>}
                   <th>Chief Complaint</th>
                   <th>Actions</th>
                 </tr>
@@ -423,10 +473,14 @@ const PatientList = () => {
                     </div>
                   </td>
                   <td>{patient.section || '—'}</td>
-                  <td>{patient.age || '—'}</td>
+                  <td>{patient.age ?? '—'}</td>
                   
                   {activeSubTab === 'active-patients' ? (
                     <>
+                      {canManagePatients && <>
+                        <td>{formatCheckInTime(patient.checked_in_at)}</td>
+                        <td>{formatWaitTime(patient.checked_in_at, queueNow)}</td>
+                      </>}
                       <td style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {patient.chief_complaint || '—'}
                       </td>
@@ -542,6 +596,7 @@ const PatientList = () => {
                     name="date_of_birth"
                     className="form-input"
                     max={clinicDateString()}
+                    required={!formData.age}
                     value={formData.date_of_birth}
                     onChange={handleInputChange}
                   />
@@ -550,16 +605,22 @@ const PatientList = () => {
 
               <div className="form-row-2">
                 <div className="form-group">
-                  <label className="form-label" htmlFor="register-age">Age</label>
+                  <label className="form-label" htmlFor="register-age">Age {!formData.date_of_birth && '*'}</label>
                   <input
                     id="register-age"
                     type="number"
+                    min="0"
+                    max="150"
+                    step="1"
                     name="age"
                     className="form-input"
+                    required={!formData.date_of_birth}
+                    disabled={Boolean(formData.date_of_birth)}
                     value={formData.age}
                     onChange={handleInputChange}
                     placeholder="e.g. 10"
                   />
+                  <span className="form-hint">Enter age or date of birth. Age is calculated when a birth date is provided.</span>
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="register-grade">Grade Level</label>
@@ -590,17 +651,20 @@ const PatientList = () => {
 
               <div className="form-row-2">
                 <div className="form-group">
-                  <label className="form-label" htmlFor="register-gender">Gender</label>
+                  <label className="form-label" htmlFor="register-gender">Gender *</label>
                   <select
                     id="register-gender"
                     name="gender"
                     className="form-select"
+                    required
                     value={formData.gender}
                     onChange={handleInputChange}
                   >
+                    <option value="">Select or mark not recorded</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
+                    <option value="Not recorded">Not recorded</option>
                   </select>
                 </div>
                 <div className="form-group">
@@ -613,6 +677,35 @@ const PatientList = () => {
                     value={formData.graduation_year}
                     onChange={handleInputChange}
                     placeholder="e.g. 2028"
+                  />
+                </div>
+              </div>
+
+              <h4 style={{ margin: '16px 0 12px', fontSize: 'var(--text-sm)' }}>Medical History</h4>
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label className="form-label" htmlFor="register-allergies">Allergies</label>
+                  <input
+                    id="register-allergies"
+                    type="text"
+                    name="allergies"
+                    className="form-input"
+                    value={formData.allergies}
+                    onChange={handleInputChange}
+                    placeholder="List known allergies or record no known allergies"
+                  />
+                  <span className="form-hint">Use “No known allergies” only after checking the source record. Unknown stays flagged for review.</span>
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="register-conditions">Chronic Conditions</label>
+                  <input
+                    id="register-conditions"
+                    type="text"
+                    name="chronic_conditions"
+                    className="form-input"
+                    value={formData.chronic_conditions}
+                    onChange={handleInputChange}
+                    placeholder="List conditions or use ‘No known chronic conditions’ after review"
                   />
                 </div>
               </div>

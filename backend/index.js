@@ -38,6 +38,33 @@ const isCalendarDateString = (value) => {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 };
 
+const ageAtClinicDate = (dateOfBirth) => {
+  if (!isCalendarDateString(dateOfBirth)) return null;
+  const [birthYear, birthMonth, birthDay] = dateOfBirth.split('-').map(Number);
+  const [todayYear, todayMonth, todayDay] = getClinicDateString().split('-').map(Number);
+  return todayYear - birthYear - (todayMonth < birthMonth || (todayMonth === birthMonth && todayDay < birthDay) ? 1 : 0);
+};
+
+const clinicalError = (status, message) => Object.assign(new Error(message), { status });
+
+const isAllergyHistoryUnreviewed = (value) => {
+  const normalized = String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return !normalized || ['none', 'unknown', 'unknown - not reviewed', 'not reviewed', 'not recorded', 'not on file', 'n/a'].includes(normalized);
+};
+
+const medicationAllergyMatch = (allergiesValue, medicationValue) => {
+  const normalizedMedication = String(medicationValue || '').trim().toLowerCase();
+  if (!normalizedMedication) return null;
+  const allergyNames = String(allergiesValue || '').split(',').map((item) => item.trim().toLowerCase()).filter(Boolean);
+  for (const allergy of allergyNames) {
+    if (['no known allergies', 'no known drug allergies', 'nka', 'nkda'].includes(allergy)) continue;
+    if (normalizedMedication.includes(allergy) || allergy.includes(normalizedMedication)) return allergy;
+    if (allergy === 'penicillin' && normalizedMedication.includes('amoxicillin')) return 'penicillin (possible cross-sensitivity with amoxicillin)';
+    if (allergy === 'amoxicillin' && normalizedMedication.includes('penicillin')) return 'amoxicillin (possible cross-sensitivity with penicillin)';
+  }
+  return null;
+};
+
 const getBackendUrl = () => {
   if (process.env.BACKEND_URL) return process.env.BACKEND_URL.replace(/\/$/, '');
   if (process.env.VERCEL_URL) return 'https://' + process.env.VERCEL_URL;
@@ -135,23 +162,6 @@ app.use('/api/settings/clinic', allowRoles(...clinicalRoles));
 app.use('/api/patients/:id/consents', allowRoles(...clinicalRoles));
 
 let simulatedNotifications = [];
-
-const triggerParentNotification = async (patientId, message) => {
-  try {
-    const newNotif = {
-      id: 'n_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
-      patient_id: patientId,
-      type: 'SMS/Email',
-      message: 'Clinic status update: ' + String(message || 'An update is available.').slice(0, 80),
-      sent_at: new Date().toISOString()
-    };
-    simulatedNotifications.push(newNotif);
-    console.log('[NOTIFICATIONS] Simulated clinic status update recorded.');
-
-  } catch (err) {
-    console.error('[NOTIFICATIONS] Failed to trigger parent notification:', err.message);
-  }
-};
 
 const generateAlertId = () => {
   if (crypto.randomUUID) return crypto.randomUUID();
@@ -380,6 +390,7 @@ app.get('/api/patients', async (req, res) => {
               if (['Checked In', 'Under Observation'].includes(p.status)) {
                 const latestLog = logs.find(l => l.patient_id === p.id);
                 p.chief_complaint = latestLog ? latestLog.details : 'No details';
+                p.checked_in_at = latestLog ? latestLog.created_at : null;
               }
             });
           }
@@ -395,7 +406,7 @@ app.get('/api/patients', async (req, res) => {
 // Patients Route: Register New Patient
 app.post('/api/patients', async (req, res) => {
   const { name, section, age, gender, status, status_color, date_of_birth, grade_level, allergies, chronic_conditions, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, parent_email, adviser_name, adviser_email, graduation_year } = req.body;
-  if (!name) return res.status(400).json({ error: 'Name is required' });
+  if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ error: 'Name is required' });
   if (status && status !== 'Checked Out') return res.status(400).json({ error: 'Register the student first, then use the clinic check-in workflow.' });
 
   const practitioner = getPractitioner(req);
@@ -403,23 +414,40 @@ app.post('/api/patients', async (req, res) => {
     return res.status(403).json({ error: 'Access denied. Only clinical staff and administrators can register new patients.' });
   }
 
-  if (age && (isNaN(parseInt(age)) || parseInt(age) < 0)) {
-    return res.status(400).json({ error: 'Age must be a valid non-negative integer.' });
+  if (!['Male', 'Female', 'Other', 'Not recorded'].includes(gender)) {
+    return res.status(400).json({ error: 'Choose a gender value or select Not recorded.' });
   }
-  if (graduation_year && (isNaN(parseInt(graduation_year)) || parseInt(graduation_year) <= 0)) {
+  if (date_of_birth && !isCalendarDateString(date_of_birth)) {
+    return res.status(400).json({ error: 'Date of birth must be a valid calendar date.' });
+  }
+  const enteredAge = age === '' || age === null || age === undefined ? null : Number(age);
+  if (enteredAge !== null && (!Number.isInteger(enteredAge) || enteredAge < 0 || enteredAge > 150)) {
+    return res.status(400).json({ error: 'Age must be a whole number from 0 to 150.' });
+  }
+  if (!date_of_birth && enteredAge === null) {
+    return res.status(400).json({ error: 'Enter a date of birth or an age.' });
+  }
+  const calculatedAge = date_of_birth ? ageAtClinicDate(date_of_birth) : null;
+  if (calculatedAge !== null && (calculatedAge < 0 || calculatedAge > 150)) {
+    return res.status(400).json({ error: 'Date of birth must be valid and cannot be in the future.' });
+  }
+  if (calculatedAge !== null && enteredAge !== null && calculatedAge !== enteredAge) {
+    return res.status(400).json({ error: 'Age must match the date of birth.' });
+  }
+  if (graduation_year && (!Number.isInteger(Number(graduation_year)) || Number(graduation_year) <= 0)) {
     return res.status(400).json({ error: 'Graduation year must be a valid positive integer.' });
   }
 
-  const ageParsed = age ? parseInt(age) : null;
-  const gradYearParsed = graduation_year ? parseInt(graduation_year) : null;
+  const ageParsed = calculatedAge ?? enteredAge;
+  const gradYearParsed = graduation_year ? Number(graduation_year) : null;
 
   try {
     const { data, error } = await db.from('patients').insert([{
-        name, section, age: ageParsed, gender, status: 'Checked Out', status_color: 'gray',
+        name: name.trim(), section, age: ageParsed, gender, status: 'Checked Out', status_color: 'gray',
         date_of_birth: date_of_birth || null,
         grade_level: grade_level || null,
-        allergies: allergies || 'None',
-        chronic_conditions: chronic_conditions || 'None',
+        allergies: typeof allergies === 'string' && allergies.trim() ? allergies.trim() : 'Unknown - not reviewed',
+        chronic_conditions: typeof chronic_conditions === 'string' && chronic_conditions.trim() ? chronic_conditions.trim() : 'Unknown - not reviewed',
         emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
         parent_email: parent_email || null,
         adviser_name: adviser_name || null,
@@ -429,27 +457,12 @@ app.post('/api/patients', async (req, res) => {
       if (error) throw error;
       const newPatient = data[0];
  
-      // Seed default immunizations & insert audit log in parallel
-      const defaultVaccines = [
-        { vaccine: 'Measles (MMR)', req: 2 },
-        { vaccine: 'Polio (IPV)', req: 4 },
-        { vaccine: 'Hepatitis B', req: 3 },
-        { vaccine: 'Varicella (Chickenpox)', req: 2 }
-      ];
-      await Promise.all([
-        db.from('immunizations').insert(defaultVaccines.map(v => ({
-          patient_id: newPatient.id,
-          vaccine_name: v.vaccine,
-          doses_received: 0,
-          doses_required: v.req
-        }))),
-        db.from('visit_logs').insert([{
+      await db.from('visit_logs').insert([{
           patient_id: newPatient.id,
           event_type: 'Registration',
           details: 'Student roster record registered.',
           performed_by: practitioner.email
-        }])
-      ]);
+        }]);
  
       return res.json({ data: newPatient });
   } catch (err) {
@@ -557,32 +570,47 @@ app.put('/api/patients/:id', async (req, res) => {
     graduation_year
   } = req.body;
 
-  if (!name) return res.status(400).json({ error: 'Name is required' });
+  if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ error: 'Name is required' });
 
   const practitioner = getPractitioner(req);
   if (!clinicalRoles.includes(practitioner.role)) {
     return res.status(403).json({ error: 'Access denied. Only clinical staff and administrators can update patient demographics.' });
   }
 
-  if (age && (isNaN(parseInt(age)) || parseInt(age) < 0)) {
-    return res.status(400).json({ error: 'Age must be a valid non-negative integer.' });
+  if (!['Male', 'Female', 'Other', 'Not recorded'].includes(gender)) {
+    return res.status(400).json({ error: 'Choose a gender value or select Not recorded.' });
   }
-  if (graduation_year && (isNaN(parseInt(graduation_year)) || parseInt(graduation_year) <= 0)) {
+
+  if (date_of_birth && !isCalendarDateString(date_of_birth)) {
+    return res.status(400).json({ error: 'Date of birth must be a valid calendar date.' });
+  }
+  const enteredAge = age === '' || age === null || age === undefined ? null : Number(age);
+  if (enteredAge !== null && (!Number.isInteger(enteredAge) || enteredAge < 0 || enteredAge > 150)) {
+    return res.status(400).json({ error: 'Age must be a whole number from 0 to 150.' });
+  }
+  const calculatedAge = date_of_birth ? ageAtClinicDate(date_of_birth) : null;
+  if (calculatedAge !== null && (calculatedAge < 0 || calculatedAge > 150)) {
+    return res.status(400).json({ error: 'Date of birth must be valid and cannot be in the future.' });
+  }
+  if (calculatedAge !== null && enteredAge !== null && calculatedAge !== enteredAge) {
+    return res.status(400).json({ error: 'Age must match the date of birth.' });
+  }
+  if (graduation_year && (!Number.isInteger(Number(graduation_year)) || Number(graduation_year) <= 0)) {
     return res.status(400).json({ error: 'Graduation year must be a valid positive integer.' });
   }
 
-  const ageParsed = age ? parseInt(age) : null;
-  const gradYearParsed = graduation_year ? parseInt(graduation_year) : null;
+  const ageParsed = calculatedAge ?? enteredAge;
+  const gradYearParsed = graduation_year ? Number(graduation_year) : null;
 
   const updates = {
-    name,
+    name: name.trim(),
     section: section || null,
     age: ageParsed,
     gender: gender || null,
     date_of_birth: date_of_birth || null,
     grade_level: grade_level || null,
-    allergies: allergies || 'None',
-    chronic_conditions: chronic_conditions || 'None',
+    allergies: typeof allergies === 'string' && allergies.trim() ? allergies.trim() : 'Unknown - not reviewed',
+    chronic_conditions: typeof chronic_conditions === 'string' && chronic_conditions.trim() ? chronic_conditions.trim() : 'Unknown - not reviewed',
     emergency_contact_name: emergency_contact_name || null,
     emergency_contact_phone: emergency_contact_phone || null,
     emergency_contact_relationship: emergency_contact_relationship || null,
@@ -618,29 +646,31 @@ app.put('/api/patients/:id', async (req, res) => {
 
 // Patients Route: Update/Record Immunization Dose
 app.post('/api/patients/:id/immunizations', async (req, res) => {
-  const patientId = parseInt(req.params.id);
-  const { vaccine_name, doses_received, doses_required } = req.body;
+  const patientId = Number(req.params.id);
+  const { vaccine_name, doses_received, doses_required, verified } = req.body;
+  const vaccineName = typeof vaccine_name === 'string' ? vaccine_name.trim() : '';
 
-  if (isNaN(patientId)) return res.status(400).json({ error: 'Invalid patient ID' });
-  if (!vaccine_name || doses_received === undefined || doses_required === undefined) {
-    return res.status(400).json({ error: 'Vaccine name, doses received, and required doses are required.' });
+  if (!Number.isSafeInteger(patientId) || patientId < 1) return res.status(400).json({ error: 'Invalid patient ID' });
+  if (!vaccineName || doses_received === undefined || doses_required === undefined || verified !== true) {
+    return res.status(400).json({ error: 'Confirm that the source immunization history was reviewed before saving the dose count.' });
   }
 
-  const rec = parseInt(doses_received);
-  const reqDoses = parseInt(doses_required);
-  if (isNaN(rec) || rec < 0) {
+  const rec = Number(doses_received);
+  const reqDoses = Number(doses_required);
+  if (!Number.isInteger(rec) || rec < 0) {
     return res.status(400).json({ error: 'Doses received must be a valid non-negative integer.' });
   }
-  if (isNaN(reqDoses) || reqDoses <= 0) {
-    return res.status(400).json({ error: 'Doses required must be a valid positive integer.' });
+  if (!Number.isInteger(reqDoses) || reqDoses <= 0 || reqDoses > 50) {
+    return res.status(400).json({ error: 'Doses required must be a whole number from 1 to 50.' });
   }
+  if (rec > reqDoses) return res.status(400).json({ error: 'Doses received cannot exceed the required count.' });
 
   const practitioner = getPractitioner(req);
   if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
     return res.status(403).json({ error: 'Access denied. Teachers and counselors cannot update immunization records.' });
   }
 
-  const auditDetails = `Immunization '${vaccine_name}' updated to ${doses_received}/${doses_required} doses.`;
+  const auditDetails = `Immunization '${vaccineName}' updated to ${rec}/${reqDoses} doses after source record review.`;
 
   try {
     // Check if this vaccine already has a record for the patient
@@ -648,7 +678,7 @@ app.post('/api/patients/:id/immunizations', async (req, res) => {
         .from('immunizations')
         .select('*')
         .eq('patient_id', patientId)
-        .eq('vaccine_name', vaccine_name)
+        .eq('vaccine_name', vaccineName)
         .maybeSingle();
 
       if (findErr) throw findErr;
@@ -658,7 +688,7 @@ app.post('/api/patients/:id/immunizations', async (req, res) => {
         // Update doses
         const { data, error } = await db
           .from('immunizations')
-          .update({ doses_received: parseInt(doses_received), updated_at: new Date().toISOString() })
+        .update({ doses_received: rec, doses_required: reqDoses, verification_status: 'verified', updated_at: new Date().toISOString() })
           .eq('id', existing.id)
           .select();
         if (error) throw error;
@@ -669,9 +699,10 @@ app.post('/api/patients/:id/immunizations', async (req, res) => {
           .from('immunizations')
           .insert([{
             patient_id: patientId,
-            vaccine_name,
-            doses_received: parseInt(doses_received),
-            doses_required: parseInt(doses_required)
+            vaccine_name: vaccineName,
+            doses_received: rec,
+            doses_required: reqDoses,
+            verification_status: 'verified'
           }])
           .select();
         if (error) throw error;
@@ -730,9 +761,8 @@ app.post('/api/patients/:id/soap', async (req, res) => {
 
 // Patients Route: Save Medication Order
 app.post('/api/patients/:id/orders', async (req, res) => {
-  const id = parseInt(req.params.id);
-  const { medication, strength, form, route, administered_by, consent } = req.body;
-  const dosage = `${strength || ''} ${form || ''}`.trim() || 'Not Specified';
+  const id = Number(req.params.id);
+  const { medication, dose_amount, dose_unit, strength, form, route, consent, allergy_override } = req.body;
 
   const practitioner = getPractitioner(req);
   if (practitioner.role === 'teacher' || practitioner.role === 'guidance_counselor' || practitioner.role === 'guidance counselor') {
@@ -740,34 +770,53 @@ app.post('/api/patients/:id/orders', async (req, res) => {
   }
 
   // Enforce NOT NULL validations on core fields
-  if (!medication?.trim() || !strength?.trim() || !form?.trim() || !route?.trim() || !administered_by?.trim()) {
-    return res.status(400).json({ error: 'Medication, strength, form, route, and administrator initials are required and cannot be blank.' });
+  const doseAmount = Number(dose_amount);
+  const allowedDoseUnits = new Set(['mg', 'g', 'mcg', 'mL', 'tablet', 'capsule', 'puff', 'drop', 'patch', 'application']);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid patient ID.' });
+  if (typeof medication !== 'string' || !medication.trim() || medication.length > 120 ||
+      typeof strength !== 'string' || !strength.trim() || strength.length > 120 ||
+      typeof form !== 'string' || !form.trim() || form.length > 80 ||
+      !['oral', 'inhaled', 'topical'].includes(route) ||
+      !Number.isFinite(doseAmount) || doseAmount < 0.001 || doseAmount > 9999999.999 ||
+      Math.abs(doseAmount * 1000 - Math.round(doseAmount * 1000)) > 1e-8 ||
+      !allowedDoseUnits.has(dose_unit)) {
+    return res.status(400).json({ error: 'Enter a medication, product strength, form, route, actual amount given (0.001 to 9,999,999.999, up to three decimal places), and dose unit.' });
   }
 
-  if (!consent) {
+  if (consent !== true) {
     return res.status(400).json({ error: 'Parental/guardian consent is mandatory before dispensing medication.' });
   }
 
-  const auditDetails = `${medication.charAt(0).toUpperCase() + medication.slice(1)} ${dosage} via ${route} (Administered by: ${administered_by})`;
-
   try {
-    const { data, error } = await db.from('medication_orders').insert([{
-        patient_id: id, medication, dosage, strength, form, route, administered_by, consent: !!consent
-      }]).select();
-      if (error) throw error;
+      const savedAdministration = await db.transaction(async (transaction) => {
+        const { rows } = await transaction.query('SELECT id, status, allergies FROM patients WHERE id = $1 FOR UPDATE', [id]);
+        const patient = rows[0];
+        if (!patient) throw clinicalError(404, 'Patient not found.');
+        if (!['Checked In', 'Under Observation'].includes(patient.status)) {
+          throw clinicalError(409, 'Medication can only be administered while the patient is Checked In or Under Observation.');
+        }
+        if (isAllergyHistoryUnreviewed(patient.allergies)) {
+          throw clinicalError(409, 'Allergy history is unknown or not reviewed. Update the allergy record before recording a medication administration.');
+        }
+        const allergyConflict = medicationAllergyMatch(patient.allergies, medication);
+        if (allergyConflict && allergy_override !== true) {
+          throw clinicalError(409, `A possible name match was found for the documented allergy "${allergyConflict}". Review the chart and confirm the clinical decision before continuing.`);
+        }
 
-      await db.from('visit_logs').insert([{
-        patient_id: id,
-        event_type: 'Medication Ordered',
-        details: auditDetails,
-        performed_by: practitioner.email
-      }]);
-
-      // Trigger Simulated Parent Notification if checked in or administered
-      triggerParentNotification(id, `Medication Administered: ${medication} ${dosage} given by ${administered_by}.`);
-
-      return res.json({ data: data[0] });
+        const dosage = `${doseAmount} ${dose_unit}`;
+        const administeredBy = practitioner.email || practitioner.name;
+        const auditDetails = `${medication.charAt(0).toUpperCase() + medication.slice(1)} ${dosage} (${strength}, ${form}) via ${route} (Administered by: ${administeredBy})${allergyConflict ? ' (possible allergy match reviewed by clinician)' : ''}`;
+        const administrationResult = await transaction.query(`INSERT INTO medication_orders
+          (patient_id, medication, dosage, dose_amount, dose_unit, strength, form, route, administered_by, consent)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE) RETURNING *`,
+        [id, medication.trim(), dosage, doseAmount, dose_unit, strength.trim(), form.trim(), route, administeredBy]);
+        await transaction.query(`INSERT INTO visit_logs (patient_id, event_type, details, performed_by)
+          VALUES ($1, 'Medication Administered', $2, $3)`, [id, auditDetails, administeredBy]);
+        return administrationResult.rows[0];
+      });
+      return res.json({ data: savedAdministration });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     console.error('[DATABASE ERROR] ' + req.method + ' ' + req.path + ': ', err.message);
     return res.status(500).json({ error: err.message });
   }});

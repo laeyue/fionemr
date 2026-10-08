@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -8,8 +8,26 @@ import {
 import { useAuth } from '../../App';
 import { api } from '../../api';
 import { emailFeedback } from '../../emailFeedback';
-import { clinicDateString } from '../../date';
+import { clinicDateString, clinicAgeAtDateOfBirth, formatClinicDate, formatClinicDateTime } from '../../date';
 import './PatientChart.css';
+
+const noKnownAllergyValues = new Set(['no known allergies', 'no known drug allergies', 'nka', 'nkda']);
+const noKnownConditionValues = new Set(['no known chronic conditions', 'no chronic conditions', 'none after review']);
+const unreviewedClinicalValues = new Set(['', 'none', 'unknown', 'unknown - not reviewed', 'not reviewed', 'not recorded', 'not on file', 'n/a']);
+const isValidEmail = (value) => typeof value === 'string' && value.trim().length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+const clinicalEntryStatus = (value, clearValues) => {
+  const normalized = String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (unreviewedClinicalValues.has(normalized)) return 'unknown';
+  if (clearValues.has(normalized)) return 'clear';
+  return 'documented';
+};
+
+const displayAdministeredDose = (entry) => {
+  if (entry?.dose_amount !== null && entry?.dose_amount !== undefined && entry?.dose_unit) {
+    return `${entry.dose_amount} ${entry.dose_unit}`;
+  }
+  return 'Actual amount not captured in this legacy record';
+};
 
 const PatientChart = () => {
   const { user } = useAuth();
@@ -22,17 +40,17 @@ const PatientChart = () => {
     { key: 'overview', label: 'Overview',   icon: User },
     ...(!isRestrictedRole ? [
       { key: 'soap',     label: 'SOAP Notes', icon: FileText },
-      { key: 'orders',   label: 'Orders',     icon: Pill },
+      { key: 'orders',   label: 'Medications', icon: Pill },
       { key: 'history',  label: 'Visit Log',  icon: Clock },
     ] : []),
     { key: 'excuse-slips', label: 'Excuse Slips', icon: FileText }
   ];
-
   const [activeTab, setActiveTab] = useState('overview');
   const [patient, setPatient] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [notificationMessage, setNotificationMessage] = useState('');
+  const displayedTab = availableTabs.some((tab) => tab.key === activeTab) ? activeTab : 'overview';
 
   // Check-In State
   const [showCheckInModal, setShowCheckInModal] = useState(false);
@@ -40,35 +58,13 @@ const PatientChart = () => {
 
   // Checkout & Excuse Slip State
   const [showCheckOutModal, setShowCheckOutModal] = useState(false);
-  const [issueExcuseSlip, setIssueExcuseSlip] = useState(true);
+  const [issueExcuseSlip, setIssueExcuseSlip] = useState(false);
   const [excuseReason, setExcuseReason] = useState('');
   const [excuseStartDate, setExcuseStartDate] = useState(clinicDateString());
   const [excuseEndDate, setExcuseEndDate] = useState(clinicDateString());
-  const [notifyTeacher, setNotifyTeacher] = useState(true);
+  const [notifyTeacher, setNotifyTeacher] = useState(false);
 
-  useEffect(() => {
-    if (showCheckOutModal && patient) {
-      // Find latest check-in log
-      const checkInLog = (patient.logs || []).find(l => l.event_type === 'Check-in');
-      if (checkInLog) {
-        setExcuseReason(`Checked in due to: ${checkInLog.details}`);
-      } else {
-        setExcuseReason('');
-      }
-      setExcuseStartDate(clinicDateString());
-      setExcuseEndDate(clinicDateString());
-      setIssueExcuseSlip(true);
-      setNotifyTeacher(true);
-    }
-  }, [showCheckOutModal, patient]);
-
-  useEffect(() => {
-    if (!availableTabs.some(t => t.key === activeTab)) {
-      setActiveTab('overview');
-    }
-  }, [isRestrictedRole]);
-
-  const fetchPatient = async () => {
+  const fetchPatient = useCallback(async () => {
     try {
       setIsLoading(true);
       setError('');
@@ -84,7 +80,7 @@ const PatientChart = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id]);
 
   const handleCheckIn = async (e) => {
     e.preventDefault();
@@ -105,6 +101,12 @@ const PatientChart = () => {
   };
 
   const handleCheckOut = () => {
+    const checkInLog = (patient?.logs || []).find((log) => log.event_type === 'Check-in');
+    setExcuseReason(checkInLog ? `Checked in due to: ${checkInLog.details}` : '');
+    setExcuseStartDate(clinicDateString());
+    setExcuseEndDate(clinicDateString());
+    setIssueExcuseSlip(false);
+    setNotifyTeacher(false);
     setShowCheckOutModal(true);
   };
 
@@ -139,10 +141,10 @@ const PatientChart = () => {
   };
 
   useEffect(() => {
-    if (id) {
-      fetchPatient();
-    }
-  }, [id]);
+    if (!id) return undefined;
+    const initial = setTimeout(fetchPatient, 0);
+    return () => clearTimeout(initial);
+  }, [fetchPatient, id]);
 
   const handleRecordVitals = async (vitalsData) => {
     try {
@@ -158,11 +160,15 @@ const PatientChart = () => {
       await api.updateImmunization(id, {
         vaccine_name: vaccineName,
         doses_received: dosesReceived,
-        doses_required: dosesRequired
+        doses_required: dosesRequired,
+        verified: true
       });
-      fetchPatient();
+      await fetchPatient();
+      return true;
     } catch (err) {
       console.error("Error updating immunization:", err);
+      window.alert('Could not save immunization history: ' + err.message);
+      return false;
     }
   };
 
@@ -254,7 +260,7 @@ const PatientChart = () => {
           <div>
             <h2 style={{ marginBottom: 2 }}>{patient.name}</h2>
             <p className="text-muted" style={{ fontSize: 'var(--text-sm)' }}>
-              Patient ID: <span className="font-mono">{patient.id}</span> &bull; {patient.age ? `${patient.age} yrs old` : ''} &bull; {patient.gender} &bull; {patient.grade_level ? `${patient.grade_level} — ` : ''}{patient.section || 'Unassigned'}
+              Patient ID: <span className="font-mono">{patient.id}</span> &bull; {patient.age !== null && patient.age !== undefined ? `${patient.age} yrs old` : ''} &bull; {patient.gender || 'Gender not recorded'} &bull; {patient.grade_level ? `${patient.grade_level} — ` : ''}{patient.section || 'Unassigned'}
             </p>
           </div>
         </div>
@@ -288,30 +294,27 @@ const PatientChart = () => {
           );
         }
 
-        const hasAllergies = patient.allergies && patient.allergies.toLowerCase() !== 'none' && patient.allergies.trim() !== '';
-        const hasConditions = patient.chronic_conditions && patient.chronic_conditions.toLowerCase() !== 'none' && patient.chronic_conditions.trim() !== '';
-
-        if (hasAllergies || hasConditions) {
-          return (
-            <div className="critical-flags-banner danger anim-fade-up delay-1">
-              <ShieldAlert size={20} style={{ color: 'var(--primary)' }} />
-              <div className="flags-content">
-                <strong>Critical Medical Flags:</strong>
-                {hasAllergies && <span className="flag-item allergy-flag">Allergies: {patient.allergies}</span>}
-                {hasConditions && <span className="flag-item condition-flag">Chronic Conditions: {patient.chronic_conditions}</span>}
-              </div>
+        const allergyStatus = clinicalEntryStatus(patient.allergies, noKnownAllergyValues);
+        const conditionStatus = clinicalEntryStatus(patient.chronic_conditions, noKnownConditionValues);
+        const hasDocumentedFlag = allergyStatus === 'documented' || conditionStatus === 'documented';
+        const needsReview = allergyStatus === 'unknown' || conditionStatus === 'unknown';
+        const bannerClass = hasDocumentedFlag ? 'danger' : needsReview ? 'review' : 'success';
+        return (
+          <div className={`critical-flags-banner ${bannerClass} anim-fade-up delay-1`}>
+            {hasDocumentedFlag || needsReview
+              ? <ShieldAlert size={20} aria-hidden="true" />
+              : <CheckCircle size={20} aria-hidden="true" />}
+            <div className="flags-content">
+              <strong>Medical History:</strong>
+              {allergyStatus === 'unknown' && <span className="flag-item review-flag">Allergy history not reviewed</span>}
+              {allergyStatus === 'clear' && <span className="flag-item clear-flag">No known allergies (reviewed)</span>}
+              {allergyStatus === 'documented' && <span className="flag-item allergy-flag">Allergies: {patient.allergies}</span>}
+              {conditionStatus === 'unknown' && <span className="flag-item review-flag">Chronic conditions not reviewed</span>}
+              {conditionStatus === 'clear' && <span className="flag-item clear-flag">No known chronic conditions (reviewed)</span>}
+              {conditionStatus === 'documented' && <span className="flag-item condition-flag">Chronic Conditions: {patient.chronic_conditions}</span>}
             </div>
-          );
-        } else {
-          return (
-            <div className="critical-flags-banner success anim-fade-up delay-1">
-              <CheckCircle size={20} style={{ color: 'var(--primary)' }} />
-              <div className="flags-content">
-                <span className="no-flags">No Critical Flags Listed</span>
-              </div>
-            </div>
-          );
-        }
+          </div>
+        );
       })()}
 
       {/* Tabs */}
@@ -319,8 +322,8 @@ const PatientChart = () => {
         {availableTabs.map(tab => {
           const Icon = tab.icon;
           return (
-            <button key={tab.key} className={`ctab ${activeTab === tab.key ? 'active' : ''}`} onClick={() => setActiveTab(tab.key)}>
-              <Icon size={15} style={{ color: activeTab === tab.key ? '#fff' : 'var(--primary)' }} /> {tab.label}
+            <button key={tab.key} className={`ctab ${displayedTab === tab.key ? 'active' : ''}`} onClick={() => setActiveTab(tab.key)}>
+              <Icon size={15} style={{ color: displayedTab === tab.key ? '#fff' : 'var(--primary)' }} /> {tab.label}
             </button>
           );
         })}
@@ -328,7 +331,7 @@ const PatientChart = () => {
 
       {/* Content */}
       <div className="patient-chart-body anim-fade-up delay-3">
-        {activeTab === 'overview' && (
+        {displayedTab === 'overview' && (
           <OverviewTab 
             patient={patient} 
             onRecordVitals={handleRecordVitals} 
@@ -338,10 +341,10 @@ const PatientChart = () => {
             isRestrictedRole={isRestrictedRole}
           />
         )}
-        {activeTab === 'soap' && <SOAPTab patient={patient} onSaveNote={handleSaveNote} />}
-        {activeTab === 'orders' && <OrdersTab patient={patient} onSaveOrder={handleSaveOrder} />}
-        {activeTab === 'history' && <HistoryTab patient={patient} />}
-        {activeTab === 'excuse-slips' && (
+        {displayedTab === 'soap' && <SOAPTab patient={patient} onSaveNote={handleSaveNote} onCompleteCheckout={() => { setActiveTab('overview'); handleCheckOut(); }} />}
+        {displayedTab === 'orders' && <OrdersTab patient={patient} user={user} onSaveOrder={handleSaveOrder} />}
+        {displayedTab === 'history' && <HistoryTab patient={patient} />}
+        {displayedTab === 'excuse-slips' && (
           <ExcuseSlipsTab 
             patient={patient} 
             onCreateExcuseSlip={handleCreateExcuseSlip}
@@ -390,8 +393,12 @@ const PatientChart = () => {
             </div>
             <form onSubmit={handleCheckOutConfirm}>
               <p className="text-muted" style={{ fontSize: 'var(--text-xs)', marginBottom: 14, textAlign: 'left' }}>
-                Clear the student's status in the clinic and notify parents, teachers, and security.
+                Check-Out changes the clinic status to Checked Out. If a valid parent email is on file, the configured parent notification is attempted and the outcome is shown after saving. An excuse slip and adviser notice are optional; security clearance follows the separate departure approval workflow.
               </p>
+              {!isValidEmail(patient?.parent_email) && <div className="alert-bar alert-warning" role="status" style={{ marginBottom: 14 }}>
+                <AlertCircle size={16} />
+                <span>No valid parent email is on file. Check-Out can still be recorded, but a parent email cannot be sent.</span>
+              </div>}
 
               <div className="consent-bar" style={{ marginBottom: 14 }}>
                 <label className="consent-label" style={{ color: 'var(--gray-700)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -401,7 +408,7 @@ const PatientChart = () => {
                     onChange={(e) => setIssueExcuseSlip(e.target.checked)}
                     style={{ accentColor: 'var(--primary)', marginTop: 0 }}
                   />
-                  <span>Generate Medical Excuse Certificate (Recommended)</span>
+                  <span>Generate an excuse slip and start its approval workflow</span>
                 </label>
               </div>
 
@@ -445,11 +452,13 @@ const PatientChart = () => {
                       <input
                         type="checkbox"
                         checked={notifyTeacher}
+                        disabled={!isValidEmail(patient?.adviser_email)}
                         onChange={(e) => setNotifyTeacher(e.target.checked)}
                         style={{ accentColor: 'var(--primary)', marginTop: 0 }}
                       />
-                      <span>Notify homeroom teacher automatically</span>
+                      <span>Notify the homeroom adviser by email</span>
                     </label>
+                    {!isValidEmail(patient?.adviser_email) && <p className="form-hint" style={{ margin: '6px 0 0 26px' }}>No valid adviser email is configured for this student.</p>}
                   </div>
                 </>
               )}
@@ -472,19 +481,29 @@ const ImmunizationMatrix = ({ patient, onUpdateDoses }) => {
   const immunizations = patient.immunizations || [];
   const [showAddForm, setShowAddForm] = useState(false);
   const [newVaccineName, setNewVaccineName] = useState('');
-  const [newDosesRequired, setNewDosesRequired] = useState('2');
+  const [newDosesRequired, setNewDosesRequired] = useState('');
+  const [newDosesReceived, setNewDosesReceived] = useState('');
+  const [sourceReviewed, setSourceReviewed] = useState(false);
 
   const handleAddVaccine = async (e) => {
     e.preventDefault();
-    if (!newVaccineName.trim()) return;
-    const reqDoses = parseInt(newDosesRequired);
-    if (isNaN(reqDoses) || reqDoses <= 0) {
-      alert("Required doses must be a positive number.");
+    if (!newVaccineName.trim() || newDosesReceived === '' || !sourceReviewed) return;
+    const reqDoses = Number(newDosesRequired);
+    const receivedDoses = Number(newDosesReceived);
+    if (!Number.isInteger(reqDoses) || reqDoses <= 0 || reqDoses > 50) {
+      alert("Required doses must be a whole number from 1 to 50.");
       return;
     }
-    await onUpdateDoses(newVaccineName.trim(), 0, reqDoses);
+    if (!Number.isInteger(receivedDoses) || receivedDoses < 0 || receivedDoses > reqDoses) {
+      alert("Doses received must be a whole number within the required count.");
+      return;
+    }
+    const saved = await onUpdateDoses(newVaccineName.trim(), receivedDoses, reqDoses);
+    if (saved === false) return;
     setNewVaccineName('');
-    setNewDosesRequired('2');
+    setNewDosesRequired('');
+    setNewDosesReceived('');
+    setSourceReviewed(false);
     setShowAddForm(false);
   };
 
@@ -492,18 +511,21 @@ const ImmunizationMatrix = ({ patient, onUpdateDoses }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
       {immunizations.length === 0 ? (
         <div className="empty-sm">
-          <p className="text-muted">No immunization records available.</p>
+          <p className="text-muted">No immunization history is recorded. Verify the source record before adding doses; no entry does not mean no vaccines were received.</p>
         </div>
       ) : (
         <div className="immunization-list" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {immunizations.map(imm => {
-            const isComplete = imm.doses_received >= imm.doses_required;
+            const isVerified = imm.verification_status === 'verified';
+            const isComplete = isVerified && imm.doses_received >= imm.doses_required;
             return (
               <div key={imm.id} className={`immunization-row ${isComplete ? 'complete' : ''}`}>
                 <div className="imm-info">
                   <span className="imm-name">{imm.vaccine_name}</span>
                   <span className="imm-status-text text-muted">
-                    {imm.doses_received} of {imm.doses_required} doses received
+                    {isVerified
+                      ? `${imm.doses_received} of ${imm.doses_required} doses recorded`
+                      : `Unverified count: ${imm.doses_received} of ${imm.doses_required}. Review source history.`}
                   </span>
                 </div>
                 
@@ -516,11 +538,13 @@ const ImmunizationMatrix = ({ patient, onUpdateDoses }) => {
                         key={idx}
                         type="button"
                         className={`dose-circle-btn ${isSelected ? 'active' : ''}`}
+                        disabled={!isVerified}
                         onClick={() => {
                           const targetDoses = isSelected && imm.doses_received === doseNum ? doseNum - 1 : doseNum;
                           onUpdateDoses(imm.vaccine_name, targetDoses, imm.doses_required);
                         }}
-                        title={`Mark dose ${doseNum}`}
+                        aria-label={`Mark ${doseNum} of ${imm.doses_required} ${imm.vaccine_name} doses as received after reviewing the source record`}
+                        title={`Mark dose ${doseNum} as received`}
                       >
                         {doseNum}
                       </button>
@@ -529,7 +553,14 @@ const ImmunizationMatrix = ({ patient, onUpdateDoses }) => {
                 </div>
 
                 <div className="imm-status-badge">
-                  {isComplete ? (
+                  {!isVerified ? (
+                    <>
+                      <span className="badge badge-yellow">Not verified</span>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => onUpdateDoses(imm.vaccine_name, imm.doses_received, imm.doses_required)}>
+                        Verify history
+                      </button>
+                    </>
+                  ) : isComplete ? (
                     <span className="badge badge-green">Complete</span>
                   ) : (
                     <span className="badge badge-yellow">Outstanding</span>
@@ -544,8 +575,9 @@ const ImmunizationMatrix = ({ patient, onUpdateDoses }) => {
       {showAddForm ? (
         <form onSubmit={handleAddVaccine} style={{ marginTop: 8, padding: 14, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <span className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Vaccine Name</span>
+            <label className="form-label" htmlFor="immunization-new-name" style={{ fontSize: 11, fontWeight: 600 }}>Vaccine Name</label>
             <input 
+              id="immunization-new-name"
               type="text" 
               className="form-input" 
               placeholder="e.g. COVID-19, Flu Shot, HPV" 
@@ -555,18 +587,18 @@ const ImmunizationMatrix = ({ patient, onUpdateDoses }) => {
             />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <span className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Doses Required</span>
-            <select 
-              className="form-select" 
-              value={newDosesRequired} 
-              onChange={(e) => setNewDosesRequired(e.target.value)}
-            >
-              <option value="1">1 Dose</option>
-              <option value="2">2 Doses</option>
-              <option value="3">3 Doses</option>
-              <option value="4">4 Doses</option>
-            </select>
+            <label className="form-label" htmlFor="immunization-required" style={{ fontSize: 11, fontWeight: 600 }}>Doses Required in the Source Schedule</label>
+            <input id="immunization-required" type="number" min="1" max="50" step="1" required className="form-input" value={newDosesRequired} onChange={(e) => { setNewDosesRequired(e.target.value); setNewDosesReceived(''); }} />
+            <span className="form-hint">Schedules vary. Enter the count from the applicable record or clinic protocol.</span>
           </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" htmlFor="immunization-received" style={{ fontSize: 11, fontWeight: 600 }}>Doses Received in the Source Record</label>
+            <input id="immunization-received" type="number" min="0" max={newDosesRequired || undefined} step="1" className="form-input" required value={newDosesReceived} onChange={(e) => setNewDosesReceived(e.target.value)} />
+          </div>
+          <label className="consent-label">
+            <input type="checkbox" required checked={sourceReviewed} onChange={(e) => setSourceReviewed(e.target.checked)} />
+            <span>I reviewed the source immunization record and entered its dose count.</span>
+          </label>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAddForm(false)}>Cancel</button>
             <button type="submit" className="btn btn-primary btn-sm">Add Vaccine</button>
@@ -658,14 +690,14 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
       name: patient.name || '',
       date_of_birth: patient.date_of_birth || '',
       age: patient.age?.toString() || '',
-      gender: patient.gender || '',
+      gender: patient.gender || 'Not recorded',
       grade_level: patient.grade_level || '',
       section: patient.section || '',
       status: patient.status || 'Active',
       status_color: patient.status_color || 'green',
       graduation_year: patient.graduation_year?.toString() || '',
-      allergies: patient.allergies || '',
-      chronic_conditions: patient.chronic_conditions || '',
+      allergies: patient.allergies || 'Unknown - not reviewed',
+      chronic_conditions: patient.chronic_conditions || 'Unknown - not reviewed',
       emergency_contact_name: patient.emergency_contact_name || '',
       emergency_contact_phone: patient.emergency_contact_phone || '',
       emergency_contact_relationship: patient.emergency_contact_relationship || '',
@@ -686,13 +718,10 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
     setEditData(prev => {
       const updated = { ...prev, [name]: value };
       if (name === 'date_of_birth' && value) {
-        const birthDate = new Date(value);
-        const today = new Date();
-        let calculatedAge = today.getFullYear() - birthDate.getFullYear();
-        const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) calculatedAge--;
-        updated.age = calculatedAge >= 0 ? calculatedAge.toString() : '';
+        const calculatedAge = clinicAgeAtDateOfBirth(value);
+        updated.age = calculatedAge !== null && calculatedAge >= 0 ? calculatedAge.toString() : '';
       }
+      if (name === 'age') updated.date_of_birth = '';
       if (name === 'status') {
         const colorMap = { 'Checked In': 'amber', 'Checked Out': 'gray' };
         updated.status_color = colorMap[value] || 'gray';
@@ -705,13 +734,9 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
     e.preventDefault();
     if (!editData.name?.trim()) return;
 
-    if (editData.date_of_birth) {
-      const birthDate = new Date(editData.date_of_birth);
-      const today = new Date();
-      if (birthDate > today) {
-        alert("Date of birth cannot be in the future.");
-        return;
-      }
+    if (editData.date_of_birth && editData.date_of_birth > clinicDateString()) {
+      alert("Date of birth cannot be in the future.");
+      return;
     }
 
     if (editData.graduation_year) {
@@ -816,7 +841,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" htmlFor="edit-age">Age</label>
-                <input id="edit-age" type="number" name="age" className="form-input" value={editData.age} onChange={handleEditChange} placeholder="Auto-calculated" />
+                <input id="edit-age" type="number" min="0" max="150" step="1" name="age" className="form-input" disabled={Boolean(editData.date_of_birth)} value={editData.age} onChange={handleEditChange} placeholder="Enter if date of birth is unavailable" />
               </div>
             </div>
             <div className="form-row-2">
@@ -827,6 +852,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
                   <option value="Other">Other</option>
+                  <option value="Not recorded">Not recorded</option>
                 </select>
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
@@ -855,11 +881,13 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
             <div className="form-row-2">
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" htmlFor="edit-allergies">Critical Allergies</label>
-                <input id="edit-allergies" type="text" name="allergies" className="form-input" value={editData.allergies} onChange={handleEditChange} placeholder="e.g. Peanut, Penicillin" />
+                <input id="edit-allergies" type="text" name="allergies" className="form-input" value={editData.allergies} onChange={handleEditChange} placeholder="List allergies or record no known allergies after review" aria-describedby="edit-allergies-help" />
+                <span id="edit-allergies-help" className="form-hint">Blank or “None” is treated as unknown. Use “No known allergies” only after checking the source record.</span>
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" htmlFor="edit-conditions">Chronic Conditions</label>
-                <input id="edit-conditions" type="text" name="chronic_conditions" className="form-input" value={editData.chronic_conditions} onChange={handleEditChange} placeholder="e.g. Asthma, Diabetes" />
+                <input id="edit-conditions" type="text" name="chronic_conditions" className="form-input" value={editData.chronic_conditions} onChange={handleEditChange} placeholder="List conditions or state none after review" aria-describedby="edit-conditions-help" />
+                <span id="edit-conditions-help" className="form-hint">Use “No known chronic conditions” after checking the source record.</span>
               </div>
             </div>
 
@@ -907,15 +935,15 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
         ) : (
           <div className="demo-details" style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--text-sm)' }}>
             <div><strong>Full Name:</strong> {patient.name}</div>
-            <div><strong>Date of Birth:</strong> {patient.date_of_birth ? new Date(patient.date_of_birth).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</div>
-            <div><strong>Age:</strong> {patient.age ? `${patient.age} years old` : '—'}</div>
+            <div><strong>Date of Birth:</strong> {patient.date_of_birth ? formatClinicDate(patient.date_of_birth, { dateStyle: 'long' }) : '—'}</div>
+            <div><strong>Age:</strong> {patient.age !== null && patient.age !== undefined ? `${patient.age} years old` : '—'}</div>
             <div><strong>Gender:</strong> {patient.gender || '—'}</div>
             <div><strong>Grade Level:</strong> {patient.grade_level || '—'}</div>
             <div><strong>Section / Room:</strong> {patient.section || '—'}</div>
             <div><strong>Graduation Year:</strong> {patient.graduation_year || '—'}</div>
             <div><strong>Parent Email:</strong> {patient.parent_email || '—'}</div>
             <div><strong>Homeroom Adviser:</strong> {patient.adviser_name || '—'} {patient.adviser_email ? `(${patient.adviser_email})` : ''}</div>
-            <div><strong>Registered:</strong> {new Date(patient.created_at).toLocaleDateString()}</div>
+            <div><strong>Registered:</strong> {formatClinicDate(patient.created_at)}</div>
           </div>
         )}
       </div>
@@ -948,12 +976,12 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
         {hasConsent ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f0fdf4', borderRadius: 'var(--radius-md)', border: '1px solid #dcfce7', color: '#166534', marginBottom: 12, fontSize: 'var(--text-sm)' }}>
             <ShieldCheck size={16} style={{ color: 'var(--primary)' }} />
-            <strong>Consent Verified</strong>
+            <strong>{patient.consents.length} consent document{patient.consents.length === 1 ? '' : 's'} on file</strong>
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fef2f2', borderRadius: 'var(--radius-md)', border: '1px solid #fee2e2', color: '#991b1b', marginBottom: 12, fontSize: 'var(--text-sm)' }}>
             <ShieldAlert size={16} style={{ color: 'var(--primary)' }} />
-            <strong>Consent Missing</strong>
+            <strong>No consent documents on file</strong>
           </div>
         )}
 
@@ -964,7 +992,7 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
                 <div><strong>Type:</strong> {c.consent_type}</div>
                 <div><strong>Parent:</strong> {c.parent_name}</div>
                 <div><strong>File:</strong> <span className="text-primary" style={{ fontWeight: 600 }}>{c.document_name}</span></div>
-                <div><strong>Granted:</strong> {new Date(c.date_granted).toLocaleDateString()}</div>
+                <div><strong>Granted:</strong> {formatClinicDate(c.date_granted)}</div>
                 {c.notes && <div style={{ marginTop: 4 }}><strong>Notes:</strong> {c.notes}</div>}
               </div>
             ))
@@ -988,28 +1016,28 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
             <form onSubmit={handleSubmit} style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div className="form-row-2">
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: 11 }}>Temp (°C)</label>
-                  <input type="number" step="0.1" name="temperature" className="form-input" required value={vitalsData.temperature} onChange={(e) => setVitalsData({...vitalsData, temperature: e.target.value})} placeholder="e.g. 36.8" />
+                  <label className="form-label" htmlFor="vital-temperature" style={{ fontSize: 11 }}>Temp (°C)</label>
+                  <input id="vital-temperature" type="number" min="0.1" max="50" step="0.1" name="temperature" className="form-input" required value={vitalsData.temperature} onChange={(e) => setVitalsData({...vitalsData, temperature: e.target.value})} placeholder="e.g. 36.8" />
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: 11 }}>Heart Rate (bpm)</label>
-                  <input type="number" name="heart_rate" className="form-input" required value={vitalsData.heart_rate} onChange={(e) => setVitalsData({...vitalsData, heart_rate: e.target.value})} placeholder="e.g. 72" />
-                </div>
-              </div>
-              <div className="form-row-2">
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: 11 }}>Blood Pressure</label>
-                  <input type="text" name="blood_pressure" className="form-input" required value={vitalsData.blood_pressure} onChange={(e) => setVitalsData({...vitalsData, blood_pressure: e.target.value})} placeholder="e.g. 120/80" />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: 11 }}>O₂ Sat (%)</label>
-                  <input type="number" name="o2_sat" className="form-input" required value={vitalsData.o2_sat} onChange={(e) => setVitalsData({...vitalsData, o2_sat: e.target.value})} placeholder="e.g. 98" />
+                  <label className="form-label" htmlFor="vital-heart-rate" style={{ fontSize: 11 }}>Heart Rate (bpm)</label>
+                  <input id="vital-heart-rate" type="number" min="1" max="300" step="1" name="heart_rate" className="form-input" required value={vitalsData.heart_rate} onChange={(e) => setVitalsData({...vitalsData, heart_rate: e.target.value})} placeholder="e.g. 72" />
                 </div>
               </div>
               <div className="form-row-2">
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: 11 }}>Respiratory Rate (breaths/min)</label>
-                  <input type="number" name="respiratory_rate" className="form-input" required value={vitalsData.respiratory_rate} onChange={(e) => setVitalsData({...vitalsData, respiratory_rate: e.target.value})} placeholder="e.g. 18" />
+                  <label className="form-label" htmlFor="vital-blood-pressure" style={{ fontSize: 11 }}>Blood Pressure (mmHg)</label>
+                  <input id="vital-blood-pressure" type="text" name="blood_pressure" className="form-input" required value={vitalsData.blood_pressure} onChange={(e) => setVitalsData({...vitalsData, blood_pressure: e.target.value})} placeholder="e.g. 120/80" />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" htmlFor="vital-o2-sat" style={{ fontSize: 11 }}>O₂ Saturation (%)</label>
+                  <input id="vital-o2-sat" type="number" min="0" max="100" step="1" name="o2_sat" className="form-input" required value={vitalsData.o2_sat} onChange={(e) => setVitalsData({...vitalsData, o2_sat: e.target.value})} placeholder="e.g. 98" />
+                </div>
+              </div>
+              <div className="form-row-2">
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" htmlFor="vital-respiratory-rate" style={{ fontSize: 11 }}>Respiratory Rate (breaths/min)</label>
+                  <input id="vital-respiratory-rate" type="number" min="1" max="100" step="1" name="respiratory_rate" className="form-input" required value={vitalsData.respiratory_rate} onChange={(e) => setVitalsData({...vitalsData, respiratory_rate: e.target.value})} placeholder="e.g. 18" />
                 </div>
                 <div className="form-group" style={{ marginBottom: 0, visibility: 'hidden' }}></div>
               </div>
@@ -1127,10 +1155,18 @@ const OverviewTab = ({ patient, onRecordVitals, onUpdateImmunization, onUpdatePa
 };
 
 /* ===== SOAP ===== */
-const SOAPTab = ({ patient, onSaveNote }) => {
-  const [fields, setFields] = useState({ s: '', o: '', a: '', p: '', disposition: 'Returned to Class' });
+const SOAPTab = ({ patient, onSaveNote, onCompleteCheckout }) => {
+  const [fields, setFields] = useState({ s: '', o: '', a: '', p: '', disposition: '' });
   const [saveError, setSaveError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const latestNote = patient.soapNotes?.[0];
+  const latestCheckIn = (patient.logs || []).find((log) => log.event_type === 'Check-in');
+  const latestNoteTime = latestNote?.created_at ? new Date(latestNote.created_at).getTime() : NaN;
+  const latestCheckInTime = latestCheckIn?.created_at ? new Date(latestCheckIn.created_at).getTime() : NaN;
+  const noteIsFromCurrentVisit = !Number.isFinite(latestCheckInTime) || latestNoteTime >= latestCheckInTime;
+  const dispositionNeedsCheckout = noteIsFromCurrentVisit &&
+    ['Returned to Class', 'Sent Home'].includes(latestNote?.disposition) &&
+    ['Checked In', 'Under Observation'].includes(patient.status);
   const update = (key, val) => {
     setSaveError('');
     setFields(prev => ({ ...prev, [key]: val }));
@@ -1153,7 +1189,7 @@ const SOAPTab = ({ patient, onSaveNote }) => {
         plan: fields.p,
         disposition: fields.disposition
       });
-      setFields({ s: '', o: '', a: '', p: '', disposition: 'Returned to Class' });
+      setFields({ s: '', o: '', a: '', p: '', disposition: '' });
     } catch (err) {
       setSaveError(err.message || 'The clinical note could not be saved. Your draft is still here.');
     } finally {
@@ -1179,29 +1215,32 @@ const SOAPTab = ({ patient, onSaveNote }) => {
             <div className="soap-row" key={s.key}>
               <div className={`soap-letter sl-${s.color}`}>{s.key.toUpperCase()}</div>
               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                <span className="form-label">{s.full}</span>
-                <textarea className="form-textarea" rows={s.key === 's' || s.key === 'o' ? 3 : 2} value={fields[s.key]} onChange={(e) => update(s.key, e.target.value)} />
-                <span className="form-hint">{s.hint}</span>
+                <label className="form-label" htmlFor={`soap-${s.key}`}>{s.full}</label>
+                <textarea id={`soap-${s.key}`} className="form-textarea" rows={s.key === 's' || s.key === 'o' ? 3 : 2} value={fields[s.key]} onChange={(e) => update(s.key, e.target.value)} aria-describedby={`soap-${s.key}-hint`} />
+                <span id={`soap-${s.key}-hint`} className="form-hint">{s.hint}</span>
               </div>
             </div>
           ))}
           <div className="soap-row" style={{ marginTop: 12, borderTop: '1px solid var(--gray-200)', paddingTop: 16 }}>
             <div className="soap-letter sl-gray" style={{ visibility: 'hidden' }}>D</div>
             <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-              <span className="form-label" style={{ fontWeight: 600 }}>Disposition Status *</span>
+              <label className="form-label" htmlFor="soap-disposition" style={{ fontWeight: 600 }}>Disposition Status *</label>
               <select 
+                id="soap-disposition"
                 className="form-select" 
+                required
                 style={{ maxWidth: 300 }}
                 value={fields.disposition} 
                 onChange={(e) => update('disposition', e.target.value)}
               >
+                <option value="">Select disposition…</option>
                 <option value="Returned to Class">Returned to Class</option>
                 <option value="Sent Home">Sent Home</option>
                 <option value="Resting in Clinic">Resting in Clinic</option>
                 <option value="Referred to Hospital">Referred to Hospital</option>
                 <option value="Other">Other</option>
               </select>
-              <span className="form-hint">Specify where the student was sent after the encounter</span>
+              <span id="soap-disposition-hint" className="form-hint">This note records disposition only. Clinic status changes through Check-Out or Observation.</span>
             </div>
           </div>
 
@@ -1209,6 +1248,13 @@ const SOAPTab = ({ patient, onSaveNote }) => {
             <button type="submit" className="btn btn-primary" disabled={isSaving}><Save size={15} /> {isSaving ? 'Saving…' : 'Save Note'}</button>
           </div>
         </form>
+        {dispositionNeedsCheckout && (
+          <div className="alert-bar alert-warning" role="status" style={{ marginTop: 16 }}>
+            <AlertCircle size={16} />
+            <span>The latest note says “{latestNote.disposition},” but the student is still {patient.status}. Complete Check-Out to update clinic status and run the configured contact workflow.</span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onCompleteCheckout}>Complete Check-Out</button>
+          </div>
+        )}
       </div>
 
       <div className="card" style={{ marginTop: 20 }}>
@@ -1219,7 +1265,7 @@ const SOAPTab = ({ patient, onSaveNote }) => {
               <div key={n.id} style={{ padding: 14, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--gray-400)', marginBottom: 8 }}>
                   <span>Clinical SOAP Note</span>
-                  <span>{new Date(n.created_at).toLocaleString()}</span>
+                  <span>{formatClinicDateTime(n.created_at)}</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--text-sm)' }}>
                   {n.subjective && <div><strong>S (Subjective):</strong> {n.subjective}</div>}
@@ -1252,9 +1298,9 @@ const SOAPTab = ({ patient, onSaveNote }) => {
 
 /* ===== CLINICAL DECISION SUPPORT HELPERS ===== */
 const checkAllergy = (allergiesStr, orderedMed) => {
-  if (!allergiesStr || allergiesStr.toLowerCase() === 'none' || !orderedMed) return null;
+  if (!allergiesStr || !orderedMed) return null;
   
-  const allergies = allergiesStr.toLowerCase().split(',').map(a => a.trim()).filter(Boolean);
+  const allergies = allergiesStr.toLowerCase().split(',').map(a => a.trim()).filter(a => a && !noKnownAllergyValues.has(a));
   const med = orderedMed.toLowerCase().trim();
   
   for (const allergy of allergies) {
@@ -1272,324 +1318,250 @@ const checkAllergy = (allergiesStr, orderedMed) => {
   return null;
 };
 
-const checkFrequency = (orders, orderedMed) => {
+const getPreviousAdministration = (orders, orderedMed) => {
   if (!orders || !orderedMed) return null;
   
   const med = orderedMed.toLowerCase().trim();
-  const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
-  
-  // Find orders within the last 4 hours
   const matchedOrders = orders
-    .filter(o => o.medication.toLowerCase().trim() === med)
+    .filter(o => o.medication?.toLowerCase().trim() === med)
     .map(o => ({ ...o, date: new Date(o.created_at) }))
-    .filter(o => o.date >= fourHoursAgo)
+    .filter(o => Number.isFinite(o.date.getTime()))
     .sort((a, b) => b.date - a.date);
-    
-  if (matchedOrders.length > 0) {
-    const lastOrder = matchedOrders[0];
-    const minsAgo = Math.round((Date.now() - lastOrder.date.getTime()) / (60 * 1000));
-    return {
-      minsAgo,
-      lastOrder
-    };
-  }
-  return null;
+  return matchedOrders[0] || null;
 };
 
 /* ===== ORDERS ===== */
-const OrdersTab = ({ patient, onSaveOrder }) => {
+const OrdersTab = ({ patient, user, onSaveOrder }) => {
   const [medication, setMedication] = useState('');
   const [customMedication, setCustomMedication] = useState('');
   const [strength, setStrength] = useState('');
-  const [customStrength, setCustomStrength] = useState('');
   const [form, setForm] = useState('');
   const [customForm, setCustomForm] = useState('');
-  const [route, setRoute] = useState('oral');
-  const [administeredBy, setAdministeredBy] = useState('');
+  const [doseAmount, setDoseAmount] = useState('');
+  const [doseUnit, setDoseUnit] = useState('');
+  const [route, setRoute] = useState('');
   const [consent, setConsent] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-
-  // Safety Overrides State
   const [allergyOverride, setAllergyOverride] = useState(false);
-  const [frequencyOverride, setFrequencyOverride] = useState(false);
 
   const drugName = medication === 'other' ? customMedication : medication;
+  const allergyStatus = clinicalEntryStatus(patient.allergies, noKnownAllergyValues);
   const allergyConflict = checkAllergy(patient.allergies, drugName);
-  const frequencyConflict = checkFrequency(patient.orders, drugName);
-
-  // Reset override confirmation if drug changes
-  useEffect(() => {
-    setAllergyOverride(false);
-    setFrequencyOverride(false);
-  }, [medication, customMedication]);
+  const previousAdministration = getPreviousAdministration(patient.orders, drugName);
+  const administeringAccount = user?.email || user?.name || 'Current signed-in account';
+  const canAdminister = ['Checked In', 'Under Observation'].includes(patient.status);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const finalMedication = medication === 'other' ? customMedication : medication;
-    const finalStrength = strength === 'other' ? customStrength : strength;
-    const finalForm = form === 'other' ? customForm : form;
-
-    if (!finalMedication || !finalStrength || !finalForm || !administeredBy || !consent) return;
-    if (allergyConflict && !allergyOverride) return;
-    if (frequencyConflict && !frequencyOverride) return;
+    const finalMedication = medication === 'other' ? customMedication.trim() : medication;
+    const finalForm = form === 'other' ? customForm.trim() : form;
+    if (!canAdminister || !finalMedication || !strength.trim() || !finalForm || !doseAmount || !doseUnit || !route || !consent) return;
+    if (allergyStatus === 'unknown' || (allergyConflict && !allergyOverride)) return;
 
     setSaveError('');
     setIsSaving(true);
     try {
       await onSaveOrder({
         medication: finalMedication,
-        strength: finalStrength,
+        strength: strength.trim(),
         form: finalForm,
+        dose_amount: Number(doseAmount),
+        dose_unit: doseUnit,
         route,
-        administered_by: administeredBy,
-        consent
+        consent,
+        allergy_override: allergyOverride
       });
-
       setMedication('');
       setCustomMedication('');
       setStrength('');
-      setCustomStrength('');
       setForm('');
       setCustomForm('');
-      setRoute('oral');
-      setAdministeredBy('');
+      setDoseAmount('');
+      setDoseUnit('');
+      setRoute('');
       setConsent(false);
+      setAllergyOverride(false);
     } catch (err) {
-      setSaveError(err.message || 'The medication order could not be saved. Your entries are still here.');
+      setSaveError(err.message || 'The administration record could not be saved. Your entries are still here.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const isFormValid = consent && 
-    (medication === 'other' ? customMedication.trim() !== '' : medication !== '') &&
-    (strength === 'other' ? customStrength.trim() !== '' : strength !== '') &&
-    (form === 'other' ? customForm.trim() !== '' : form !== '') &&
-    administeredBy.trim() !== '' &&
-    (!allergyConflict || allergyOverride) &&
-    (!frequencyConflict || frequencyOverride);
+  const finalMedicationIsValid = medication === 'other' ? customMedication.trim() !== '' : medication !== '';
+  const finalFormIsValid = form === 'other' ? customForm.trim() !== '' : form !== '';
+  const isFormValid = canAdminister && consent && finalMedicationIsValid && strength.trim() !== '' && finalFormIsValid &&
+    Number.isFinite(Number(doseAmount)) && Number(doseAmount) > 0 && doseUnit !== '' && route !== '' &&
+    allergyStatus !== 'unknown' && (!allergyConflict || allergyOverride);
 
   return (
     <div className="orders-panel">
       <div className="card">
-        <h4 className="sec-title"><Pill size={15} /> New Medication Order</h4>
+        <h4 className="sec-title"><Pill size={15} /> Record Medication Administration</h4>
+        <p className="text-muted" style={{ marginTop: -6, marginBottom: 16, fontSize: 'var(--text-xs)' }}>
+          Enter the amount actually given. The signed-in account is recorded as the administering clinician: <strong>{administeringAccount}</strong>.
+        </p>
         <form onSubmit={handleSubmit} className="order-form">
           {saveError && <div className="alert-bar alert-danger" role="alert" style={{ marginBottom: 12 }}>{saveError}</div>}
+          {!canAdminister && (
+            <div className="alert-bar alert-warning" role="status" style={{ marginBottom: 12 }}>
+              <AlertCircle size={16} />
+              <span>Medication can only be recorded while the student is Checked In or Under Observation.</span>
+            </div>
+          )}
+          <fieldset disabled={!canAdminister} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Row 1: Medication */}
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               <div className="form-group" style={{ flex: 1, minWidth: 200, marginBottom: 0 }}>
-                <label className="form-label">Medication *</label>
-                <select className="form-select" value={medication} onChange={(e) => setMedication(e.target.value)}>
-                  <option value="">Select medication...</option>
+                <label className="form-label" htmlFor="admin-medication">Medication *</label>
+                <select id="admin-medication" className="form-select" required value={medication} onChange={(e) => { setMedication(e.target.value); setAllergyOverride(false); }}>
+                  <option value="">Select medication…</option>
                   <option value="ibuprofen">Ibuprofen</option>
                   <option value="paracetamol">Paracetamol / Acetaminophen</option>
-                  <option value="salbutamol">Salbutamol Inhaler</option>
+                  <option value="salbutamol">Salbutamol</option>
                   <option value="cetirizine">Cetirizine</option>
                   <option value="amoxicillin">Amoxicillin</option>
-                  <option value="other">Other (Add Custom...)</option>
+                  <option value="other">Other</option>
                 </select>
               </div>
               {medication === 'other' && (
                 <div className="form-group" style={{ flex: 1, minWidth: 200, marginBottom: 0 }}>
-                  <label className="form-label">Custom Medication Name *</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="Enter drug name" 
-                    required 
-                    value={customMedication} 
-                    onChange={(e) => setCustomMedication(e.target.value)} 
-                  />
+                  <label className="form-label" htmlFor="admin-custom-medication">Medication Name *</label>
+                  <input id="admin-custom-medication" type="text" className="form-input" placeholder="Enter medication name" required value={customMedication} onChange={(e) => { setCustomMedication(e.target.value); setAllergyOverride(false); }} />
                 </div>
               )}
             </div>
 
-            {/* Row 2: Strength & Form */}
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
-                <label className="form-label">Strength *</label>
-                <select className="form-select" value={strength} onChange={(e) => setStrength(e.target.value)}>
-                  <option value="">Select strength...</option>
-                  <option value="500mg">500mg</option>
-                  <option value="250mg">250mg</option>
-                  <option value="125mg">125mg</option>
-                  <option value="10mg">10mg</option>
-                  <option value="5ml">5ml</option>
-                  <option value="1 puff">1 puff</option>
-                  <option value="2 puffs">2 puffs</option>
-                  <option value="other">Other (Custom Strength...)</option>
-                </select>
+              <div className="form-group" style={{ flex: 1, minWidth: 200, marginBottom: 0 }}>
+                <label className="form-label" htmlFor="admin-strength">Product Strength / Concentration *</label>
+                <input id="admin-strength" type="text" className="form-input" placeholder="e.g. 500 mg/tablet or 125 mg/5 mL" required value={strength} onChange={(e) => setStrength(e.target.value)} />
               </div>
-              {strength === 'other' && (
-                <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
-                  <label className="form-label">Custom Strength *</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="e.g. 50mg, 10ml" 
-                    required 
-                    value={customStrength} 
-                    onChange={(e) => setCustomStrength(e.target.value)} 
-                  />
-                </div>
-              )}
-
               <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
-                <label className="form-label">Form *</label>
-                <select className="form-select" value={form} onChange={(e) => setForm(e.target.value)}>
-                  <option value="">Select form...</option>
+                <label className="form-label" htmlFor="admin-form">Form *</label>
+                <select id="admin-form" className="form-select" required value={form} onChange={(e) => setForm(e.target.value)}>
+                  <option value="">Select form…</option>
                   <option value="tablet">Tablet</option>
                   <option value="liquid">Liquid</option>
                   <option value="inhaler">Inhaler</option>
-                  <option value="topical cream">Topical Cream</option>
-                  <option value="other">Other (Custom Form...)</option>
+                  <option value="topical cream">Topical cream</option>
+                  <option value="capsule">Capsule</option>
+                  <option value="other">Other</option>
                 </select>
               </div>
               {form === 'other' && (
                 <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
-                  <label className="form-label">Custom Form *</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="e.g. drops, capsule" 
-                    required 
-                    value={customForm} 
-                    onChange={(e) => setCustomForm(e.target.value)} 
-                  />
+                  <label className="form-label" htmlFor="admin-custom-form">Other Form *</label>
+                  <input id="admin-custom-form" type="text" className="form-input" placeholder="Describe the form" required value={customForm} onChange={(e) => setCustomForm(e.target.value)} />
                 </div>
               )}
             </div>
 
-            {/* Row 3: Route & Staff Initials */}
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
-                <label className="form-label">Route *</label>
-                <select className="form-select" value={route} onChange={(e) => setRoute(e.target.value)}>
+                <label className="form-label" htmlFor="admin-dose-amount">Amount Given *</label>
+                <input id="admin-dose-amount" type="number" min="0.001" step="0.001" className="form-input" required value={doseAmount} onChange={(e) => setDoseAmount(e.target.value)} aria-describedby="admin-dose-hint" />
+                <span id="admin-dose-hint" className="form-hint">Record the amount administered, not the product concentration.</span>
+              </div>
+              <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
+                <label className="form-label" htmlFor="admin-dose-unit">Dose Unit *</label>
+                <select id="admin-dose-unit" className="form-select" required value={doseUnit} onChange={(e) => setDoseUnit(e.target.value)}>
+                  <option value="">Select unit…</option>
+                  <option value="mg">mg</option>
+                  <option value="g">g</option>
+                  <option value="mcg">mcg</option>
+                  <option value="mL">mL</option>
+                  <option value="tablet">tablet(s)</option>
+                  <option value="capsule">capsule(s)</option>
+                  <option value="puff">puff(s)</option>
+                  <option value="drop">drop(s)</option>
+                  <option value="patch">patch(es)</option>
+                  <option value="application">application(s)</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
+                <label className="form-label" htmlFor="admin-route">Route *</label>
+                <select id="admin-route" className="form-select" required value={route} onChange={(e) => setRoute(e.target.value)}>
+                  <option value="">Select route…</option>
                   <option value="oral">Oral</option>
                   <option value="inhaled">Inhaled</option>
                   <option value="topical">Topical</option>
                 </select>
               </div>
-              <div className="form-group" style={{ flex: 1, minWidth: 150, marginBottom: 0 }}>
-                <label className="form-label">Administration Staff Initials *</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. KT" 
-                  required 
-                  maxLength={5}
-                  value={administeredBy} 
-                  onChange={(e) => setAdministeredBy(e.target.value)} 
-                />
-              </div>
             </div>
           </div>
 
-          {/* Dynamic Safety Decision Alerts */}
-          {(() => {
-            if (allergyConflict || frequencyConflict) {
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-                  {allergyConflict && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div className="alert-bar alert-danger">
-                        <AlertCircle size={16} />
-                        <span>
-                          <strong>⚠️ Allergy Warning:</strong> Patient has a documented allergy to <strong>{allergyConflict}</strong>. Ordering <strong>{drugName}</strong> is contraindicated.
-                        </span>
-                      </div>
-                      <div className="override-panel danger">
-                        <label className="override-label">
-                          <input 
-                            type="checkbox" 
-                            checked={allergyOverride} 
-                            onChange={(e) => setAllergyOverride(e.target.checked)} 
-                          />
-                          <span>I have clinically verified safety and wish to override this allergy warning.</span>
-                        </label>
-                      </div>
-                    </div>
-                  )}
-
-                  {frequencyConflict && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div className="alert-bar alert-warning">
-                        <AlertCircle size={16} />
-                        <span>
-                          <strong>⚠️ Frequency Warning:</strong> <strong>{drugName}</strong> was already administered <strong>{frequencyConflict.minsAgo} minutes ago</strong> (Dose interval: 4 hours).
-                        </span>
-                      </div>
-                      <div className="override-panel warning">
-                        <label className="override-label">
-                          <input 
-                            type="checkbox" 
-                            checked={frequencyOverride} 
-                            onChange={(e) => setFrequencyOverride(e.target.checked)} 
-                          />
-                          <span>I have clinically verified the dose interval and wish to override this frequency limit.</span>
-                        </label>
-                      </div>
-                    </div>
-                  )}
+          {drugName && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+              {allergyStatus === 'unknown' ? (
+                <div className="alert-bar alert-warning" role="alert">
+                  <AlertCircle size={16} />
+                  <span>Allergy history is unknown or not reviewed. Update the allergy record before recording an administration.</span>
                 </div>
-              );
-            }
-
-            if (drugName) {
-              return (
-                <div className="alert-bar alert-success" style={{ marginTop: 12 }}>
-                  <CheckCircle size={16} />
-                  <span>Allergy & frequency checks completed. No active conflicts found.</span>
+              ) : allergyConflict ? (
+                <>
+                  <div className="alert-bar alert-danger" role="alert">
+                    <AlertCircle size={16} />
+                    <span>A possible name match was found for the recorded allergy <strong>{allergyConflict}</strong>. Review the full chart and clinical guidance before proceeding.</span>
+                  </div>
+                  <div className="override-panel danger">
+                    <label className="override-label">
+                      <input type="checkbox" checked={allergyOverride} onChange={(e) => setAllergyOverride(e.target.checked)} />
+                      <span>I reviewed this possible match and confirmed the clinical decision to proceed.</span>
+                    </label>
+                  </div>
+                </>
+              ) : (
+                <div className="alert-bar alert-info" role="status">
+                  <AlertCircle size={16} />
+                  <span>No direct allergy name match was found. This app does not evaluate interactions, dose appropriateness, or administration intervals.</span>
                 </div>
-              );
-            }
-
-            return (
-              <div className="alert-bar alert-info" style={{ marginTop: 12 }}>
-                <AlertCircle size={16} />
-                <span>Select a medication to complete clinical decision checks.</span>
-              </div>
-            );
-          })()}
+              )}
+              {previousAdministration && (
+                <div className="alert-bar alert-warning" role="status">
+                  <Clock size={16} />
+                  <span>Previous chart administration: {displayAdministeredDose(previousAdministration)} on {formatClinicDateTime(previousAdministration.date)}. Review the full record and applicable medication schedule; the app does not apply an interval rule.</span>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="consent-bar" style={{ marginTop: 12 }}>
             <label className="consent-label">
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-              <span>I confirm that parental/guardian consent has been verified prior to administration.</span>
+              <span>I confirm that guardian consent was verified before administration.</span>
             </label>
           </div>
+          </fieldset>
 
           <button type="submit" className="btn btn-primary" style={{ marginTop: 12 }} disabled={!isFormValid || isSaving}>
-            <CheckCircle size={15} /> {isSaving ? 'Saving…' : 'Execute Order'}
+            <CheckCircle size={15} /> {isSaving ? 'Saving…' : 'Record Administration'}
           </button>
         </form>
       </div>
 
       <div className="card" style={{ marginTop: 20 }}>
-        <h4 className="sec-title"><Clock size={15} /> Administration Log</h4>
+        <h4 className="sec-title"><Clock size={15} /> Administration History</h4>
         {patient.orders && patient.orders.length > 0 ? (
           <div className="orders-history" style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
             {patient.orders.map(o => (
-              <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)' }}>
+              <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, padding: 12, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--gray-200)' }}>
                 <div style={{ fontSize: 'var(--text-sm)' }}>
-                  <strong>{o.medication.charAt(0).toUpperCase() + o.medication.slice(1)}</strong> — {o.dosage} ({o.route})
-                  {o.administered_by && (
-                    <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>
-                      Administered by: <strong>{o.administered_by}</strong>
-                    </div>
-                  )}
+                  <strong>{o.medication.charAt(0).toUpperCase() + o.medication.slice(1)}</strong>
+                  <div>Dose given: {displayAdministeredDose(o)} {o.route && `· ${o.route}`}</div>
+                  {(o.strength || o.form) && <div className="text-muted">Product: {[o.strength, o.form].filter(Boolean).join(' · ')}</div>}
+                  {o.administered_by && <div className="text-muted">Recorded by: {o.administered_by}</div>}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontSize: 10, color: 'var(--gray-400)' }}>
-                  <span style={{ color: 'var(--success)', fontWeight: 600 }}>Consent Verified</span>
-                  <span>{new Date(o.created_at).toLocaleString()}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, fontSize: 10, color: 'var(--gray-500)' }}>
+                  <span style={{ color: o.consent ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>{o.consent ? 'Consent attested' : 'Consent not recorded (legacy)'}</span>
+                  <span>{formatClinicDateTime(o.created_at)}</span>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="empty-sm"><p className="text-muted">No medications administered.</p></div>
+          <div className="empty-sm"><p className="text-muted">No medication administrations are recorded.</p></div>
         )}
       </div>
     </div>
@@ -1605,13 +1577,13 @@ const HistoryTab = ({ patient }) => (
         {patient.logs.map(l => (
           <div key={l.id} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--gray-100)' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-400)', minWidth: 64 }}>
-              {new Date(l.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {formatClinicDateTime(l.created_at, { timeStyle: 'short' })}
             </div>
             <div style={{ fontSize: 'var(--text-sm)', flex: 1 }}>
               <strong>{l.event_type}:</strong> {l.details}
             </div>
             <div style={{ fontSize: 10, color: 'var(--gray-400)' }}>
-              {new Date(l.created_at).toLocaleDateString()}
+              {formatClinicDate(l.created_at)}
             </div>
           </div>
         ))}
@@ -1689,7 +1661,7 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
                     Reason: {slip.excuse_reason}
                   </span>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
-                    Duration: {new Date(slip.start_date).toLocaleDateString()} to {new Date(slip.end_date).toLocaleDateString()}
+                    Duration: {formatClinicDate(slip.start_date)} to {formatClinicDate(slip.end_date)}
                   </span>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
                     Teacher email: <strong>{slip.teacher_notified || 'Not requested'}</strong>
@@ -1698,7 +1670,7 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
                     Departure approval: <strong style={{ color: slip.departure_approved ? 'var(--success)' : 'var(--warning)' }}>{slip.departure_approved ? 'Approved' : 'Pending'}</strong>
                   </span>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>
-                    Issued by: {slip.created_by || 'Unknown'} on {new Date(slip.created_at).toLocaleDateString()}
+                    Issued by: {slip.created_by || 'Unknown'} on {formatClinicDate(slip.created_at)}
                   </span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
@@ -1860,12 +1832,12 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
                   </div>
                   <div>
                     <span style={{ color: 'var(--gray-400)', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '2px', letterSpacing: '0.05em' }}>Evaluation Date</span>
-                    <span style={{ color: 'var(--gray-700)', fontWeight: 600 }}>{new Date(selectedSlip.created_at).toLocaleDateString(undefined, { dateStyle: 'long' })}</span>
+                    <span style={{ color: 'var(--gray-700)', fontWeight: 600 }}>{formatClinicDate(selectedSlip.created_at, { dateStyle: 'long' })}</span>
                   </div>
                   <div>
                     <span style={{ color: 'var(--gray-400)', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '2px', letterSpacing: '0.05em' }}>Excuse Period</span>
                     <strong style={{ color: 'var(--primary)', fontWeight: 700 }}>
-                      {new Date(selectedSlip.start_date).toLocaleDateString(undefined, { dateStyle: 'medium' })} to {new Date(selectedSlip.end_date).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                      {formatClinicDate(selectedSlip.start_date)} to {formatClinicDate(selectedSlip.end_date)}
                     </strong>
                   </div>
                 </div>
@@ -1878,7 +1850,7 @@ const ExcuseSlipsTab = ({ patient, onCreateExcuseSlip, isRestrictedRole }) => {
                   </div>
                   <div style={{ marginTop: '10px', fontSize: '10.5px', color: 'var(--gray-500)' }}>
                     Based on this evaluation, the student is excused from classroom attendance and physical activities for the duration specified. Homeroom teacher notification: <strong>{selectedSlip.teacher_notified || 'No'}</strong>.
-                    Departure approval: <strong>{selectedSlip.departure_approved ? `Approved (${new Date(selectedSlip.departure_approved_at).toLocaleDateString()})` : 'Pending'}</strong>.
+                    Departure approval: <strong>{selectedSlip.departure_approved ? `Approved (${formatClinicDate(selectedSlip.departure_approved_at)})` : 'Pending'}</strong>.
                   </div>
                 </div>
 

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   UserCheck, Bed, AlertTriangle, FileText,
-  ArrowUpRight, Calendar, ChevronLeft, ChevronRight,
+  ArrowUpRight, ChevronLeft, ChevronRight,
   Activity, Users, TrendingUp, Clock, Pill, Home, LogOut
 } from 'lucide-react';
 import { useAuth } from '../../App';
@@ -38,18 +38,20 @@ const DashboardHome = () => {
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [timeTick, setTimeTick] = useState(0);
+  const [currentTime, setCurrentTime] = useState(null);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeTick(t => t + 1);
-    }, 60000);
-    return () => clearInterval(timer);
+    const initial = setTimeout(() => setCurrentTime(Date.now()), 0);
+    const timer = setInterval(() => setCurrentTime(Date.now()), 60000);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(timer);
+    };
   }, []);
 
   const formatDuration = (entryTime) => {
-    if (!entryTime) return '—';
-    const diffMs = Date.now() - new Date(entryTime).getTime();
+    if (!entryTime || !currentTime) return '—';
+    const diffMs = currentTime - new Date(entryTime).getTime();
     if (diffMs < 0) return 'Just now';
     const diffMins = Math.floor(diffMs / 60000);
     if (diffMins < 60) {
@@ -74,7 +76,7 @@ const DashboardHome = () => {
     return days;
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setLoadError('');
@@ -97,9 +99,9 @@ const DashboardHome = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchActivityFeed = async (date) => {
+  const fetchActivityFeed = useCallback(async (date) => {
     try {
       const dateStr = localDateString(date);
       const res = await api.getDashboardActivity(dateStr);
@@ -109,7 +111,7 @@ const DashboardHome = () => {
     } catch (err) {
       console.error("Error fetching activity feed:", err);
     }
-  };
+  }, []);
 
   const handleQuickCheckOut = async (e, id) => {
     e.stopPropagation();
@@ -125,19 +127,22 @@ const DashboardHome = () => {
   };
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    const initial = setTimeout(fetchDashboardData, 0);
+    return () => clearTimeout(initial);
+  }, [fetchDashboardData]);
 
   useEffect(() => {
-    fetchActivityFeed(selectedDate);
-  }, [selectedDate]);
+    const initial = setTimeout(() => fetchActivityFeed(selectedDate), 0);
+    return () => clearTimeout(initial);
+  }, [fetchActivityFeed, selectedDate]);
 
   const getEventIcon = (type) => {
     switch (type) {
       case 'Check-in': return <UserCheck size={14} />;
       case 'Vitals Recorded': return <Activity size={14} />;
       case 'Clinical Note Added': return <FileText size={14} />;
-      case 'Medication Ordered': return <Pill size={14} />;
+      case 'Medication Ordered':
+      case 'Medication Administered': return <Pill size={14} />;
       default: return <Clock size={14} />;
     }
   };
@@ -147,7 +152,8 @@ const DashboardHome = () => {
       case 'Check-in': return 'blue';
       case 'Vitals Recorded': return 'purple';
       case 'Clinical Note Added': return 'amber';
-      case 'Medication Ordered': return 'green';
+      case 'Medication Ordered':
+      case 'Medication Administered': return 'green';
       default: return 'gray';
     }
   };

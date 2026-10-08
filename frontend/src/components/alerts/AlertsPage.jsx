@@ -16,6 +16,7 @@ const emailEventLabels = {
 
 const AlertsPage = () => {
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const navigate = useNavigate();
   const [activeSubTab, setActiveSubTab] = useState('clinical');
   const [highRiskList, setHighRiskList] = useState([]);
@@ -32,7 +33,7 @@ const AlertsPage = () => {
     try {
       const [resStats, resNotifs, resEmailLogs, config] = await Promise.all([
         api.getDashboardStats(),
-        user?.role === 'admin' ? api.getSimulatedNotifications() : Promise.resolve({ data: [] }),
+        isAdmin ? api.getSimulatedNotifications() : Promise.resolve({ data: [] }),
         api.getEmailAlertLogs(),
         api.getEmailConfiguration()
       ]);
@@ -55,7 +56,7 @@ const AlertsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.role]);
+  }, [isAdmin]);
 
   useEffect(() => {
     const initial = setTimeout(fetchAlertsData, 0);
@@ -300,14 +301,14 @@ const AlertsPage = () => {
             )}
           </div>
 
-          {/* Right Side: Automated Parent Logs */}
+          {/* Legacy in-memory simulation only; provider delivery is shown in Email Delivery & Responses. */}
           <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <h3 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, fontSize: '16px' }}>
-                <Smartphone size={18} style={{ color: 'var(--primary)' }} /> Automated Parent Logs
+                <Smartphone size={18} style={{ color: 'var(--gray-500)' }} /> Simulated Notification History
               </h3>
               <p className="text-muted" style={{ margin: '4px 0 0 0', fontSize: 'var(--text-xs)', lineHeight: '1.4' }}>
-                Simulated delivery logs of system-generated notifications routed to parents via SMS/Email gateways.
+                Legacy in-memory demo entries only. They do not send email or SMS or confirm delivery. Use Email Delivery & Responses for provider status and parent replies.
               </p>
             </div>
 
@@ -330,7 +331,7 @@ const AlertsPage = () => {
                 [...notifications].reverse().map(n => (
                   <div key={n.id} style={{ marginBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', fontSize: '9px' }}>
-                      <span>[ALERT DISPATCHED] {n.type}</span>
+                      <span>[SIMULATED — NOT SENT] {n.type}</span>
                       <span>{new Date(n.sent_at).toLocaleTimeString()}</span>
                     </div>
                     <div style={{ color: '#38bdf8', fontSize: '9px', marginTop: 2, fontWeight: 700 }}>
@@ -343,7 +344,7 @@ const AlertsPage = () => {
                 ))
               ) : (
                 <div style={{ color: '#94a3b8', textAlign: 'center', padding: '40px 0' }}>
-                  &gt;&gt; No automated notifications sent yet.
+                  &gt;&gt; No simulated entries. No email or SMS was sent from this panel.
                 </div>
               )}
             </div>

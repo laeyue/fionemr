@@ -257,7 +257,7 @@ test('local backend initializes PostgreSQL, signs in, and persists patient workf
     .select('*', { count: 'exact', head: true })
     .in('patient_id', [patient.id]);
   assert.equal(immunizationRows.error, null);
-  assert.equal(immunizationRows.count, 4);
+  assert.equal(immunizationRows.count, 0);
 
   const upsertResult = await database.from('clinic_settings').upsert({ key: 'backend_test', value: 'initial' });
   assert.equal(upsertResult.error, null);

@@ -389,14 +389,14 @@ const SettingsPage = () => {
                 {user?.role === 'admin' && <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--gray-200)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <h3 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-                      <Smartphone size={18} style={{ color: 'var(--primary)' }} /> Automated Parent Alerts Console
+                      <Smartphone size={18} style={{ color: 'var(--gray-500)' }} /> Legacy Notification Simulation
                     </h3>
                     <button type="button" className="btn btn-ghost btn-sm" onClick={fetchNotifications} disabled={isLoadingNotifs}>
                       {isLoadingNotifs ? <Loader2 size={14} className="spin" /> : 'Refresh Logs'}
                     </button>
                   </div>
                   <p className="text-muted" style={{ fontSize: 'var(--text-sm)', marginBottom: '16px' }}>
-                    Simulated delivery log of automated SMS alerts sent to parents/guardians upon clinic check-ins or medication orders.
+                    In-memory demo entries only. This panel does not send SMS or email and does not confirm delivery. Real email results appear in Alerts under Email Delivery & Responses.
                   </p>
 
                   <div className="notifications-simulation-console" style={{ background: '#0f172a', color: '#38bdf8', fontFamily: 'monospace', padding: 16, borderRadius: 'var(--radius-lg)', maxHeight: 240, overflowY: 'auto', fontSize: 11, border: '1px solid var(--gray-700)' }}>
@@ -404,7 +404,7 @@ const SettingsPage = () => {
                       notifications.map(n => (
                         <div key={n.id} style={{ marginBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 8 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', fontSize: 9 }}>
-                            <span>[SIMULATED] {n.type}</span>
+                            <span>[SIMULATED — NOT SENT] {n.type}</span>
                             <span>{new Date(n.sent_at).toLocaleString()}</span>
                           </div>
                           <div style={{ marginTop: 4, color: '#f8fafc', whiteSpace: 'pre-wrap' }}>
@@ -414,7 +414,7 @@ const SettingsPage = () => {
                       ))
                     ) : (
                       <div style={{ color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>
-                        &gt;&gt; No automated notifications sent yet. Check in a patient or execute a medication order to trigger alerts.
+                        &gt;&gt; No simulated entries. No email or SMS was sent from this panel.
                       </div>
                     )}
                   </div>
